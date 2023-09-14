@@ -206,25 +206,33 @@ block_name: Final = 'Block name'
 
 
 color: Final = 'color'
+
+blue: Final = [x/255 for x in [58, 129, 195]]
+magenta: Final = [x/255 for x in [216, 31, 98]]
+yellow: Final = [x/255 for x in [216, 31, 98]]
+
+
+
 name: Final = 'name'
 
 
-# cond0: Final = 'c'
-# delay: Final = 'delay'
+control: Final = 'control'
+delay: Final = 'delay'
+trace: Final = 'trace'
 # delayNoOpt: Final = 'delaynoopt'
-# trace: Final = 'trace'
 
 # cond1: Final = 'fixedtrace'
 # cond2: Final = 'increasingtrace'
 
 
-blocks_1t: Final = 'single trials'
-blocks_10t: Final = 'blocks 10 trials'
-blocks_phases: Final = 'blocks phases'
+trials: Final = 'single trials'
+blocks: Final = 'blocks of 10 trials'
+phases: Final = 'phases of experiment'
 
 
-trials_blocks: Final = 'trials in each block'
-names_blocks: Final = 'names of blocks'
+number_elements: Final = 'trials in each block'
+names_trials_blocks_phases: Final = 'names of blocks'
+
 id_in_path: Final = 'name in original path'
 
 number_cols_or_rows: Final = 'number of cols or rows'
@@ -232,7 +240,7 @@ number_cols_or_rows: Final = 'number of cols or rows'
 horizontal_fig: Final = 'horizontal'
 fig_size: Final = 'figure size'
 
-us_latency: Final = 'US latency'
+us_latency_after_cs_onset: Final = 'US latency'
 
 
 folder_name: Final = 'folder name'

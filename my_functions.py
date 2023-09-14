@@ -19,70 +19,70 @@ plt.style.use('classic')
 
 
 
-def create_folders(path_home):
+# def create_folders(path_home):
 
-	path_lost_frames = path_home / 'Lost frames'
-	path_lost_frames.mkdir(parents=True, exist_ok=True)
+# 	path_lost_frames = path_home / 'Lost frames'
+# 	path_lost_frames.mkdir(parents=True, exist_ok=True)
 
-	path_summary_exp = path_home / 'Summary of protocol actually run'
-	path_summary_exp.mkdir(parents=True, exist_ok=True)
+# 	path_summary_exp = path_home / 'Summary of protocol actually run'
+# 	path_summary_exp.mkdir(parents=True, exist_ok=True)
 
-	path_summary_beh = path_home / 'Summary of behavior'
-	path_summary_beh.mkdir(parents=True, exist_ok=True)
-
-
-	#* Path to save processed data; create folder to save processed data if it does not exist yet.
-	path_processed_data = path_home / 'Processed data'
-	path_processed_data.mkdir(parents=True, exist_ok=True)
+# 	path_summary_beh = path_home / 'Summary of behavior'
+# 	path_summary_beh.mkdir(parents=True, exist_ok=True)
 
 
-	path_cropped_exp_with_bout_detection = path_processed_data / '1. summary of exp.'
-	path_cropped_exp_with_bout_detection.mkdir(parents=True, exist_ok=True)
+# 	#* Path to save processed data; create folder to save processed data if it does not exist yet.
+# 	path_processed_data = path_home / 'Processed data'
+# 	path_processed_data.mkdir(parents=True, exist_ok=True)
 
-	path_tail_angle_fig_cs = path_processed_data / '2. single fish_tail angle' / 'aligned to CS'
-	path_tail_angle_fig_cs.mkdir(parents=True, exist_ok=True)
 
-	path_tail_angle_fig_us = path_processed_data / '2. single fish_tail angle' / 'aligned to US'
-	path_tail_angle_fig_us.mkdir(parents=True, exist_ok=True)
+# 	path_cropped_exp_with_bout_detection = path_processed_data / '1. summary of exp.'
+# 	path_cropped_exp_with_bout_detection.mkdir(parents=True, exist_ok=True)
 
-	path_raw_vigor_fig_cs = path_processed_data / '3. single fish_raw vigor heatmap' / 'aligned to CS'
-	path_raw_vigor_fig_cs.mkdir(parents=True, exist_ok=True)
+# 	path_tail_angle_fig_cs = path_processed_data / '2. single fish_tail angle' / 'aligned to CS'
+# 	path_tail_angle_fig_cs.mkdir(parents=True, exist_ok=True)
+
+# 	path_tail_angle_fig_us = path_processed_data / '2. single fish_tail angle' / 'aligned to US'
+# 	path_tail_angle_fig_us.mkdir(parents=True, exist_ok=True)
+
+# 	path_raw_vigor_fig_cs = path_processed_data / '3. single fish_raw vigor heatmap' / 'aligned to CS'
+# 	path_raw_vigor_fig_cs.mkdir(parents=True, exist_ok=True)
 	
-	path_raw_vigor_fig_us = path_processed_data / '3. single fish_raw vigor heatmap' / 'aligned to US'
-	path_raw_vigor_fig_us.mkdir(parents=True, exist_ok=True)
+# 	path_raw_vigor_fig_us = path_processed_data / '3. single fish_raw vigor heatmap' / 'aligned to US'
+# 	path_raw_vigor_fig_us.mkdir(parents=True, exist_ok=True)
 
-	path_scaled_vigor_fig_cs = path_processed_data / '4. single fish_scaled vigor heatmap' / 'aligned to CS'
-	path_scaled_vigor_fig_cs.mkdir(parents=True, exist_ok=True)
+# 	path_scaled_vigor_fig_cs = path_processed_data / '4. single fish_scaled vigor heatmap' / 'aligned to CS'
+# 	path_scaled_vigor_fig_cs.mkdir(parents=True, exist_ok=True)
 	
-	path_scaled_vigor_fig_us = path_processed_data / '4. single fish_scaled vigor heatmap' / 'aligned to US'
-	path_scaled_vigor_fig_us.mkdir(parents=True, exist_ok=True)
+# 	path_scaled_vigor_fig_us = path_processed_data / '4. single fish_scaled vigor heatmap' / 'aligned to US'
+# 	path_scaled_vigor_fig_us.mkdir(parents=True, exist_ok=True)
 
-	path_suppression_ratio_fig_cs = path_processed_data / '5. single fish_suppression ratio vigor trial' / 'aligned to CS'
-	path_suppression_ratio_fig_cs.mkdir(parents=True, exist_ok=True)
+# 	path_suppression_ratio_fig_cs = path_processed_data / '5. single fish_suppression ratio vigor trial' / 'aligned to CS'
+# 	path_suppression_ratio_fig_cs.mkdir(parents=True, exist_ok=True)
 
-	path_suppression_ratio_fig_us = path_processed_data / '5. single fish_suppression ratio vigor trial' / 'aligned to US'
-	path_suppression_ratio_fig_us.mkdir(parents=True, exist_ok=True)
+# 	path_suppression_ratio_fig_us = path_processed_data / '5. single fish_suppression ratio vigor trial' / 'aligned to US'
+# 	path_suppression_ratio_fig_us.mkdir(parents=True, exist_ok=True)
 	
-	path_pooled_vigor_fig = path_processed_data / 'All fish'
-	path_pooled_vigor_fig.mkdir(parents=True, exist_ok=True)
+# 	path_pooled_vigor_fig = path_processed_data / 'All fish'
+# 	path_pooled_vigor_fig.mkdir(parents=True, exist_ok=True)
 
-	path_analysis_protocols = path_processed_data / 'Analysis of protocols'
-	path_analysis_protocols.mkdir(parents=True, exist_ok=True)
+# 	path_analysis_protocols = path_processed_data / 'Analysis of protocols'
+# 	path_analysis_protocols.mkdir(parents=True, exist_ok=True)
 
-	path_pkl = path_processed_data / 'pkl files'
-	path_pkl.mkdir(parents=True, exist_ok=True)
+# 	path_pkl = path_processed_data / 'pkl files'
+# 	path_pkl.mkdir(parents=True, exist_ok=True)
 
 
-	path_orig_pkl = path_pkl / '1. Original'
-	path_orig_pkl.mkdir(parents=True, exist_ok=True)
+# 	path_orig_pkl = path_pkl / '1. Original'
+# 	path_orig_pkl.mkdir(parents=True, exist_ok=True)
 
-	path_all_fish = path_pkl / '2. All fish by condition'
-	path_all_fish.mkdir(parents=True, exist_ok=True)
+# 	path_all_fish = path_pkl / '2. All fish by condition'
+# 	path_all_fish.mkdir(parents=True, exist_ok=True)
 
-	path_pooled = path_pkl / '3. Pooled data'
-	path_pooled.mkdir(parents=True, exist_ok=True)
+# 	path_pooled = path_pkl / '3. Pooled data'
+# 	path_pooled.mkdir(parents=True, exist_ok=True)
 
-	return path_lost_frames, path_summary_exp, path_summary_beh, path_processed_data, path_cropped_exp_with_bout_detection, path_tail_angle_fig_cs, path_tail_angle_fig_us, path_raw_vigor_fig_cs, path_raw_vigor_fig_us, path_scaled_vigor_fig_cs, path_scaled_vigor_fig_us, path_suppression_ratio_fig_cs, path_suppression_ratio_fig_us, path_pooled_vigor_fig, path_analysis_protocols, path_orig_pkl, path_all_fish, path_pooled
+# 	return path_lost_frames, path_summary_exp, path_summary_beh, path_processed_data, path_cropped_exp_with_bout_detection, path_tail_angle_fig_cs, path_tail_angle_fig_us, path_raw_vigor_fig_cs, path_raw_vigor_fig_us, path_scaled_vigor_fig_cs, path_scaled_vigor_fig_us, path_suppression_ratio_fig_cs, path_suppression_ratio_fig_us, path_pooled_vigor_fig, path_analysis_protocols, path_orig_pkl, path_all_fish, path_pooled
 
 
 
@@ -365,14 +365,14 @@ def protocol_info(protocol):
 	number_cycles = len(protocol.loc['Cycle', beg])
 
 	if protocol.index.isin(['Session']).any():
-		number_blocks = len(protocol.loc['Session', beg])
+		number_blocks_plot = len(protocol.loc['Session', beg])
 	else:
-		number_blocks = number_cycles
+		number_blocks_plot = number_cycles
 
 	if protocol.index.isin([trial]).any():
-		number_trials = len(protocol.loc[trial, beg])
+		number_trials_plot = len(protocol.loc[trial, beg])
 	else:
-		number_trials = number_cycles
+		number_trials_plot = number_cycles
 
 	if protocol.index.isin([bout]).any():
 		number_bouts = len(protocol.loc[bout, beg])	  
@@ -400,7 +400,7 @@ def protocol_info(protocol):
 	cs_isi = (cs_beg[1:] - cs_end[:-1]).to_numpy() / 1000 / 60 # min
 
 
-	return number_cycles, number_reinforcers, number_trials, number_blocks, number_bouts, habituation_duration, cs_dur, cs_isi, us_dur, us_isi
+	return number_cycles, number_reinforcers, number_trials_plot, number_blocks_plot, number_bouts, habituation_duration, cs_dur, cs_isi, us_dur, us_isi
 
 def map_abs_time_to_elapsed_time(camera, protocol):
 	
@@ -640,6 +640,8 @@ def filter_data(data, space_bcf_window, time_bcf_window):
 	# This works as a filter in space
 	data_.iloc[:, 1:] = data_.iloc[:, 1:].cumsum(axis=1)
 
+
+#! instead of this, just transpose before
 	#* Filter with a rolling average in space
 	#* Alexandre Laborde confirmed this.
 	# Not using pandas rolling mean beacause over columns it takes a lot of time (confirmed that with this way the result is the same)
@@ -704,14 +706,14 @@ def stim_in_data(data, protocol):
 		#	data['Session beg'] = 0
 		#	data['Session end'] = 0
 
-		#	for i in range(number_blocks):
+		#	for i in range(number_blocks_plot):
 		#		data.loc[data.iloc[:,0] == protocol.loc['Session', beg].iat[i], 'Session beg'] = int(i + 1)
 		#		data.loc[data.iloc[:,0] == protocol.loc['Session', end].iat[i], 'Session end'] = int(i + 1)
 	
 		#if protocol.index.isin(['Trial']).any():
 		
 		#	# For operant conditioning experiments	
-		#	for i in range(number_trials):
+		#	for i in range(number_trials_plot):
 		#		data.loc[data.iloc[:,0] == protocol.loc[trial, beg].iat[i], 'Trial beg'] = int(i + 1)
 		#		data.loc[data.iloc[:,0] == protocol.loc[trial, end].iat[i], 'Trial end'] = int(i + 1)
 
@@ -1208,12 +1210,12 @@ def identify_blocks_trials(data, blocks_dict):
 
 	for csus in [cs,us]:
 
-		blocks_csus = blocks_dict[blocks_10t][csus][trials_blocks]
+		blocks_csus = blocks_dict[blocks][csus][number_elements]
 
 		for s_i, trials_in_s in enumerate(blocks_csus):
 
 			# if type(trials_in_s) is list:
-			data.loc[(data[type_trial_csus]==csus) & (data[number_trial].astype('int').isin([t for t in trials_in_s])), block_name] = blocks_dict[blocks_10t][csus][names_blocks][s_i]
+			data.loc[(data[type_trial_csus]==csus) & (data[number_trial].astype('int').isin([t for t in trials_in_s])), block_name] = blocks_dict[blocks][csus][names_trials_blocks_phases][s_i]
 			# s_i + 1
 
 			# In case of single trials and blocks_csus entries being scalars and not lists with a single entry.
@@ -1222,7 +1224,7 @@ def identify_blocks_trials(data, blocks_dict):
 			# 	data.loc[data[number_trial] == str(trials_in_s), name_block] = s_i + 1
 
 		#!!!!! NEEDS TO BE FIXED FOR CSUS = US
-		data[block_name] = data[block_name].astype(CategoricalDtype(categories=blocks_dict[blocks_10t][csus][names_blocks], ordered=True))
+		data[block_name] = data[block_name].astype(CategoricalDtype(categories=blocks_dict[blocks][csus][names_trials_blocks_phases], ordered=True))
 
 
 	return data

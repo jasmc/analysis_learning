@@ -1,3 +1,5 @@
+data = pd.read_pickle(r"E:\Results (paper)\2022 11_Basic delay and (increasing) trace CC paradigm\Processed data\pkl files\1. Original\20221115_6dpf_black-1_mitfaminusminus,elavl3gff,10uasgcamp6fef05_04_delay.pkl")
+
 # 1. Preprocess data, using absolute time; plot summary of each experiment, showing cropped data; clean data after identifying swim movements.
 
 # %%
@@ -12,40 +14,36 @@ from my_general_variables import *
 from my_experiment_specific_variables import *
 import my_functions as f
 	
+# pd.options.mode.chained_assignment = None
+
 # from importlib import reload
 # reload(f)
 
-pd.options.mode.chained_assignment = None
-
 Over_write = False
 
-protocol_info_path = str(path_save / 'Protocol summary.txt')
+# protocol_info_path = str(path_save / 'Protocol summary.txt')
 
 
 #* Write header of protocol_info
-f.save_info(protocol_info_path, 'Fish ID', ['notes', 'habituation (min)', 'min cs-cs inter. (min)', 'min cs dur. (ms)', 'max cs dur.(ms)', 'min us-us inter. (min)', 'min us dur. (ms)', 'max us dur.(ms)', 'number of CS', 'number of US'])
+# f.save_info(protocol_info_path, 'Fish ID', ['notes', 'habituation (min)', 'min cs-cs inter. (min)', 'min cs dur. (ms)', 'max cs dur.(ms)', 'min us-us inter. (min)', 'min us dur. (ms)', 'max us dur.(ms)', 'number of CS', 'number of US'])
 
 
-all_fish_raw_data_paths = [*Path(path_home).glob('*mp tail tracking.txt')]
+
+experiment = Experiment('original')
+
+
+
+
+all_fish_raw_data_paths = [*Path(experiment.path_home).glob('*mp tail tracking.txt')]
 
 for fish_path in tqdm(all_fish_raw_data_paths):
 
-	#! To free up memory.
-	gc.collect()
-
 	stem_fish_path_orig = fish_path.stem.replace('mp tail tracking', '').lower()
 
+	pkl_name = str(experiment.path_orig_pkl / stem_fish_path_orig) + '.pkl'
 
 
-
-
-	# if '20230905_03_tracemassed1_blue-1_mitfaminusminus,elavl3gff,10uasgcamp6fef05_6dpf' not in stem_fish_path_orig:
-	# 	continue
-
-
-
-
-	pkl_name = str(path_orig_pkl / stem_fish_path_orig) + '.pkl'
+	break
 
 
 	#* Do nothing if pkl file already exists.
@@ -56,10 +54,11 @@ for fish_path in tqdm(all_fish_raw_data_paths):
 
 	print('\n\n' + stem_fish_path_orig)
 
-	fig_camera_name = str(path_lost_frames / stem_fish_path_orig)  + '_camera.png'
-	fig_protocol_name = str(path_summary_exp / stem_fish_path_orig) + '_protocol.png'
-	fig_behavior_name = str(path_summary_beh / stem_fish_path_orig) + '_behavior.png'
-	fig_cropped_exp_with_bout_detection_name = str(path_cropped_exp_with_bout_detection / stem_fish_path_orig) + '.html'
+
+	fig_camera_name = str(experiment.path_lost_frames / stem_fish_path_orig)  + '_camera.png'
+	fig_protocol_name = str(experiment.path_summary_exp / stem_fish_path_orig) + '_protocol.png'
+	fig_behavior_name = str(experiment.path_summary_beh / stem_fish_path_orig) + '_behavior.png'
+	fig_cropped_exp_with_bout_detection_name = str(experiment.path_cropped_exp_with_bout_detection / stem_fish_path_orig) + '.html'
 
 
 	#* Paths of different pieces of data.
@@ -80,20 +79,15 @@ for fish_path in tqdm(all_fish_raw_data_paths):
 		camera[[camera_value, galvo_value]] -= camera[[camera_value, galvo_value]].min()
 
 
+		#TODO binarize CameraValue
 
-# camera = pd.read_csv(str(camera_path), sep=' ', header=0, decimal='.', skiprows=[*range(1,number_frames_discard_beg)])
-# camera.astype('float')
-
-#TODO binarize CameraValue
-
-
-#TODO 
-#! Need to do this because we sampled the DAQ every FEW readings.
+		#! Need to do this because we sampled the DAQ every FEW readings.
 		camera = pd.merge_ordered(camera.drop(columns=[ela_time, abs_time]), f.read_camera(camera_path), on = [frame_id]).dropna(subset=[ela_time, abs_time])
 
 	else:
 
 		camera = f.read_camera(camera_path)
+
 
 	first_frame_absolute_time = camera[abs_time].iloc[0]
 
@@ -108,8 +102,8 @@ for fish_path in tqdm(all_fish_raw_data_paths):
 
 	if lost_f:
 		# del camera
-		gc.collect()
-	# 	continue
+		# gc.collect()
+		continue
 
 
 
@@ -117,21 +111,16 @@ for fish_path in tqdm(all_fish_raw_data_paths):
 	camera[frame_id] -= reference_frame_id
 	camera = camera[camera[frame_id] >= 0]
 
-	# break
 
-	if (protocol := f.read_protocol(protocol_path, reference_frame_time if reference_frame_time is not None else reference_frame_id, protocol_info_path, stem_fish_path_orig)) is None:
+	if (protocol := f.read_protocol(protocol_path, reference_frame_time if reference_frame_time is not None else reference_frame_id, experiment.protocol_info_path, stem_fish_path_orig)) is None:
 
-		print('FIX PROTOCOL')
-
+		print('Issues in stim log')
 		continue
 
 	
-	#* Discard the first stimulus. (The first stimulus is an optovin stimulus which is not relevant.)
-	#! Need to do this because of the number of frames discarded at the beginning of the experiment and the first stimulus happening 1 min after the start. If I do not do this, then the time window of the first stimulus starts at negative frame number...
-	mask = ((protocol[beg] < 0) | (protocol[end] < 0))
-	protocol = protocol[~mask]
-
-	# protocol = pd.concat([protocol.reset_index(), protocol.iloc[-2:,:]], axis=1)
+	#! Need to do this because of the number of frames discarded at the beginning of the experiment and in some experiments the first stimulus happening in the period discarded. If I do not do this, then the time window of the first stimulus starts at negative frame number...
+	mask = ((protocol[beg] > 0) & (protocol[end] > 0))
+	protocol = protocol[mask]
 
 
 	#* Map stimuli timings of protocol (in unixtime) to ElapsedTime in camera. (Sometimes, the unixtime of the PC where the experiments are run gets updated during the experiment, creating a shift in the two ways of measuring time.)
@@ -144,12 +133,16 @@ for fish_path in tqdm(all_fish_raw_data_paths):
 		print('Cannot use these data because unixtime was updated during the experiment and only the absolute time of the first frame was saved.')
 		continue
 
+
+#TODO need to improve this part to make it more useful
 	number_cycles, number_reinforcers, _, _, _, habituation_duration, cs_dur, cs_isi, us_dur, us_isi = f.protocol_info(protocol)
 	
-	# if f.lost_stim(number_cycles, number_reinforcers, min_number_cs_trials, min_number_us_trials, protocol_info_path, stem_fish_path_orig, 1):
-	# 	continue
+	if f.lost_stim(number_cycles, number_reinforcers, experiment.expected_number_cs, experiment.expected_number_us, experiment.protocol_info_path, stem_fish_path_orig, 1):
+		continue
 
-	f.save_info(protocol_info_path, stem_fish_path_orig, ['', habituation_duration, np.min(cs_isi), np.min(cs_dur), np.max(cs_dur), np.min(us_isi), np.min(us_dur), np.max(us_dur), number_cycles, number_reinforcers])
+
+#TODO need to improve this part to make it more useful
+	f.save_info(experiment.protocol_info_path, stem_fish_path_orig, ['', habituation_duration, np.min(cs_isi), np.min(cs_dur), np.max(cs_dur), np.min(us_isi), np.min(us_dur), np.max(us_dur), number_cycles, number_reinforcers])
 
 
 	#* Plot overview of the experimental protocol actually run
@@ -158,15 +151,10 @@ for fish_path in tqdm(all_fish_raw_data_paths):
 
 	gc.collect()
 
-	#TODO try engine='pyarrow'
+#TODO try engine='pyarrow'
 	if (data := f.read_tail_tracking_data(data_path, reference_frame_id)) is None:
-		
-# data = pd.read_csv(data_path, sep=' ', header=0, usecols=cols_to_use_orig, decimal=',', na_filter=False) #, skipfooter=1)
 
-# data.astype('int')
-# data.dtypes
-	
-		f.save_info(protocol_info_path, stem_fish_path_orig, 'Tail tracking might be corrupted!')
+		f.save_info(experiment.protocol_info_path, stem_fish_path_orig, 'Tail tracking might be corrupted!')
 		continue
 
 
@@ -175,15 +163,10 @@ for fish_path in tqdm(all_fish_raw_data_paths):
 		continue
 
 
-
-	#* Merge data with camera
-	data = pd.merge_ordered(data, camera)
+	#* Merge data with camera (due to bug in Pandas (?) have to force casting to the right type)
+	data = pd.merge_ordered(data, camera).astype('float64')
 	
 	
-	#! Due to bug in Pandas?!
-	data = data.astype('float64')
-
-
 	if all(x in data.columns for x in [camera_value, galvo_value, photodiode_value]):
 		
 		data[[camera_value, galvo_value, photodiode_value]] = data[[camera_value, galvo_value, photodiode_value]].interpolate(method='slinear', axis=0)
@@ -191,24 +174,21 @@ for fish_path in tqdm(all_fish_raw_data_paths):
 	data = data.dropna()
 
 
-	#* Interpolate data to expeted_framerate (700 FPS).
+	#* Interpolate data to the expected framerate
 	data = f.interpolate_data(data, expected_framerate, predicted_framerate)
-
-
-	del predicted_framerate
 
 
 	#* Filter tail tracking data
 	data = f.filter_data(data, space_bcf_window, time_bcf_window)
 
 
-	#! Doubt the angles are correct. Plus and minus almost 300 degrees?!?!?!?
 	print('Max tail angle at the chosen point: {} deg'.format(round(data.loc[:,tail_angle].max())))
-	f.save_info(protocol_info_path, stem_fish_path_orig, 'Max tail angle at the chosen point: {} deg'.format(round(data.loc[:,tail_angle].max())))
+	f.save_info(experiment.protocol_info_path, stem_fish_path_orig, 'Max tail angle at the chosen point: {} deg'.format(round(data.loc[:,tail_angle].max())))
 
 
-	#* Calculate 'vigor_bout_detection'.
+	#* Segment bouts
 	data = f.vigor_for_bout_detection(data, chosen_tail_point, time_min_window, time_max_window)
+	data = f.find_beg_and_end_of_bouts(data, bout_detection_thr_1, min_bout_duration, min_interbout_time, bout_detection_thr_2)
 
 
 	#* Convert protocol from ms to number of frames.
@@ -221,14 +201,17 @@ for fish_path in tqdm(all_fish_raw_data_paths):
 	f.plot_behavior_overview(data, stem_fish_path_orig, fig_behavior_name)
 
 
+
+
+
 #! save this pkl
 
 
-	# if f.lost_stim(len(data[data[cs_beg]!=0]), len(data[data[us_beg]!=0]), min_number_cs_trials, min_number_us_trials, protocol_info_path, stem_fish_path_orig, 2):
+	if f.lost_stim(len(data[data[cs_beg]!=0]), len(data[data[us_beg]!=0]), experiment.expected_number_cs, experiment.expected_number_us, experiment.protocol_info_path, stem_fish_path_orig, 2):
 
-	# 	print(data[data[cs_beg]!=0])
-	# 	print(data[data[us_beg]!=0])
-	# 	continue
+		print(data[data[cs_beg]!=0])
+		print(data[data[us_beg]!=0])
+		continue
 
 
 
@@ -237,8 +220,6 @@ for fish_path in tqdm(all_fish_raw_data_paths):
 
 
 	data.iloc[:,0] = data.iloc[:,0] - data.iat[0,0]
-
-	data = f.find_beg_and_end_of_bouts(data, bout_detection_thr_1, min_bout_duration, min_interbout_time, bout_detection_thr_2)
 
 
 	f.plot_cropped_experiment(data, expected_framerate, bout_detection_thr_1, bout_detection_thr_2, downsampling_step, stem_fish_path_orig, fig_cropped_exp_with_bout_detection_name)
