@@ -1,5 +1,5 @@
 from my_general_variables import *
-from my_experiment_specific_variables import *
+from my_classes import *
 import my_functions as f
 
 
