@@ -88,18 +88,18 @@ plt.style.use('classic')
 
 
 
-def msg(stem_fish_path_orig, message):
+def msg(self.fish_name, message):
 	
 	if type(message) is list:
 		message = '\t'.join([str(i) for i in message])
 
-	return [stem_fish_path_orig] + ['\t' + message + '\n']
+	return [self.fish_name] + ['\t' + message + '\n']
 
-	# return [stem_fish_path_orig + '\t' + message + '\n']
+	# return [self.fish_name + '\t' + message + '\n']
 
-def save_info(protocol_info_path, stem_fish_path_orig, message):
+def save_info(protocol_info_path, self.fish_name, message):
 
-	message = msg(stem_fish_path_orig, message)
+	message = msg(self.fish_name, message)
 	print(message)
 
 	with open(protocol_info_path, 'a') as file:
@@ -186,7 +186,7 @@ def read_sync_reader(sync_reader_path):
 		return None
 
 
-def framerate_and_reference_frame(camera, first_frame_absolute_time, protocol_info_path, stem_fish_path_orig, fig_camera_name):
+def framerate_and_reference_frame(camera, first_frame_absolute_time, protocol_info_path, self.fish_name, fig_camera_name):
 
 	camera_diff = camera[ela_time].diff()
 
@@ -236,7 +236,7 @@ def framerate_and_reference_frame(camera, first_frame_absolute_time, protocol_in
 	print('Estimated framerate: {} FPS'.format(predicted_framerate))
 
 
-	def lost_frames(camera, camera_diff, ifi, protocol_info_path, stem_fish_path_orig, fig_camera_name):
+	def lost_frames(camera, camera_diff, ifi, protocol_info_path, self.fish_name, fig_camera_name):
 
 
 		# Delay to capture frames by the computer
@@ -262,7 +262,7 @@ def framerate_and_reference_frame(camera, first_frame_absolute_time, protocol_in
 		if (Lost_frames := len(where_frames_lost) > 0):
 			print('Total number of lost frames: ', len(where_frames_lost))
 			print('Where: ', where_frames_lost)
-			save_info(protocol_info_path, stem_fish_path_orig, 'Lost frames.')
+			save_info(protocol_info_path, self.fish_name, 'Lost frames.')
 		else:
 			print('No frames were lost.')
 
@@ -286,7 +286,7 @@ def framerate_and_reference_frame(camera, first_frame_absolute_time, protocol_in
 		axs[4].set_ylabel('Lost frames')
 
 		fig.supxlabel('Frame number')
-		plt.suptitle('Analysis of lost frames\n' + stem_fish_path_orig)
+		plt.suptitle('Analysis of lost frames\n' + self.fish_name)
 
 		fig.savefig(fig_camera_name, dpi=100, facecolor='white')
 		plt.close(fig)
@@ -311,14 +311,14 @@ def framerate_and_reference_frame(camera, first_frame_absolute_time, protocol_in
 		return Lost_frames
 
 
-	Lost_frames = lost_frames(camera, camera_diff, ifi, protocol_info_path, stem_fish_path_orig, fig_camera_name)
+	Lost_frames = lost_frames(camera, camera_diff, ifi, protocol_info_path, self.fish_name, fig_camera_name)
 
 
 
 
 	return predicted_framerate, reference_frame_id, reference_frame_time, Lost_frames
 
-def read_protocol(protocol_path, reference_frame_time_or_id, protocol_info_path, stem_fish_path_orig):
+def read_protocol(protocol_path, reference_frame_time_or_id, protocol_info_path, self.fish_name):
 
 
 	#* Read protocol file.
@@ -327,13 +327,13 @@ def read_protocol(protocol_path, reference_frame_time_or_id, protocol_info_path,
 		protocol = pd.read_csv(str(protocol_path), sep=' ', header=0, names=[experiment_type, beg, end], usecols=[0, 1, 2], index_col=0)
 
 	else:
-		save_info(protocol_info_path, stem_fish_path_orig, 'stim control file does not exist.')
+		save_info(protocol_info_path, self.fish_name, 'stim control file does not exist.')
 		
 		return None
 
 	#* Were the stimuli timings not saved?
 	if protocol.empty:
-		save_info(protocol_info_path, stem_fish_path_orig, 'stim control file is empty.')
+		save_info(protocol_info_path, self.fish_name, 'stim control file is empty.')
 		
 		return None
 
@@ -344,7 +344,7 @@ def read_protocol(protocol_path, reference_frame_time_or_id, protocol_info_path,
 	
 	# #* Is the first stimulus fake? This happened at some point. There was sometimes a line in protocol file in excess.
 	# if protocol.loc[:,beg].iloc[0] == 0 and len(protocol.loc[protocol.index.get_level_values(experiment_type) == 'Cycle&Bout']) == expected_number_cs+1:
-	# 	save_info(protocol_info_path, stem_fish_path_orig, 'Lost beginning of first cycle.')
+	# 	save_info(protocol_info_path, self.fish_name, 'Lost beginning of first cycle.')
 		
 	# 	return None
 	
@@ -434,23 +434,23 @@ def map_abs_time_to_elapsed_time(camera, protocol):
 	return protocol[protocol.notna().all(axis=1)]
 
 
-def lost_stim(number_cycles, number_reinforcers, min_number_cs_trials, min_number_us_trials, protocol_info_path, stem_fish_path_orig, id_debug):
+def lost_stim(number_cycles, number_reinforcers, min_number_cs_trials, min_number_us_trials, protocol_info_path, self.fish_name, id_debug):
 
 	if number_cycles < min_number_cs_trials:
 
-		save_info(protocol_info_path, stem_fish_path_orig, 'Not all CS! Stopped at CS {} ({}).'.format(number_cycles, id_debug))
+		save_info(protocol_info_path, self.fish_name, 'Not all CS! Stopped at CS {} ({}).'.format(number_cycles, id_debug))
 
 		return True
 
 	elif number_reinforcers < min_number_us_trials:
 		
-		save_info(protocol_info_path, stem_fish_path_orig, 'Not all US! Stopped at US {} ({}).'.format(number_reinforcers, id_debug))
+		save_info(protocol_info_path, self.fish_name, 'Not all US! Stopped at US {} ({}).'.format(number_reinforcers, id_debug))
 
 		return True
 	else:
 		return False
 
-def plot_protocol(cs_dur, cs_isi, us_dur, us_isi, stem_fish_path_orig, fig_protocol_name):
+def plot_protocol(cs_dur, cs_isi, us_dur, us_isi, self.fish_name, fig_protocol_name):
 
 	plt.figure(figsize=(14,14))
 	plt.plot(np.arange(1, len(cs_isi) + 1), cs_isi, label='inter-cs interval\nmin int.=' + str(round(np.amin(cs_isi)*60,1)) + ' s\n' + 'cs min dur=' + str(round(np.amin(cs_dur)/1000,3)) + ' s\n' + 'cs max dur=' + str(round(np.amax(cs_dur)/1000,3)) + ' s')
@@ -460,7 +460,7 @@ def plot_protocol(cs_dur, cs_isi, us_dur, us_isi, stem_fish_path_orig, fig_proto
 	plt.ylabel('ISI (min)')
 	plt.ylim(0, 10)
 	plt.legend(frameon=False, loc='upper center', ncol=2)
-	plt.suptitle('Summary of protocol\n' + stem_fish_path_orig)
+	plt.suptitle('Summary of protocol\n' + self.fish_name)
 	plt.savefig(fig_protocol_name, dpi=100, bbox_inches='tight')
 	plt.close()
 
@@ -759,7 +759,7 @@ def stim_in_data(data, protocol):
 
 	return data
 
-def plot_behavior_overview(data, stem_fish_path_orig, fig_behavior_name):
+def plot_behavior_overview(data, self.fish_name, fig_behavior_name):
 	# data containing tail_angle.
 
 	# mask_frames = np.ones(number_frames + round(60*framerate), dtype=bool)
@@ -779,7 +779,7 @@ def plot_behavior_overview(data, stem_fish_path_orig, fig_behavior_name):
 	plt.plot(data.iloc[:,0]/expected_framerate/60/60, data.iloc[:,1	+chosen_tail_point], 'black')
 	plt.xlabel('Time (h)')
 	plt.ylabel('Tail end angle (deg)')
-	plt.suptitle('Behavior overview\n' + stem_fish_path_orig)
+	plt.suptitle('Behavior overview\n' + self.fish_name)
 	# plt.show()
 	# plt.legend(frameon=False, loc='upper center', ncol=2)
 	plt.savefig(fig_behavior_name, dpi=100, bbox_inches='tight')
@@ -967,7 +967,7 @@ def findEvents(data, event_beg, event_end):
 
 
 
-def plot_cropped_experiment(data, expected_framerate, bout_detection_thr_1, bout_detection_thr_2, downsampling_step, stem_fish_path_orig, fig_cropped_exp_with_bout_detection_name):
+def plot_cropped_experiment(data, expected_framerate, bout_detection_thr_1, bout_detection_thr_2, downsampling_step, self.fish_name, fig_cropped_exp_with_bout_detection_name):
 
 	data = data.copy()
 
@@ -1079,7 +1079,7 @@ def plot_cropped_experiment(data, expected_framerate, bout_detection_thr_1, bout
 		# shapes.append(go.layout.Shape(type='rect', xref='x', x0=us_beg_, x1=us_end_, yref='paper', y0=0, y1=1, opacity=0.4, line_width=0, fillcolor=us_color))
 		# # fig.add_vrect(x0=us_beg_, x1=us_end_, opacity=0.4, line_width=0, fillcolor=us_color)
 
-	fig.update_layout(height=1000, width=2000, showlegend=True, plot_bgcolor='rgba(0,0,0,0)', title_text='Behavior before cleaning data, downsampled 5X        ' + stem_fish_path_orig, legend=dict(yanchor='top',y=1,xanchor='left',x=0, bgcolor='white'), shapes=shapes)
+	fig.update_layout(height=1000, width=2000, showlegend=True, plot_bgcolor='rgba(0,0,0,0)', title_text='Behavior before cleaning data, downsampled 5X        ' + self.fish_name, legend=dict(yanchor='top',y=1,xanchor='left',x=0, bgcolor='white'), shapes=shapes)
 
 	# paper_bgcolor='rgba(0,0,0,0)',
 
@@ -1177,7 +1177,7 @@ def identify_trials(data, time_bef_frame, time_aft_frame):
 			# trial = data.loc[data[number_trial] == t, :]
 
 			# Check that fish beats the tail before the us at least every few trials.
-			# if csus == 'us':
+			# if cs_us == 'us':
 			# 	if trial.loc[(trial[time_trial] > -numb_seconds_before_us*expected_framerate) & (trial[time_trial] < numb_seconds_after_us*expected_framerate) & (trial[vigor] > 0),:].empty:
 			# 		zero_bouts_trials += 1
 			# 		if zero_bouts_trials == max_numb_trials_no_bout_bef:
@@ -1208,14 +1208,14 @@ def identify_blocks_trials(data, blocks_dict):
 
 	data[block_name] = ''
 
-	for csus in [cs,us]:
+	for cs_us in [cs,us]:
 
-		blocks_csus = blocks_dict[blocks][csus][number_elements]
+		blocks_csus = blocks_dict[blocks][cs_us][number_elements]
 
 		for s_i, trials_in_s in enumerate(blocks_csus):
 
 			# if type(trials_in_s) is list:
-			data.loc[(data[type_trial_csus]==csus) & (data[number_trial].astype('int').isin([t for t in trials_in_s])), block_name] = blocks_dict[blocks][csus][names_trials_blocks_phases][s_i]
+			data.loc[(data[type_trial_csus]==cs_us) & (data[number_trial].astype('int').isin([t for t in trials_in_s])), block_name] = blocks_dict[blocks][cs_us][names_trials_blocks_phases][s_i]
 			# s_i + 1
 
 			# In case of single trials and blocks_csus entries being scalars and not lists with a single entry.
@@ -1224,7 +1224,7 @@ def identify_blocks_trials(data, blocks_dict):
 			# 	data.loc[data[number_trial] == str(trials_in_s), name_block] = s_i + 1
 
 		#!!!!! NEEDS TO BE FIXED FOR CSUS = US
-		data[block_name] = data[block_name].astype(CategoricalDtype(categories=blocks_dict[blocks][csus][names_trials_blocks_phases], ordered=True))
+		data[block_name] = data[block_name].astype(CategoricalDtype(categories=blocks_dict[blocks][cs_us][names_trials_blocks_phases], ordered=True))
 
 
 	return data
@@ -1302,9 +1302,9 @@ def convert_time_from_s_to_frame(data):
 
 
 
-def suppression_ratio_pooled(data, metric, baseline_window, cr_window, segments_analysis, number_trial, csus):
+def suppression_ratio_pooled(data, metric, baseline_window, cr_window, segments_analysis, number_trial, cs_us):
 
-	#!!!!!!! Now only implemented for csus==cs.
+	#!!!!!!! Now only implemented for cs_us==cs.
 
 
 #!!!!!!!!!
@@ -1312,7 +1312,7 @@ def suppression_ratio_pooled(data, metric, baseline_window, cr_window, segments_
 	# data[metric].fillna(0, inplace=True)
  
 
-	if csus == cs:
+	if cs_us == cs:
 
 		trials_bef_onset = data.loc[data[time_trial_s].between(-baseline_window, 0), :].groupby(number_trial, observed=True)[metric].agg('mean')
 
@@ -1359,10 +1359,10 @@ def suppression_ratio_pooled(data, metric, baseline_window, cr_window, segments_
 
 
 
-# def plotVigorHeatmap(data_heatmap, downsampling_step, csus, stim_dur, window_data_plot, interval_between_xticks):
+# def plotVigorHeatmap(data_heatmap, downsampling_step, cs_us, stim_dur, window_data_plot, interval_between_xticks):
 
 
-# 	if csus == cs:
+# 	if cs_us == cs:
 
 # 		color = cs_color
 
@@ -1371,7 +1371,7 @@ def suppression_ratio_pooled(data, metric, baseline_window, cr_window, segments_
 # 		# sns.heatmap(data_heatmap, cbar=False, robust=True, xticklabels=int(15*expected_framerate/downsampling_step), yticklabels=False, ax=axs, clip_on=False)
 
 
-# 	elif csus == us:
+# 	elif cs_us == us:
 
 # 		color = us_color
 
@@ -1389,9 +1389,9 @@ def suppression_ratio_pooled(data, metric, baseline_window, cr_window, segments_
 # 	# axs.set_xbound(-40,40)
 # 	# axs.set_xticks(ticks=axs.get_xticks(), labels=np.arange(-baseline_window, baseline_window+1, interval_between_xticks))
 
-# 	axs.set_xlabel('Time relative to {} onset (s)'.format(csus))
+# 	axs.set_xlabel('Time relative to {} onset (s)'.format(cs_us))
 # 	axs.tick_params(axis='both', which='both', bottom=True, top=False, right=False, direction='out')
-# 	# axs.set_title(csus, color=color, fontsize=14)
+# 	# axs.set_title(cs_us, color=color, fontsize=14)
 
 # 	return fig, axs
 
