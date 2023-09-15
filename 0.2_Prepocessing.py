@@ -11,7 +11,7 @@ from tqdm import tqdm
 import gc
 
 from my_general_variables import *
-from my_experiment_specific_variables import *
+from my_classes import *
 import my_functions as f
 	
 # pd.options.mode.chained_assignment = None
@@ -43,7 +43,7 @@ for fish_path in tqdm(all_fish_raw_data_paths):
 	pkl_name = str(experiment.path_orig_pkl / stem_fish_path_orig) + '.pkl'
 
 
-	break
+	# break
 
 
 	#* Do nothing if pkl file already exists.
@@ -188,7 +188,7 @@ for fish_path in tqdm(all_fish_raw_data_paths):
 
 	#* Segment bouts
 	data = f.vigor_for_bout_detection(data, chosen_tail_point, time_min_window, time_max_window)
-	data = f.find_beg_and_end_of_bouts(data, bout_detection_thr_1, min_bout_duration, min_interbout_time, bout_detection_thr_2)
+	data = f.identify_bouts(data, bout_detection_thr_1, min_bout_duration, min_interbout_time, bout_detection_thr_2)
 
 
 	#* Convert protocol from ms to number of frames.
@@ -227,15 +227,12 @@ for fish_path in tqdm(all_fish_raw_data_paths):
 
 	data.drop(columns=vigor_bout_detection, inplace=True)
 
-	# break
-
 
 
 #! Do not nned to do this
 	#* Calculate tail vigor.
 	data[vigor_raw] = data.iloc[:,1:2+chosen_tail_point].diff().abs().sum(axis=1) * (expected_framerate / 1000) # deg/ms
 	# data[vigor_raw] = (data.iloc[:,1:2+chosen_tail_point].diff(axis=1).diff() * expected_framerate / 1000).diff().abs().sum(axis=1) # deg/ms^2
-	
 
 
 

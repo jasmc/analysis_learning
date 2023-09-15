@@ -1,12 +1,14 @@
 from pathlib import Path
 from dataclasses import dataclass
+from termios import CSUSP
+from matplotlib import get_configdir
 from tqdm import tqdm
 import numpy as np
 import pandas as pd
 
 from my_general_variables import *
 import my_experiment_specific_variables as exp_var
-# import my_functions as f
+import my_functions as f
 # import Main as m
 
 # experiment_ = 'original'
@@ -71,73 +73,107 @@ class Experiment:
 
 	def __init__(self, experiment):
 
-		# match experiment:
-		# if experiment is not None:
-		for key, value in exp_var.experiments_dictionary[experiment].items():
+		self.name = experiment
 
-			self.name = experiment
-
-			setattr(self, key, value)
+		# # In case I want to read everything from the dict
+		# for key, value in exp_var.experiments_info[experiment].items():
+		# 	setattr(self, key, value)
 
 
-		Experiment.exp_parts(self.expected_number_cs, self.expected_number_us,
-					   self.trials_blocks_cs, self.trials_blocks_us,
-					   self.names_blocks_cs, self.names_blocks_us,
-					   self.trials_phases_cs, self.trials_phases_us,
-					   self.names_phases_cs, self.names_phases_us)
-
-		del self.trials_blocks_cs, self.trials_blocks_us, self.names_blocks_cs, self.names_blocks_us, self.trials_phases_cs, self.trials_phases_us
-
-		self.conditions = {control : Condition('Control').set_color(blue).set_id_in_path('control').get_us_latency(None),
-						delay : Condition('Delay').set_color(magenta).set_id_in_path('control').get_us_latency(us_latency_after_cs_onset='stable', number_reinforced_trials=46, min_us_latency_trace=3),
-						trace : Condition('Trace').set_color(yellow).set_id_in_path('control').get_us_latency(us_latency_after_cs_onset=9, number_reinforced_trials=46, min_us_latency_trace=0.5, max_us_latency_trace=3, min_trace_interval_stable_numb_trials=10, max_trace_interval_stable_numb_trials=10)}
-				# self.control = Condition('Control').set_color(blue).set_id_in_path('control')
-				# self.delay = Condition('Delay').set_color(magenta).set_id_in_path('control')
-				# self.trace = Condition('Trace').set_color(yellow).set_id_in_path('control')
-
-	@classmethod
-	def exp_parts(cls,
-				   expected_number_cs, expected_number_us,
-				   trials_blocks_cs, trials_blocks_us,
-				   names_blocks_cs, names_blocks_us,
-				   trials_phases_cs, trials_phases_us,
-				   names_phases_cs, names_phases_us):
+	#! Set parts of the experiment, specific part chosen
+	def define_parts_experiment(self, part_type, cs_us):
 		
-		number_trials_plot = max(expected_number_cs, expected_number_us)
-		number_blocks_plot = max(len(trials_blocks_cs), len(trials_blocks_us))
-		number_phases_plot = max(len(trials_phases_cs), len(trials_phases_us))
+		self.part_type = self.Part(part_type, cs_us)
 
-		cls.experiment_parts = {trials :
-									{cs :
-	   									{number_elements : range(1,expected_number_cs+1)},
-									us :
-										{number_elements : range(1,expected_number_us+1)},
-									number_cols_or_rows : number_trials_plot},
-								blocks :
-									{cs :
-	   									{number_elements : trials_blocks_cs, names_trials_blocks_phases : names_blocks_cs},
-									us :
-										{number_elements : trials_blocks_us, names_trials_blocks_phases : names_blocks_us},
-									number_cols_or_rows : number_blocks_plot},
-								phases :
-									{cs : {
-										number_elements : trials_phases_cs, names_trials_blocks_phases : names_phases_cs},
-									us : {number_elements : trials_phases_us, names_trials_blocks_phases : names_phases_us},
-									number_cols_or_rows : number_phases_plot}}
+	#* Instantiate the conditions of the experiment.
+	def define_conditions(self):
+		for cond in self.get_conditions():
+
+			setattr(self, cond, self.Condition(name=cond['name'],
+							  	name_in_path=cond['name_in_path'],
+								color=cond['color'],
+								cr_window=cond['cr_window']))
+
+		#* This overwrites what was initially read from the module exp_var
+		self.conditions = self.get_conditions()
+
+	@staticmethod
+	def get_experiment_info(experiment, variable):
+		return exp_var.experiments_info[experiment][variable]
+
+	# def get_path(self, path):
+		return self.get_experiment_info(self.name, path)
+
+	@staticmethod
+	def get_conditions(experiment):
+		return Experiment.get_experiment_info(experiment, 'conditions').keys()
 	
-	@classmethod
-	def get_conditions(cls):
-		return [cls.conditions.keys()]
+	@staticmethod
+	def get_conditions_info(experiment, variable):
+		return [Experiment.get_experiment_info(experiment, 'conditions')[cond][variable] for cond in Experiment.get_conditions(experiment)]
 	
-	@classmethod
-	def get_conditions_id_in_path(cls):
-		return [cls.conditions[k].id_in_path for k in cls.conditions.keys()]
-	
-	@classmethod
-	def get_color_palette(cls):
-		return [cls.conditions[k].color for k in cls.conditions.keys()]
+	class Parts:
+
+		def __init__(self, name, cs_us):
+
+			self.elements, self.names_elements = exp_var.experiments_info[Experiment.name]['parts'][name][cs_us]
+
+		@staticmethod
+		def get_number_elements(experiment, part_type, cs_us):
+			
+			if cs_us in [cs, us]:
+				return exp_var.experiments_info[experiment]['parts'][part_type][cs_us]
+			
+			elif cs_us == 'plot':
+				return max(len(exp_var.experiments_info[experiment]['parts'][part_type][cs]), len(exp_var.experiments_info[experiment]['parts'][part_type][us]))
 
 
+	class Condition:
+		
+		def __init__(self, name, name_in_path=None, color='black', cr_window=(0, cs_duration)):
+				
+			#! This will be usefull to change the legends.
+			self.name = name
+
+			self.name_in_path = name_in_path
+			self.color = color
+
+			self.cr_window : cr_window
+
+
+		def get_us_latency(self, us_latency_after_cs_onset=None, number_reinforced_trials=None, min_us_latency_trace=None, max_us_latency_trace=None, min_trace_interval_stable_numb_trials=None, max_trace_interval_stable_numb_trials=None):
+
+			if us_latency_after_cs_onset == 'increasing':
+
+				number_us_trials_increasing_trace = number_reinforced_trials - (min_trace_interval_stable_numb_trials + max_trace_interval_stable_numb_trials)
+
+				return cs_duration + np.array([min_us_latency_trace] * (min_trace_interval_stable_numb_trials - 1) + list(np.linspace(min_us_latency_trace, max_us_latency_trace, num=number_us_trials_increasing_trace + 1, endpoint=False, dtype='float')) + [max_us_latency_trace] * max_trace_interval_stable_numb_trials)
+
+			elif us_latency_after_cs_onset == 'stable':
+				
+				return [min_us_latency_trace] * number_reinforced_trials
+			else:
+				return None
+
+
+		def set_color(self, color):
+
+			self.color = color
+
+		def set_name_in_path(self, name_in_path):
+
+			self.name_in_path = name_in_path
+
+		def set_cr_window(self, cr_window):
+
+			self.cr_window = cr_window
+
+		#! def
+		# have access to all fish from the condition
+			# get all fish in AllFishInfo
+
+
+#! To be finished
 	def preprocess_data(self, Overwrite=False):
 
 		all_fish_raw_data_paths = [*Path(self.path_home).glob('*mp tail tracking.txt')]
@@ -148,12 +184,9 @@ class Experiment:
 
 			fish = Fish(self.experiment).preprocess(Overwrite, fish_raw_path)
 
-#! the rest to Fish class
+#! the rest with Fish class
 			# call Fish methods
 			# return None, then return None
-
-
-
 
 
 	#! def
@@ -184,54 +217,6 @@ class Experiment:
 
 
 
-
-	
-# WORK HERE
-class Condition:
-	
-	def __init__(self, name):
-			
-		#! This will be usefull to change the legends.
-		self.name = name
-
-		self.id_in_path = None
-		self.color = None
-
-		self.cr_window : (0, cs_duration)  # s
-
-
-	def get_us_latency(self, us_latency_after_cs_onset, number_reinforced_trials=None, min_us_latency_trace=None, max_us_latency_trace=None, min_trace_interval_stable_numb_trials=None, max_trace_interval_stable_numb_trials=None):
-
-		if us_latency_after_cs_onset == 'increasing':
-
-			number_us_trials_increasing_trace = number_reinforced_trials - (min_trace_interval_stable_numb_trials + max_trace_interval_stable_numb_trials)
-
-			return cs_duration + np.array([min_us_latency_trace] * (min_trace_interval_stable_numb_trials - 1) + list(np.linspace(min_us_latency_trace, max_us_latency_trace, num=number_us_trials_increasing_trace + 1, endpoint=False, dtype='float')) + [max_us_latency_trace] * max_trace_interval_stable_numb_trials)
-
-		elif us_latency_after_cs_onset == 'stable':
-			
-			return [min_us_latency_trace] * number_reinforced_trials
-
-
-	def set_color(self, color):
-
-		self.color = color
-
-	def set_id_in_path(self, id_in_path):
-
-		self.id_in_path = id_in_path
-
-	def set_cr_window(self, cr_window):
-
-		self.cr_window = cr_window
-
-	#! def
-	# have access to all fish from the condition
-		# get all fish in AllFishInfo
-
-
-
-
 class AllFishInfo:
 
 	def add_fish(self):
@@ -247,19 +232,34 @@ class AllFishInfo:
 
 
 
-#!!!!!!!!!!!!!!!!
-#! Experiment(self.experiment)
-# have to be turned into a 
-
 class Fish:
 
-	def __init__(self, experiment=None, fish_name='Anonymous'):
+	def __init__(self, experiment=None, fish_name='20180315_6dpf_black-1_mitfaminusminus,elavl3gff,10uasgcamp6fef05_01_delay'):
 
 		self.fish_name = fish_name.lower()
 		# self.fish_name = Path(self.fish_name).stem.replace('mp tail tracking', '').lower()
 		self.experiment = experiment
+	
+	@classmethod
+	def from_path(cls, fish_path):
 
+		fish_path = Path(fish_path)
+		fish_name = fish_path.stem.replace('mp tail tracking', '').replace('cam', '').replace('stim control', '').replace('scape sync reader', '').lower()
+		experiment = exp_var.map_folder_to_experiment[fish_path.parts[2]]
+	
+		return cls(experiment, fish_name)
+	
+	# @classmethod
+	# def def from_processed_data(cls, fish_processed_data_path):
 
+	# 	fish_processed_data_path = Path(fish_processed_data_path)
+	# 	fish_name = fish_processed_data_path.stem.replace('mp tail tracking', '').replace('cam', '').replace('stim control', '').replace('scape sync reader', '').lower()
+	# 	experiment = exp_var.map_folder_to_experiment[fish_processed_data_path.parts[2]]
+
+	# 	return cls(experiment, fish_name)
+	
+
+	
 #!!! USE PROPERTY STUFF HERE
 	def fish_info(self):
 
@@ -291,16 +291,16 @@ class Fish:
 	def get_path(self, alignment):
 		
 		if alignment == 'Raw':
-			return exp_var.experiments_dictionary[self.experiment].path_home / 'Raw data' / self.fish_name
+			return Experiment.get_experiment_info(self.experiment).path_home / 'Raw data' / self.fish_name
 		
 		elif alignment in [cs, us, 'Whole processed']:
-			return exp_var.experiments_dictionary[self.experiment].path_save / 'Processed data' / 'parquet files' / '1. Original' / alignment / self.fish_name / 'pkl'
+			return Experiment.get_experiment_info(self.experiment).path_save / 'Processed data' / 'parquet files' / '1. Original' / alignment / self.fish_name / 'pkl'
 		
 
-	def preprocess(self, Overwrite, fish_raw_path):
+	def preprocess(self, Overwrite, fish_raw_path=None):
 
-		# if self.fish_name == 'Anonymous':
-		self.fish_name = Path(fish_raw_path).stem.replace('mp tail tracking', '').lower()
+		if fish_raw_path is None:
+			fish_raw_path = self.get_path(self, 'Raw')
 
 #TODO change to parquet format
 		pkl_name = str(fish.get_path('Whole'))
@@ -326,34 +326,23 @@ class Fish:
 		camera_path = data_path.replace('mp tail tracking', 'cam')
 		sync_reader_path = data_path.replace('mp tail tracking', 'scape sync reader')
 
-		protocol_info_path = str(exp_var.experiments_dictionary[self.experiment].path_save / 'Protocol summary.txt')
+		protocol_info_path = str(Experiment.get_experiment_info(self.experiment).path_save / 'Protocol summary.txt')
 
 
+		# strain, day, fish_number, age, self.experiment, condition, rig, rig_color = self.fish_info()
 
-		strain, day, fish_number, age, self.experiment, condition, rig, rig_color = self.fish_info()
-
-
+		#* For data from SCAPE.
 		if ((camera := f.read_sync_reader(sync_reader_path)) is not None):
-
 
 			#* Normalize 'CameraValue', 'GalvoValue', 'PhotodiodeValue' columns.
 			camera[[camera_value, galvo_value, photodiode_value]] /= camera[[camera_value, galvo_value, photodiode_value]].max()
 			camera[[camera_value, galvo_value]] -= camera[[camera_value, galvo_value]].min()
+			#TODO binarize CameraValue
 
-
-
-	# camera = pd.read_csv(str(camera_path), sep=' ', header=0, decimal='.', skiprows=[*range(1,number_frames_discard_beg)])
-	# camera.astype('float')
-
-	#TODO binarize CameraValue
-
-
-	#TODO 
-	#! Need to do this because we sampled the DAQ every FEW readings.
+			#TODO #! Need to do this because we sampled the DAQ every FEW readings.
 			camera = pd.merge_ordered(camera.drop(columns=[ela_time, abs_time]), f.read_camera(camera_path), on = [frame_id]).dropna(subset=[ela_time, abs_time])
 
 		else:
-
 			camera = f.read_camera(camera_path)
 
 		first_frame_absolute_time = camera[abs_time].iloc[0]
@@ -368,15 +357,12 @@ class Fish:
 
 		if Lost_frames:
 			return None
-		
-
 
 
 		#* Discard frames that will not be used in camera.
 		camera[frame_id] -= reference_frame_id
 		camera = camera[camera[frame_id] >= 0]
 
-		# break
 
 		if (protocol := f.read_protocol(protocol_path, reference_frame_time if reference_frame_time is not None else reference_frame_id, protocol_info_path, self.fish_name)) is None:
 
@@ -385,17 +371,14 @@ class Fish:
 			return None
 
 		
-		#* Discard the first stimulus. (The first stimulus is an optovin stimulus which is not relevant.)
-		#! Need to do this because of the number of frames discarded at the beginning of the experiment and the first stimulus happening 1 min after the start. If I do not do this, then the time window of the first stimulus starts at negative frame number...
+		#* For most experiments: Discard the first stimulus. (The first stimulus is an optovin stimulus which is not relevant.)
+		# Need to do this because of the number of frames discarded at the beginning of the experiment and the first stimulus happening 1 min after the start (in most experiments). If I do not do this, then the the first stimulus appears to start at negative frame number...
 		mask = ((protocol[beg] < 0) | (protocol[end] < 0))
 		protocol = protocol[~mask]
-
-		# protocol = pd.concat([protocol.reset_index(), protocol.iloc[-2:,:]], axis=1)
 
 
 		#* Map stimuli timings of protocol (in unixtime) to ElapsedTime in camera. (Sometimes, the unixtime of the PC where the experiments are run gets updated during the experiment, creating a shift in the two ways of measuring time.)
 		if camera.iloc[1:,2].notna().any():
-
 			protocol = f.map_abs_time_to_elapsed_time(camera, protocol)
 
 		elif (camera[abs_time].diff() - 1000 / predicted_framerate).max() >= (buffer_size * 1000 / predicted_framerate):
@@ -405,19 +388,20 @@ class Fish:
 
 		number_cycles, number_reinforcers, _, _, _, habituation_duration, cs_dur, cs_isi, us_dur, us_isi = f.protocol_info(protocol)
 		
-		# if f.lost_stim(number_cycles, number_reinforcers, min_number_cs_trials, min_number_us_trials, protocol_info_path, self.fish_name, 1):
-		# 	return None
+		if f.lost_stim(number_cycles, number_reinforcers, Experiment.Parts.get_number_elements(self.experiment, trials, cs), Experiment.Parts.get_number_elements(self.experiment, trials, us), protocol_info_path, self.fish_name, 1):
+			return None
 
 		f.save_info(protocol_info_path, self.fish_name, ['', habituation_duration, np.min(cs_isi), np.min(cs_dur), np.max(cs_dur), np.min(us_isi), np.min(us_dur), np.max(us_dur), number_cycles, number_reinforcers])
 
 
-		#* Plot overview of the experimental protocol actually run
+		#* Plot overview of the experimental protocol actually run.
 		f.plot_protocol(cs_dur, cs_isi, us_dur, us_isi, self.fish_name, fig_protocol_name)
 
 
 
 
-#! Read also the positions
+#! Read also the coordinates of the tail points
+
 #TODO try engine='pyarrow'
 #! Try different engines
 		if (data := f.read_tail_tracking_data(data_path, reference_frame_id)) is None:
@@ -430,19 +414,17 @@ class Fish:
 
 
 
-		#* Look for possible tail tracking errors
+		#* Look for possible tail tracking errors.
 		if f.tracking_errors(data, single_point_tracking_error_thr):
 			return None
 
 
-
-		#* Merge data with camera
-		#! last part due to bug in Pandas (?)
-		data = pd.merge_ordered(data, camera).astype('float64').astype('float64')
+		#* Merge data with camera. #! last part due to bug in Pandas (?)
+		data = pd.merge_ordered(data, camera).astype('float64')
 
 
+		#* For data from SCAPE.
 		if all(x in data.columns for x in [camera_value, galvo_value, photodiode_value]):
-			
 			data[[camera_value, galvo_value, photodiode_value]] = data[[camera_value, galvo_value, photodiode_value]].interpolate(method='slinear', axis=0)
 
 		data = data.dropna()
@@ -451,21 +433,24 @@ class Fish:
 		#* Interpolate data to expeted_framerate (700 FPS).
 		data = f.interpolate_data(data, expected_framerate, predicted_framerate)
 
-		#* Filter tail tracking data
+
+		#* Filter tail tracking data.
 		data = f.filter_data(data, space_bcf_window, time_bcf_window)
 
 
-
-
-
-
-		#! Doubt the angles are correct. Plus and minus almost 300 degrees?!?!?!?
 		print('Max tail angle at the chosen point: {} deg'.format(round(data.loc[:,tail_angle].max())))
 		f.save_info(protocol_info_path, self.fish_name, 'Max tail angle at the chosen point: {} deg'.format(round(data.loc[:,tail_angle].max())))
 
 
-		#* Calculate 'vigor_bout_detection'.
+
+
+
+
+		#* Segment bouts.
 		data = f.vigor_for_bout_detection(data, chosen_tail_point, time_min_window, time_max_window)
+		data = f.identify_bouts(data, bout_detection_thr_1, min_bout_duration, min_interbout_time, bout_detection_thr_2)
+
+
 
 
 		#* Convert protocol from ms to number of frames.
@@ -473,21 +458,146 @@ class Fish:
 		protocol = (protocol * expected_framerate/1000).astype('int')
 
 
+		#* Add the information when the stimuli happened to the dataframe with the data.
 		data = f.stim_in_data(data, protocol)
+
 
 		f.plot_behavior_overview(data, self.fish_name, fig_behavior_name)
 
 
-		if f.lost_stim(len(data[data[cs_beg]!=0]), len(data[data[us_beg]!=0]), exp_var.experiments_dictionary[self.experiment].expected_number_cs, exp_var.experiments_dictionary[self.experiment].expected_number_us, protocol_info_path, self.fish_name, 2):
-
+		if f.lost_stim(len(data[data[cs_beg]!=0]), len(data[data[us_beg]!=0]), Experiment.get_experiment_info(self.experiment).expected_number_cs, Experiment.get_experiment_info(self.experiment).expected_number_us, protocol_info_path, self.fish_name, 2):
+			
 			print(data[data[cs_beg]!=0])
 			print(data[data[us_beg]!=0])
 			
 			return None
 
 
+		#* Save to a parquet file.
+		data.to_pickle(pkl_name)
+#! try gzip
+		data.to_parquet(pkl_name, engine='auto', compression=None, index=None, partition_cols=None)
 
 
 
 
-# COMMITT
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+		#* time_bef_frame and time_aft_frame are for expected_framerate (700 FPS).
+		data = f.extract_data_around_stimuli(data, protocol, time_bef_frame, time_aft_frame, time_bcf_window, time_max_window, time_min_window)
+
+
+		data.iloc[:,0] = data.iloc[:,0] - data.iat[0,0]
+
+
+		f.plot_cropped_experiment(data, expected_framerate, bout_detection_thr_1, bout_detection_thr_2, downsampling_step, stem_fish_path_orig, fig_cropped_exp_with_bout_detection_name)
+
+
+		data.drop(columns=vigor_bout_detection, inplace=True)
+
+
+
+	#! Do not nned to do this
+		#* Calculate tail vigor.
+		data[vigor_raw] = data.iloc[:,1:2+chosen_tail_point].diff().abs().sum(axis=1) * (expected_framerate / 1000) # deg/ms
+		# data[vigor_raw] = (data.iloc[:,1:2+chosen_tail_point].diff(axis=1).diff() * expected_framerate / 1000).diff().abs().sum(axis=1) # deg/ms^2
+
+
+
+		data = f.identify_trials(data, time_bef_frame, time_aft_frame)
+
+
+		#* Identify blocks of trials.
+		data = f.identify_blocks_trials(data, blocks_dict)
+
+
+		#* Calculate scaled vigor.
+		# data = f.calculate_digested_vigor(data)
+
+
+	#! Remove from cols_ordered some of the things
+		#* Order the columns.
+		data = data[cols_ordered]
+
+
+		#* Set the columns' dtypes.
+		data[cols[1:]] = data[cols[1:]].astype('float32')
+		data[vigor_raw] = data[vigor_raw].astype('float32')
+		# data[vigor_digested] = data[vigor_digested].astype('float32')
+		data[time_trial] = data[time_trial].astype('int')
+		data[cols_bout] = data[cols_bout].astype(pd.SparseDtype('bool'))
+
+
+
+		for col_s in [cs_beg, cs_end, us_beg, us_end, number_trial]:
+			
+			data[col_s] = data[col_s].astype('int')
+			data[col_s] = data[col_s].astype(CategoricalDtype(categories=np.sort(data[col_s].unique()), ordered=True))
+
+
+	#! ADD ANOTHER COL WITH THE CS COLOR #! give numbers to the setupes instead AND 
+
+
+
+
+
+
+
+		#* Set the index.
+		data['Exp.'] = exp_type
+		data['ProtocolRig'] = rig
+		data['Age (dpf)'] = age
+		data['Day'] = day
+		data['Fish no.'] = fish_number
+		data['Strain'] = strain
+
+		data['Rig color'] = 'red'
+		if data['ProtocolRig'].isin(['orange', 'brown']):
+			data['Rig color'] = 'white'
+
+
+		#* Change to a categorical index.
+		data[['Exp.', 'ProtocolRig', 'Rig color', 'Age (dpf)', 'Day', 'Fish no.', 'Strain', type_trial_csus]] = data[['Exp.', 'ProtocolRig', 'Rig color', 'Age (dpf)', 'Day', 'Fish no.', 'Strain', type_trial_csus]].astype('category')
+
+
+		data.set_index(keys=['Strain', 'Age (dpf)', 'Exp.', 'ProtocolRig', 'Day', 'Fish no.', type_trial_csus], inplace=True)
+
+		data_cs = data.xs
+
+
+
+	#! Split the dataframe into 2: CS-alinged and US-aligned data
+
+
+	#! Add 
+	# 'Alignment'
+		# data_cs = data[data[type_trial_csus] == cs]
+		# data_us = data[data[type_trial_csus] == us]
+
+
+
+
+		data.set_index(keys=['Strain', 'Age (dpf)', 'Exp.', 'ProtocolRig', 'Day', 'Fish no.'], inplace=True)
+
+
+
+	#! Use parquet instead
+		#* Save as a pickle file.
+		data.to_pickle(pkl_name)

@@ -233,7 +233,7 @@ phases: Final = 'phases of experiment'
 number_elements: Final = 'trials in each block'
 names_trials_blocks_phases: Final = 'names of blocks'
 
-id_in_path: Final = 'name in original path'
+name_in_path: Final = 'name in original path'
 
 number_cols_or_rows: Final = 'number of cols or rows'
 

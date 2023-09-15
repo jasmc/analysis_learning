@@ -809,7 +809,7 @@ def extract_data_around_stimuli(data, protocol_frame, time_bef_frame, time_aft_f
 
 	return data
 
-def find_beg_and_end_of_bouts(data, bout_detection_thr_1, min_bout_duration, min_interbout_time, bout_detection_thr_2):
+def identify_bouts(data, bout_detection_thr_1, min_bout_duration, min_interbout_time, bout_detection_thr_2):
 
 	#* Use the derivative to find the beginning and end of bouts.
 	def bouts_beg_and_end(bouts):
@@ -878,10 +878,10 @@ def find_beg_and_end_of_bouts(data, bout_detection_thr_1, min_bout_duration, min
 			# 	bouts[bouts_beg[weak_bouts] : bouts_end[weak_bouts] + 1] = 0
 
 	data[bout] = bouts
-	data[bout_beg] = data[bout].diff() > 0
-	data[bout_end] = data[bout].diff() < 0
+	#! data[bout_beg] = data[bout].diff() > 0
+	#! data[bout_end] = data[bout].diff() < 0
 
-	# data[cols_bout] = data[cols_bout].astype(pd.SparseDtype('bool'))
+	data[cols_bout] = data[cols_bout].astype('bool')
 
 	# # Create a column in data with the beginning and end of bouts.
 	# bouts_beg, bouts_end = bouts_beg_and_end(bouts)

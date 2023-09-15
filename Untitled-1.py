@@ -20,9 +20,9 @@
 					#* Colors for data in the plots.
 
 					#TODO add more stuff to this dict.
-					condition_dict = {cond0 : {color : [58, 129, 195], name : 'Control', id_in_path : 'control'},
-							  cond1 : {color : [245, 130, 48], name : 'Trace 3 s fixed', id_in_path : '3sFixedTrace', us_latency_after_cs_onset : [13]*46},
-							  cond2 : {color : [139,69,19], name : 'Trace 10 s fixed', id_in_path : '10sFixedTrace', us_latency_after_cs_onset : [20]*46}
+					condition_dict = {cond0 : {color : [58, 129, 195], name : 'Control', name_in_path : 'control'},
+							  cond1 : {color : [245, 130, 48], name : 'Trace 3 s fixed', name_in_path : '3sFixedTrace', us_latency_after_cs_onset : [13]*46},
+							  cond2 : {color : [139,69,19], name : 'Trace 10 s fixed', name_in_path : '10sFixedTrace', us_latency_after_cs_onset : [20]*46}
 							  }
 
 					cr_window = 10  # s
@@ -120,16 +120,16 @@
 
 
 					#TODO add more stuff to this dict.
-					condition_dict = {cond0 : {color : [173, 216, 230], name : 'Control No MK801', id_in_path : 'controlNoMK801'},
+					condition_dict = {cond0 : {color : [173, 216, 230], name : 'Control No MK801', name_in_path : 'controlNoMK801'},
 
-							  cond1 : {color : [245, 130, 48], name : 'Trace No MK801', id_in_path : 'traceNoMK801',
+							  cond1 : {color : [245, 130, 48], name : 'Trace No MK801', name_in_path : 'traceNoMK801',
 					   us_latency_after_cs_onset : [13]*46
 					#	cs_duration + np.array([us_latency_trace_min] * (min_trace_interval_stable_numb_trials - 1) + list(np.linspace(us_latency_trace_min, us_latency_trace, num=number_us_trials_increasing_trace + 1, endpoint=False, dtype='float')) + [us_latency_trace] * max_trace_interval_stable_numb_trials)
 					   },
 
-							  cond2 : {color :  [0, 0, 139], name : 'Control MK801', id_in_path : 'controlMK801'},
+							  cond2 : {color :  [0, 0, 139], name : 'Control MK801', name_in_path : 'controlMK801'},
 
-			   				  cond3 : {color : [246, 190, 0], name : 'Trace MK801', id_in_path : 'traceMK801',
+			   				  cond3 : {color : [246, 190, 0], name : 'Trace MK801', name_in_path : 'traceMK801',
 					   us_latency_after_cs_onset : [13]*46
 					#	cs_duration + np.array([us_latency_trace_min] * (min_trace_interval_stable_numb_trials - 1) + list(np.linspace(us_latency_trace_min, us_latency_trace, num=number_us_trials_increasing_trace + 1, endpoint=False, dtype='float')) + [us_latency_trace] * max_trace_interval_stable_numb_trials)
 					   },
@@ -234,16 +234,16 @@
 
 
 					#TODO add more stuff to this dict.
-					condition_dict = {cond0 : {color : [173, 216, 230], name : 'Control No Puromycin', id_in_path : 'controlNoPuromycin'},
+					condition_dict = {cond0 : {color : [173, 216, 230], name : 'Control No Puromycin', name_in_path : 'controlNoPuromycin'},
 
-							  cond1 : {color : [245, 130, 48], name : 'Trace No Puromycin', id_in_path : 'traceNoPuromycin',
+							  cond1 : {color : [245, 130, 48], name : 'Trace No Puromycin', name_in_path : 'traceNoPuromycin',
 					   us_latency_after_cs_onset : [13]*46
 					#	cs_duration + np.array([us_latency_trace_min] * (min_trace_interval_stable_numb_trials - 1) + list(np.linspace(us_latency_trace_min, us_latency_trace, num=number_us_trials_increasing_trace + 1, endpoint=False, dtype='float')) + [us_latency_trace] * max_trace_interval_stable_numb_trials)
 					   },
 
-							  cond2 : {color :  [0, 0, 139], name : 'Control Puromycin', id_in_path : 'controlPuromycin'},
+							  cond2 : {color :  [0, 0, 139], name : 'Control Puromycin', name_in_path : 'controlPuromycin'},
 
-			   				  cond3 : {color : [246, 190, 0], name : 'Trace Puromycin', id_in_path : 'tracePuromycin',
+			   				  cond3 : {color : [246, 190, 0], name : 'Trace Puromycin', name_in_path : 'tracePuromycin',
 					   us_latency_after_cs_onset : [13]*46
 					#	cs_duration + np.array([us_latency_trace_min] * (min_trace_interval_stable_numb_trials - 1) + list(np.linspace(us_latency_trace_min, us_latency_trace, num=number_us_trials_increasing_trace + 1, endpoint=False, dtype='float')) + [us_latency_trace] * max_trace_interval_stable_numb_trials)
 					   },
@@ -340,9 +340,9 @@
 
 
 					#TODO add more stuff to this dict.
-					condition_dict = {cond0 : {color : [58, 129, 195], name : 'Control', id_in_path : 'control'},
-							  cond1 : {color :  [216, 31, 98], name : 'Trace Partially Reinforced', id_in_path : 'tracePartiallyReinforced'},
-							  cond2 : {color : [226, 166, 14], name : 'Trace Fully Reinforced', id_in_path : 'traceFullyReinforced'}}
+					condition_dict = {cond0 : {color : [58, 129, 195], name : 'Control', name_in_path : 'control'},
+							  cond1 : {color :  [216, 31, 98], name : 'Trace Partially Reinforced', name_in_path : 'tracePartiallyReinforced'},
+							  cond2 : {color : [226, 166, 14], name : 'Trace Fully Reinforced', name_in_path : 'traceFullyReinforced'}}
 
 			#! Exception
 					cr_window = 13  # s
@@ -436,9 +436,9 @@
 
 
 					#TODO add more stuff to this dict.
-					condition_dict = {cond0 : {color : [58, 129, 195], name : 'Control', id_in_path : 'control'},
-							  cond1 : {color :  [216, 31, 98], name : 'Trace Spaced', id_in_path : 'traceSpaced'},
-							#   cond2 : {color : [226, 166, 14], name : 'Trace Massed', id_in_path : 'traceMassed'}
+					condition_dict = {cond0 : {color : [58, 129, 195], name : 'Control', name_in_path : 'control'},
+							  cond1 : {color :  [216, 31, 98], name : 'Trace Spaced', name_in_path : 'traceSpaced'},
+							#   cond2 : {color : [226, 166, 14], name : 'Trace Massed', name_in_path : 'traceMassed'}
 							  }
 
 					cr_window = 13  # s
@@ -533,10 +533,10 @@
 
 
 					#TODO add more stuff to this dict.
-					condition_dict = {cond0 : {color : [173, 216, 230], name : 'Control Massed', id_in_path : 'controlMassed'},
-							  cond1 : {color :  [245, 130, 48], name : 'Control Spaced', id_in_path : 'controlSpaced'},
-							  cond2 : {color : [0, 0, 139], name : 'Trace Massed', id_in_path : 'traceMassed'},
-							  cond3 : {color : [246, 190, 0], name : 'Trace Spaced', id_in_path : 'traceSpaced'}
+					condition_dict = {cond0 : {color : [173, 216, 230], name : 'Control Massed', name_in_path : 'controlMassed'},
+							  cond1 : {color :  [245, 130, 48], name : 'Control Spaced', name_in_path : 'controlSpaced'},
+							  cond2 : {color : [0, 0, 139], name : 'Trace Massed', name_in_path : 'traceMassed'},
+							  cond3 : {color : [246, 190, 0], name : 'Trace Spaced', name_in_path : 'traceSpaced'}
 							  }
 
 					cr_window = 13  # s
@@ -627,10 +627,10 @@
 
 
 					#TODO add more stuff to this dict.
-					condition_dict = {cond0 : {color : [173, 216, 230], name : 'Control Massed', id_in_path : 'controlMassed'},
-							  cond1 : {color :  [245, 130, 48], name : 'Control Spaced', id_in_path : 'controlSpaced'},
-							  cond2 : {color : [0, 0, 139], name : 'Trace Massed', id_in_path : 'traceMassed'},
-							  cond3 : {color : [246, 190, 0], name : 'Trace Spaced', id_in_path : 'traceSpaced'}
+					condition_dict = {cond0 : {color : [173, 216, 230], name : 'Control Massed', name_in_path : 'controlMassed'},
+							  cond1 : {color :  [245, 130, 48], name : 'Control Spaced', name_in_path : 'controlSpaced'},
+							  cond2 : {color : [0, 0, 139], name : 'Trace Massed', name_in_path : 'traceMassed'},
+							  cond3 : {color : [246, 190, 0], name : 'Trace Spaced', name_in_path : 'traceSpaced'}
 							  }
 
 					cr_window = 13  # s
@@ -689,10 +689,10 @@
 
 
 					#TODO add more stuff to this dict.
-					condition_dict = {cond0 : {color : [173, 216, 230], name : 'Control Massed', id_in_path : 'controlMassed'},
-							  cond1 : {color :  [245, 130, 48], name : 'Control Spaced', id_in_path : 'controlSpaced'},
-							  cond2 : {color : [0, 0, 139], name : 'Trace Massed', id_in_path : 'traceMassed'},
-							  cond3 : {color : [246, 190, 0], name : 'Trace Spaced', id_in_path : 'traceSpaced'}
+					condition_dict = {cond0 : {color : [173, 216, 230], name : 'Control Massed', name_in_path : 'controlMassed'},
+							  cond1 : {color :  [245, 130, 48], name : 'Control Spaced', name_in_path : 'controlSpaced'},
+							  cond2 : {color : [0, 0, 139], name : 'Trace Massed', name_in_path : 'traceMassed'},
+							  cond3 : {color : [246, 190, 0], name : 'Trace Spaced', name_in_path : 'traceSpaced'}
 							  }
 
 					cr_window = 13  # s
@@ -791,10 +791,10 @@
 
 
 					#TODO add more stuff to this dict.
-					condition_dict = {cond0 : {color : [173, 216, 230], name : 'Control Massed', id_in_path : 'controlMassed'},
-							  cond1 : {color :  [245, 130, 48], name : 'Control Spaced', id_in_path : 'controlSpaced'},
-							  cond2 : {color : [0, 0, 139], name : 'Trace Massed', id_in_path : 'traceMassed'},
-							  cond3 : {color : [246, 190, 0], name : 'Trace Spaced', id_in_path : 'traceSpaced'}
+					condition_dict = {cond0 : {color : [173, 216, 230], name : 'Control Massed', name_in_path : 'controlMassed'},
+							  cond1 : {color :  [245, 130, 48], name : 'Control Spaced', name_in_path : 'controlSpaced'},
+							  cond2 : {color : [0, 0, 139], name : 'Trace Massed', name_in_path : 'traceMassed'},
+							  cond3 : {color : [246, 190, 0], name : 'Trace Spaced', name_in_path : 'traceSpaced'}
 							  }
 
 					cr_window = 13  # s
