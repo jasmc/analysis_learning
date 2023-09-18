@@ -88,18 +88,18 @@ plt.style.use('classic')
 
 
 
-def msg(self.fish_name, message):
+def msg(fish_name, message):
 	
 	if type(message) is list:
 		message = '\t'.join([str(i) for i in message])
 
-	return [self.fish_name] + ['\t' + message + '\n']
+	return [fish_name] + ['\t' + message + '\n']
 
-	# return [self.fish_name + '\t' + message + '\n']
+	# return [fish_name + '\t' + message + '\n']
 
-def save_info(protocol_info_path, self.fish_name, message):
+def save_info(protocol_info_path, fish_name, message):
 
-	message = msg(self.fish_name, message)
+	message = msg(fish_name, message)
 	print(message)
 
 	with open(protocol_info_path, 'a') as file:
@@ -186,7 +186,7 @@ def read_sync_reader(sync_reader_path):
 		return None
 
 
-def framerate_and_reference_frame(camera, first_frame_absolute_time, protocol_info_path, self.fish_name, fig_camera_name):
+def framerate_and_reference_frame(camera, first_frame_absolute_time, protocol_info_path, fish_name, fig_camera_name):
 
 	camera_diff = camera[ela_time].diff()
 
@@ -236,7 +236,7 @@ def framerate_and_reference_frame(camera, first_frame_absolute_time, protocol_in
 	print('Estimated framerate: {} FPS'.format(predicted_framerate))
 
 
-	def lost_frames(camera, camera_diff, ifi, protocol_info_path, self.fish_name, fig_camera_name):
+	def lost_frames(camera, camera_diff, ifi, protocol_info_path, fish_name, fig_camera_name):
 
 
 		# Delay to capture frames by the computer
@@ -262,7 +262,7 @@ def framerate_and_reference_frame(camera, first_frame_absolute_time, protocol_in
 		if (Lost_frames := len(where_frames_lost) > 0):
 			print('Total number of lost frames: ', len(where_frames_lost))
 			print('Where: ', where_frames_lost)
-			save_info(protocol_info_path, self.fish_name, 'Lost frames.')
+			save_info(protocol_info_path, fish_name, 'Lost frames.')
 		else:
 			print('No frames were lost.')
 
@@ -286,7 +286,7 @@ def framerate_and_reference_frame(camera, first_frame_absolute_time, protocol_in
 		axs[4].set_ylabel('Lost frames')
 
 		fig.supxlabel('Frame number')
-		plt.suptitle('Analysis of lost frames\n' + self.fish_name)
+		plt.suptitle('Analysis of lost frames\n' + fish_name)
 
 		fig.savefig(fig_camera_name, dpi=100, facecolor='white')
 		plt.close(fig)
@@ -311,14 +311,14 @@ def framerate_and_reference_frame(camera, first_frame_absolute_time, protocol_in
 		return Lost_frames
 
 
-	Lost_frames = lost_frames(camera, camera_diff, ifi, protocol_info_path, self.fish_name, fig_camera_name)
+	Lost_frames = lost_frames(camera, camera_diff, ifi, protocol_info_path, fish_name, fig_camera_name)
 
 
 
 
 	return predicted_framerate, reference_frame_id, reference_frame_time, Lost_frames
 
-def read_protocol(protocol_path, reference_frame_time_or_id, protocol_info_path, self.fish_name):
+def read_protocol(protocol_path, reference_frame_time_or_id, protocol_info_path, fish_name):
 
 
 	#* Read protocol file.
@@ -327,13 +327,13 @@ def read_protocol(protocol_path, reference_frame_time_or_id, protocol_info_path,
 		protocol = pd.read_csv(str(protocol_path), sep=' ', header=0, names=[experiment_type, beg, end], usecols=[0, 1, 2], index_col=0)
 
 	else:
-		save_info(protocol_info_path, self.fish_name, 'stim control file does not exist.')
+		save_info(protocol_info_path, fish_name, 'stim control file does not exist.')
 		
 		return None
 
 	#* Were the stimuli timings not saved?
 	if protocol.empty:
-		save_info(protocol_info_path, self.fish_name, 'stim control file is empty.')
+		save_info(protocol_info_path, fish_name, 'stim control file is empty.')
 		
 		return None
 
@@ -344,7 +344,7 @@ def read_protocol(protocol_path, reference_frame_time_or_id, protocol_info_path,
 	
 	# #* Is the first stimulus fake? This happened at some point. There was sometimes a line in protocol file in excess.
 	# if protocol.loc[:,beg].iloc[0] == 0 and len(protocol.loc[protocol.index.get_level_values(experiment_type) == 'Cycle&Bout']) == expected_number_cs+1:
-	# 	save_info(protocol_info_path, self.fish_name, 'Lost beginning of first cycle.')
+	# 	save_info(protocol_info_path, fish_name, 'Lost beginning of first cycle.')
 		
 	# 	return None
 	
@@ -434,23 +434,23 @@ def map_abs_time_to_elapsed_time(camera, protocol):
 	return protocol[protocol.notna().all(axis=1)]
 
 
-def lost_stim(number_cycles, number_reinforcers, min_number_cs_trials, min_number_us_trials, protocol_info_path, self.fish_name, id_debug):
+def lost_stim(number_cycles, number_reinforcers, min_number_cs_trials, min_number_us_trials, protocol_info_path, fish_name, id_debug):
 
 	if number_cycles < min_number_cs_trials:
 
-		save_info(protocol_info_path, self.fish_name, 'Not all CS! Stopped at CS {} ({}).'.format(number_cycles, id_debug))
+		save_info(protocol_info_path, fish_name, 'Not all CS! Stopped at CS {} ({}).'.format(number_cycles, id_debug))
 
 		return True
 
 	elif number_reinforcers < min_number_us_trials:
 		
-		save_info(protocol_info_path, self.fish_name, 'Not all US! Stopped at US {} ({}).'.format(number_reinforcers, id_debug))
+		save_info(protocol_info_path, fish_name, 'Not all US! Stopped at US {} ({}).'.format(number_reinforcers, id_debug))
 
 		return True
 	else:
 		return False
 
-def plot_protocol(cs_dur, cs_isi, us_dur, us_isi, self.fish_name, fig_protocol_name):
+def plot_protocol(cs_dur, cs_isi, us_dur, us_isi, fish_name, fig_protocol_name):
 
 	plt.figure(figsize=(14,14))
 	plt.plot(np.arange(1, len(cs_isi) + 1), cs_isi, label='inter-cs interval\nmin int.=' + str(round(np.amin(cs_isi)*60,1)) + ' s\n' + 'cs min dur=' + str(round(np.amin(cs_dur)/1000,3)) + ' s\n' + 'cs max dur=' + str(round(np.amax(cs_dur)/1000,3)) + ' s')
@@ -460,7 +460,7 @@ def plot_protocol(cs_dur, cs_isi, us_dur, us_isi, self.fish_name, fig_protocol_n
 	plt.ylabel('ISI (min)')
 	plt.ylim(0, 10)
 	plt.legend(frameon=False, loc='upper center', ncol=2)
-	plt.suptitle('Summary of protocol\n' + self.fish_name)
+	plt.suptitle('Summary of protocol\n' + fish_name)
 	plt.savefig(fig_protocol_name, dpi=100, bbox_inches='tight')
 	plt.close()
 
@@ -752,14 +752,14 @@ def stim_in_data(data, protocol):
 
 
 	# data.loc[:,cols_stim[:4]] = data.loc[:,cols_stim[:4]].astype('category')
-	data.loc[:, cs_beg] = data.loc[:, cs_beg].astype(CategoricalDtype(categories=data[cs_beg].unique().sort(), ordered=True))		
-	data.loc[:, us_beg] = data.loc[:, us_beg].astype(CategoricalDtype(categories=data[us_beg].unique().sort(), ordered=True))
-	data.loc[:, cs_end] = data.loc[:, cs_end].astype(CategoricalDtype(categories=data[cs_end].unique().sort(), ordered=True))
-	data.loc[:, us_end] = data.loc[:, us_end].astype(CategoricalDtype(categories=data[us_end].unique().sort(), ordered=True))
+	data.loc[:, cs_beg] = data.loc[:, cs_beg].astype(pd.api.types.CategoricalDtype(categories=data[cs_beg].unique().sort(), ordered=True))		
+	data.loc[:, us_beg] = data.loc[:, us_beg].astype(pd.api.types.CategoricalDtype(categories=data[us_beg].unique().sort(), ordered=True))
+	data.loc[:, cs_end] = data.loc[:, cs_end].astype(pd.api.types.CategoricalDtype(categories=data[cs_end].unique().sort(), ordered=True))
+	data.loc[:, us_end] = data.loc[:, us_end].astype(pd.api.types.CategoricalDtype(categories=data[us_end].unique().sort(), ordered=True))
 
 	return data
 
-def plot_behavior_overview(data, self.fish_name, fig_behavior_name):
+def plot_behavior_overview(data, fish_name, fig_behavior_name):
 	# data containing tail_angle.
 
 	# mask_frames = np.ones(number_frames + round(60*framerate), dtype=bool)
@@ -779,7 +779,7 @@ def plot_behavior_overview(data, self.fish_name, fig_behavior_name):
 	plt.plot(data.iloc[:,0]/expected_framerate/60/60, data.iloc[:,1	+chosen_tail_point], 'black')
 	plt.xlabel('Time (h)')
 	plt.ylabel('Tail end angle (deg)')
-	plt.suptitle('Behavior overview\n' + self.fish_name)
+	plt.suptitle('Behavior overview\n' + fish_name)
 	# plt.show()
 	# plt.legend(frameon=False, loc='upper center', ncol=2)
 	plt.savefig(fig_behavior_name, dpi=100, bbox_inches='tight')
@@ -967,7 +967,7 @@ def findEvents(data, event_beg, event_end):
 
 
 
-def plot_cropped_experiment(data, expected_framerate, bout_detection_thr_1, bout_detection_thr_2, downsampling_step, self.fish_name, fig_cropped_exp_with_bout_detection_name):
+def plot_cropped_experiment(data, expected_framerate, bout_detection_thr_1, bout_detection_thr_2, downsampling_step, fish_name, fig_cropped_exp_with_bout_detection_name):
 
 	data = data.copy()
 
@@ -1079,7 +1079,7 @@ def plot_cropped_experiment(data, expected_framerate, bout_detection_thr_1, bout
 		# shapes.append(go.layout.Shape(type='rect', xref='x', x0=us_beg_, x1=us_end_, yref='paper', y0=0, y1=1, opacity=0.4, line_width=0, fillcolor=us_color))
 		# # fig.add_vrect(x0=us_beg_, x1=us_end_, opacity=0.4, line_width=0, fillcolor=us_color)
 
-	fig.update_layout(height=1000, width=2000, showlegend=True, plot_bgcolor='rgba(0,0,0,0)', title_text='Behavior before cleaning data, downsampled 5X        ' + self.fish_name, legend=dict(yanchor='top',y=1,xanchor='left',x=0, bgcolor='white'), shapes=shapes)
+	fig.update_layout(height=1000, width=2000, showlegend=True, plot_bgcolor='rgba(0,0,0,0)', title_text='Behavior before cleaning data, downsampled 5X        ' + fish_name, legend=dict(yanchor='top',y=1,xanchor='left',x=0, bgcolor='white'), shapes=shapes)
 
 	# paper_bgcolor='rgba(0,0,0,0)',
 
@@ -1223,8 +1223,8 @@ def identify_blocks_trials(data, blocks_dict):
 
 			# 	data.loc[data[number_trial] == str(trials_in_s), name_block] = s_i + 1
 
-		#!!!!! NEEDS TO BE FIXED FOR CSUS = US
-		data[block_name] = data[block_name].astype(CategoricalDtype(categories=blocks_dict[blocks][cs_us][names_trials_blocks_phases], ordered=True))
+
+		data[block_name] = data[block_name].astype(pd.api.types.CategoricalDtype(categories=blocks_dict[blocks][cs_us][names_trials_blocks_phases], ordered=True))
 
 
 	return data
@@ -1425,7 +1425,7 @@ def setDtypesAndSortIndex(data):
 
 	data.index = ind_list
 
-		# astype(CategoricalDtype(categories=np.sort(data[col_s].unique()), ordered=True))
+		# astype(pd.api.types.CategoricalDtype(categories=np.sort(data[col_s].unique()), ordered=True))
 
 
 	data.sort_index(inplace=True)
@@ -1436,8 +1436,8 @@ def setDtypesAndSortIndex(data):
 
 def firstPrep(data):
 
-	data[experiment] = data[experiment].astype(CategoricalDtype(categories=data[experiment].unique(), ordered=True))
-	data[fish] = data[fish].astype(CategoricalDtype(categories=data[fish].unique(), ordered=True))
+	data[experiment] = data[experiment].astype(pd.api.types.CategoricalDtype(categories=data[experiment].unique(), ordered=True))
+	data[fish] = data[fish].astype(pd.api.types.CategoricalDtype(categories=data[fish].unique(), ordered=True))
 
 	return data
 
@@ -1465,6 +1465,6 @@ def change_block_names (data, blocks_csus, blocks_csus_names):
 
 		data.loc[(data[number_trial].astype('int').isin(trials_in_s)), block_name] = blocks_csus_names[s_i]
 
-	data[block_name] = data[block_name].astype(CategoricalDtype(categories=blocks_csus_names, ordered=True))
+	data[block_name] = data[block_name].astype(pd.api.types.CategoricalDtype(categories=blocks_csus_names, ordered=True))
 
 	return data

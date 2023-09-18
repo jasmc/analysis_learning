@@ -264,7 +264,7 @@ for fish_path in tqdm(all_fish_raw_data_paths):
 	for col_s in [cs_beg, cs_end, us_beg, us_end, number_trial]:
 		
 		data[col_s] = data[col_s].astype('int')
-		data[col_s] = data[col_s].astype(CategoricalDtype(categories=np.sort(data[col_s].unique()), ordered=True))
+		data[col_s] = data[col_s].astype(pd.api.types.CategoricalDtype(categories=np.sort(data[col_s].unique()), ordered=True))
 
 
 #! ADD ANOTHER COL WITH THE CS COLOR #! give numbers to the setupes instead AND 

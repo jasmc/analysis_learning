@@ -225,9 +225,9 @@ trace: Final = 'trace'
 # cond2: Final = 'increasingtrace'
 
 
-trials: Final = 'single trials'
-blocks: Final = 'blocks of 10 trials'
-phases: Final = 'phases of experiment'
+trials: Final = 'trials'
+blocks: Final = 'blocks'
+phases: Final = 'phases'
 
 
 number_elements: Final = 'trials in each block'

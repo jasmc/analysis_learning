@@ -1,7 +1,5 @@
+from distutils import extension
 from pathlib import Path
-from dataclasses import dataclass
-from termios import CSUSP
-from matplotlib import get_configdir
 from tqdm import tqdm
 import numpy as np
 import pandas as pd
@@ -195,10 +193,11 @@ class Experiment:
 
 #TODO cls.conditions_order = [cond.lower() for cond in condition_dict.keys()]
 
-#TODO
-	def path_first_analysis(self, type_analysis, fish_name, frmt):
+
+	@staticmethod
+	def path_first_analysis(experiment, fish_name, type_analysis, frmt):
 		
-		path = self.path_save / type_analysis
+		path = Experiment.get_experiment_info(experiment, 'path_save') / type_analysis
 		path.mkdir(parents=True, exist_ok=True)
 		
 		return str(path / fish_name) + '.' + frmt
@@ -206,7 +205,7 @@ class Experiment:
 
 
 	def path_processed_data(cls, type_analysis, alignment, name_fish, frmt):
-
+		pass
 #!!!!! HOW DOES IT WORK WITH ALIGNMENT SET TO NONE??
 
 		path = cls.path_save / 'Processed data' / type_analysis / alignment
@@ -234,36 +233,44 @@ class AllFishInfo:
 
 class Fish:
 
-	def __init__(self, experiment=None, fish_name='20180315_6dpf_black-1_mitfaminusminus,elavl3gff,10uasgcamp6fef05_01_delay'):
+	def __init__(self, experiment=None, fish_name=r'20180315_6dpf_black-1_mitfaminusminus,elavl3gff,10uasgcamp6fef05_01_delay', fish_raw_path=None):
 
-		self.fish_name = fish_name.lower()
-		# self.fish_name = Path(self.fish_name).stem.replace('mp tail tracking', '').lower()
-		self.experiment = experiment
-	
+		if fish_raw_path is None:
+			self.experiment = experiment
+			self.name = fish_name.lower()
+			# self.fish_raw_path = self.get_path('Raw')
+
+		else:
+			self.experiment, self.name = self.fish_name_and_experiment_from_path(fish_raw_path)
+			self.fish_raw_path = fish_raw_path
+
+
 	@classmethod
-	def from_path(cls, fish_path):
+	def from_path(cls, fish_raw_path):
+
+		experiment, fish_name = cls.fish_name_and_experiment_from_path(fish_raw_path)
+		
+		fish_raw_path = Path(fish_raw_path)
+		parent, stem, extension = fish_raw_path.parent, fish_raw_path.stem, fish_raw_path.suffix 
+		stem = stem.replace('cam', 'mp tail tracking').replace('stim control', 'mp tail tracking').replace('scape sync reader', 'mp tail tracking')
+		fish_raw_path = fish_raw_path.joinpath(parent, stem).with_suffix(extension)
+
+		return cls(experiment, fish_name, fish_raw_path)
+
+	@staticmethod
+	def fish_name_and_experiment_from_path(fish_path):
 
 		fish_path = Path(fish_path)
 		fish_name = fish_path.stem.replace('mp tail tracking', '').replace('cam', '').replace('stim control', '').replace('scape sync reader', '').lower()
-		experiment = exp_var.map_folder_to_experiment[fish_path.parts[2]]
+		experiment = exp_var.map_folder_to_experiment[fish_path.parts[1]]
 	
-		return cls(experiment, fish_name)
+		return experiment, fish_name
 	
-	# @classmethod
-	# def def from_processed_data(cls, fish_processed_data_path):
-
-	# 	fish_processed_data_path = Path(fish_processed_data_path)
-	# 	fish_name = fish_processed_data_path.stem.replace('mp tail tracking', '').replace('cam', '').replace('stim control', '').replace('scape sync reader', '').lower()
-	# 	experiment = exp_var.map_folder_to_experiment[fish_processed_data_path.parts[2]]
-
-	# 	return cls(experiment, fish_name)
-	
-
-	
+		
 #!!! USE PROPERTY STUFF HERE
 	def fish_info(self):
 
-		info = self.fish_name.split('_')
+		info = self.name.split('_')
 		day = info[0]
 
 		# strain = info[1]
@@ -274,36 +281,36 @@ class Fish:
 
 		fish_number = info[1]
 		condition = info[2]	
-		rig = info[3]
+		rig_name, protocol_number = info[3].split('-')
 
-		if (rig_color := rig.split('-')[0] in ['orange', 'brown']):
-			rig_color = 'white'
-		elif rig.split('-')[0] in ['blue', 'black']:
-			rig_color = 'red'
+		if rig_name in ['orange', 'brown']:
+			rig_cs_color = 'white'
+		elif rig_name in ['blue', 'black']:
+			rig_cs_color = 'red'
 		
 		strain = info[4]
 		age = info[5].replace('dpf', '')
 
-		return strain, day, fish_number, age, self.experiment, condition, rig, rig_color
+		return strain, day, fish_number, age, self.experiment, condition, rig_name, protocol_number, rig_cs_color
 
 
 #TODO
 	def get_path(self, alignment):
 		
 		if alignment == 'Raw':
-			return Experiment.get_experiment_info(self.experiment).path_home / 'Raw data' / self.fish_name
+			return Experiment.get_experiment_info(self.experiment).path_home / 'Raw data' / self.name
 		
 		elif alignment in [cs, us, 'Whole processed']:
-			return Experiment.get_experiment_info(self.experiment).path_save / 'Processed data' / 'parquet files' / '1. Original' / alignment / self.fish_name / 'pkl'
+			return Experiment.get_experiment_info(self.experiment).path_save / 'Processed data' / 'parquet files' / '1. Original' / alignment / self.name / 'pkl'
 		
 
-	def preprocess(self, Overwrite, fish_raw_path=None):
+	def preprocess(self, Overwrite):
 
-		if fish_raw_path is None:
-			fish_raw_path = self.get_path(self, 'Raw')
+		if self.fish_raw_path is None:
+			self.fish_raw_path = self.get_path(self, 'Raw')
 
 #TODO change to parquet format
-		pkl_name = str(fish.get_path('Whole'))
+		pkl_name = str(self.get_path('Whole'))
 
 
 		#* Do nothing if pkl file already exists.
@@ -312,21 +319,21 @@ class Fish:
 			return None
 
 
-		print(self.fish_name + '\n\n')
+		print(self.name + '\n\n')
 
 
 #TODO at some point, I might want to change the format in a smart way, without running the whole thing again
-		fig_camera_name = self.path_first_analysis('Lost frames', self.fish_name, 'png')
-		fig_protocol_name = self.path_first_analysis('Summary of protocol actually run', self.fish_name, 'png')
-		fig_behavior_name = self.path_first_analysis('Summary of behavior', self.fish_name, 'png')
-		fig_cropped_exp_with_bout_detection_name = self.path_first_analysis('Summary of experiment/Processed data', self.fish_name, 'html')
+		fig_camera_name = Experiment.path_first_analysis(self.experiment, self.name, 'Lost frames', 'png')
+		fig_protocol_name = Experiment.path_first_analysis(self.experiment, self.name, 'Summary of protocol actually run', 'png')
+		fig_behavior_name = Experiment.path_first_analysis(self.experiment, self.name, 'Summary of behavior', 'png')
+		fig_cropped_exp_with_bout_detection_name = Experiment.path_first_analysis(self.experiment, self.name, 'Summary of experiment/Processed data', 'html')
 		
-		data_path = str(fish_raw_path)
+		data_path = str(self.fish_raw_path)
 		protocol_path = data_path.replace('mp tail tracking', 'stim control')
 		camera_path = data_path.replace('mp tail tracking', 'cam')
 		sync_reader_path = data_path.replace('mp tail tracking', 'scape sync reader')
 
-		protocol_info_path = str(Experiment.get_experiment_info(self.experiment).path_save / 'Protocol summary.txt')
+		protocol_info_path = str(Experiment.get_experiment_info(self.experiment, 'path_save') / 'Protocol summary.txt')
 
 
 		# strain, day, fish_number, age, self.experiment, condition, rig, rig_color = self.fish_info()
@@ -352,7 +359,7 @@ class Fish:
 
 		#* Look into the elapsed time column.
 		print('Looking into the ElapsedTime column:')
-		predicted_framerate, reference_frame_id, reference_frame_time, Lost_frames = f.framerate_and_reference_frame(camera.drop(columns=abs_time, errors='ignore'), first_frame_absolute_time, protocol_info_path, self.fish_name, fig_camera_name)
+		predicted_framerate, reference_frame_id, reference_frame_time, Lost_frames = f.framerate_and_reference_frame(camera.drop(columns=abs_time, errors='ignore'), first_frame_absolute_time, protocol_info_path, self.name, fig_camera_name)
 
 
 		if Lost_frames:
@@ -364,7 +371,7 @@ class Fish:
 		camera = camera[camera[frame_id] >= 0]
 
 
-		if (protocol := f.read_protocol(protocol_path, reference_frame_time if reference_frame_time is not None else reference_frame_id, protocol_info_path, self.fish_name)) is None:
+		if (protocol := f.read_protocol(protocol_path, reference_frame_time if reference_frame_time is not None else reference_frame_id, protocol_info_path, self.name)) is None:
 
 			print('FIX PROTOCOL')
 
@@ -388,14 +395,14 @@ class Fish:
 
 		number_cycles, number_reinforcers, _, _, _, habituation_duration, cs_dur, cs_isi, us_dur, us_isi = f.protocol_info(protocol)
 		
-		if f.lost_stim(number_cycles, number_reinforcers, Experiment.Parts.get_number_elements(self.experiment, trials, cs), Experiment.Parts.get_number_elements(self.experiment, trials, us), protocol_info_path, self.fish_name, 1):
+		if f.lost_stim(number_cycles, number_reinforcers, Experiment.Parts.get_number_elements(self.experiment, trials, cs), Experiment.Parts.get_number_elements(self.experiment, trials, us), protocol_info_path, self.name, 1):
 			return None
 
-		f.save_info(protocol_info_path, self.fish_name, ['', habituation_duration, np.min(cs_isi), np.min(cs_dur), np.max(cs_dur), np.min(us_isi), np.min(us_dur), np.max(us_dur), number_cycles, number_reinforcers])
+		f.save_info(protocol_info_path, self.name, ['', habituation_duration, np.min(cs_isi), np.min(cs_dur), np.max(cs_dur), np.min(us_isi), np.min(us_dur), np.max(us_dur), number_cycles, number_reinforcers])
 
 
 		#* Plot overview of the experimental protocol actually run.
-		f.plot_protocol(cs_dur, cs_isi, us_dur, us_isi, self.fish_name, fig_protocol_name)
+		f.plot_protocol(cs_dur, cs_isi, us_dur, us_isi, self.name, fig_protocol_name)
 
 
 
@@ -406,7 +413,7 @@ class Fish:
 #! Try different engines
 		if (data := f.read_tail_tracking_data(data_path, reference_frame_id)) is None:
 
-			f.save_info(protocol_info_path, self.fish_name, 'Tail tracking might be corrupted!')
+			f.save_info(protocol_info_path, self.name, 'Tail tracking might be corrupted!')
 			return None
 
 
@@ -439,7 +446,7 @@ class Fish:
 
 
 		print('Max tail angle at the chosen point: {} deg'.format(round(data.loc[:,tail_angle].max())))
-		f.save_info(protocol_info_path, self.fish_name, 'Max tail angle at the chosen point: {} deg'.format(round(data.loc[:,tail_angle].max())))
+		f.save_info(protocol_info_path, self.name, 'Max tail angle at the chosen point: {} deg'.format(round(data.loc[:,tail_angle].max())))
 
 
 
@@ -462,10 +469,10 @@ class Fish:
 		data = f.stim_in_data(data, protocol)
 
 
-		f.plot_behavior_overview(data, self.fish_name, fig_behavior_name)
+		f.plot_behavior_overview(data, self.name, fig_behavior_name)
 
 
-		if f.lost_stim(len(data[data[cs_beg]!=0]), len(data[data[us_beg]!=0]), Experiment.get_experiment_info(self.experiment).expected_number_cs, Experiment.get_experiment_info(self.experiment).expected_number_us, protocol_info_path, self.fish_name, 2):
+		if f.lost_stim(len(data[data[cs_beg]!=0]), len(data[data[us_beg]!=0]), Experiment.get_experiment_info(self.experiment).expected_number_cs, Experiment.get_experiment_info(self.experiment).expected_number_us, protocol_info_path, self.name, 2):
 			
 			print(data[data[cs_beg]!=0])
 			print(data[data[us_beg]!=0])
@@ -507,7 +514,7 @@ class Fish:
 		data.iloc[:,0] = data.iloc[:,0] - data.iat[0,0]
 
 
-		f.plot_cropped_experiment(data, expected_framerate, bout_detection_thr_1, bout_detection_thr_2, downsampling_step, stem_fish_path_orig, fig_cropped_exp_with_bout_detection_name)
+		f.plot_cropped_experiment(data, expected_framerate, bout_detection_thr_1, bout_detection_thr_2, downsampling_step, self.name, fig_cropped_exp_with_bout_detection_name)
 
 
 		data.drop(columns=vigor_bout_detection, inplace=True)
@@ -523,9 +530,9 @@ class Fish:
 
 		data = f.identify_trials(data, time_bef_frame, time_aft_frame)
 
-
+#!!!!!! todo
 		#* Identify blocks of trials.
-		data = f.identify_blocks_trials(data, blocks_dict)
+		# data = f.identify_blocks_trials(data, blocks_dict)
 
 
 		#* Calculate scaled vigor.
@@ -549,35 +556,42 @@ class Fish:
 		for col_s in [cs_beg, cs_end, us_beg, us_end, number_trial]:
 			
 			data[col_s] = data[col_s].astype('int')
-			data[col_s] = data[col_s].astype(CategoricalDtype(categories=np.sort(data[col_s].unique()), ordered=True))
-
-
-	#! ADD ANOTHER COL WITH THE CS COLOR #! give numbers to the setupes instead AND 
+			data[col_s] = data[col_s].astype(pd.api.types.CategoricalDtype(categories=np.sort(data[col_s].unique()), ordered=True))
 
 
 
+		strain, day, fish_number, age, experiment, condition, rig_name, protocol_number, rig_cs_color = self.fish_info()
 
 
+#! check if this works with parquet
+		data.attrs({'Strain' : strain,
+					'Day' : day,
+					'Fish no.' : fish_number,
+					'Age (dpf)' : age,
+					'Experiment' : experiment,
+					'Condition' : condition,
+					'Rig name' : rig_name,
+					'Protocol number' : protocol_number,
+					'CS color' : rig_cs_color})
 
 
-		#* Set the index.
-		data['Exp.'] = exp_type
-		data['ProtocolRig'] = rig
-		data['Age (dpf)'] = age
-		data['Day'] = day
-		data['Fish no.'] = fish_number
-		data['Strain'] = strain
-
-		data['Rig color'] = 'red'
-		if data['ProtocolRig'].isin(['orange', 'brown']):
-			data['Rig color'] = 'white'
-
-
-		#* Change to a categorical index.
-		data[['Exp.', 'ProtocolRig', 'Rig color', 'Age (dpf)', 'Day', 'Fish no.', 'Strain', type_trial_csus]] = data[['Exp.', 'ProtocolRig', 'Rig color', 'Age (dpf)', 'Day', 'Fish no.', 'Strain', type_trial_csus]].astype('category')
+		# #* Set the index.
+		# data['Strain'] = strain
+		# data['Day'] = day
+		# data['Fish no.'] = fish_number
+		# data['Age (dpf)'] = age
+		# data['Experiment'] = experiment
+		# data['Condition'] = condition
+		# data['Rig name'] = rig_name
+		# data['Protocol number'] = protocol_number
+		# data['CS color'] = rig_cs_color
 
 
-		data.set_index(keys=['Strain', 'Age (dpf)', 'Exp.', 'ProtocolRig', 'Day', 'Fish no.', type_trial_csus], inplace=True)
+		# #* Change to a categorical index.
+		# data[['Exp.', 'ProtocolRig', 'Rig color', 'Age (dpf)', 'Day', 'Fish no.', 'Strain', type_trial_csus]] = data[['Exp.', 'ProtocolRig', 'Rig color', 'Age (dpf)', 'Day', 'Fish no.', 'Strain', type_trial_csus]].astype('category')
+
+
+		# data.set_index(keys=['Strain', 'Age (dpf)', 'Exp.', 'ProtocolRig', 'Day', 'Fish no.', type_trial_csus], inplace=True)
 
 		data_cs = data.xs
 

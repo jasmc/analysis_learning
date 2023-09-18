@@ -22,8 +22,8 @@ experiments_info = {'Delay_increasingTrace':
 																'names_elements' : None}},
 													
 								#!!!!! 
-								WORK HERE
-													catch_trials_plot : list(np.arange(5,15)) + catch_trials_train + list(np.arange(65,95)),
+								# WORK HERE
+													# catch_trials_plot : list(np.arange(5,15)) + catch_trials_train + list(np.arange(65,95)),
 													'blocks' :
 														{'cs' : {'elements' : (range(5,15),
 																					range(15,25),
