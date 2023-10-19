@@ -50,9 +50,17 @@ warnings.filterwarnings(action='ignore', category=FutureWarning)
 '''
 
 
+#! create a dictionary for the dtypes of each col.
+
+
+
 
 #* Parameters for the analysis
 
+
+number_tail_points: Final = 16
+
+#! CHANGE THIS TO A MORE CAUDAL POINT
 # Point of the tail chosen as the last one to be considered in the analysis, using a tracking with 15 points on the tail.
 chosen_tail_point: Final = 16 - 3
 
@@ -102,6 +110,7 @@ bout_detection_thr_2: Final = 1 # deg/ms
 
 # Interpolate data to this framerate.
 expected_framerate: Final = 700 # FPS
+time_experiment_f = 'Time (frame) [{} FPS]'.format(expected_framerate)
 
 # After interpolating, time_bef and time_aft can be used in number of frames.
 time_bef_frame: Final = int(np.ceil(time_bef_ms * expected_framerate/1000)) # frames
@@ -147,7 +156,7 @@ mean_bef_onset = 'Mean '+str(baseline_window)+' s before'
 
 #* Variables containing strings
 
-experiment_type: Final = 'experiment type'
+stim_type: Final = 'Type'
 beg: Final = 'beg (ms)'
 end: Final = 'end (ms)'
 
@@ -278,20 +287,39 @@ photodiode_value: Final = 'PhotodiodeValue'
 galvo_value: Final = 'GalvoValue'
 arduino_value: Final = 'ArduinoValue'
 
-frame_id: Final = 'FrameID'
+frame_id: Final = 'Frame number'
 
-tail_angle: Final = 'Angle of point {} (deg)'.format(chosen_tail_point)
+tail_angle: Final = 'Angle {} (deg)'.format(chosen_tail_point)
 
+x_name: Final = 'X '
+y_name: Final = 'Y '
+angle_name: Final = 'Angle (deg) '
 
 cols_to_use_orig = ['FrameID']
-for i in range(chosen_tail_point+int(math.floor(space_bcf_window/2))):
+data_cols = []
+
+for i in range(number_tail_points):
+
+	cols_to_use_orig.append('x' + str(i))
+	cols_to_use_orig.append('y' + str(i))
+
+	data_cols.append(x_name + str(i))
+	data_cols.append(y_name + str(i))
+
+
+for i in range(number_tail_points-1):
+
 	cols_to_use_orig.append('angle' + str(i))
 
-#! Remove FrameID from cols!
-cols = [0] * len(cols_to_use_orig)
-cols[1:] = ['Angle of point {} (deg)'.format(i) for i in range(len(cols)-1)]
+	data_cols.append(angle_name + str(i))
 
-cols_stim = [cs_beg, cs_end, us_beg, us_end, type_trial_csus, number_trial, block_name]
+
+
+
+
+
+cols_stim = [cs_beg, cs_end, us_beg, us_end]
+			#  , type_trial_csus, number_trial, block_name]
 
 cols_bout = [bout_beg, bout_end, bout]
 
@@ -299,8 +327,8 @@ cols_bout = [bout_beg, bout_end, bout]
 cols_stats = [vigor_mean, bout_mean, bout_beg_mean, bout_end_mean]
 
 
-cols_ordered = [[time_trial], cols_stim, cols[1:], [vigor_raw], cols_bout]
-cols_ordered = [i for j in cols_ordered for i in j]
+# cols_ordered = [[time_trial], cols_stim, cols[1:], [vigor_raw], cols_bout]
+# cols_ordered = [i for j in cols_ordered for i in j]
 
 
 

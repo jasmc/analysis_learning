@@ -21,7 +21,7 @@ plt.style.use('classic')
 
 # def create_folders(path_home):
 
-# 	path_lost_frames = path_home / 'Lost frames'
+#! 	path_lost_frames = path_home / 'Lost frames'
 # 	path_lost_frames.mkdir(parents=True, exist_ok=True)
 
 # 	path_summary_exp = path_home / 'Summary of protocol actually run'
@@ -151,12 +151,14 @@ def read_camera(camera_path):
 		start = timer()
 		
 		# camera = pd.read_csv(str(camera_path), sep='\t', header=0, decimal='.', skiprows=[*range(1,number_frames_discard_beg)])
-		camera = pd.read_csv(str(camera_path), sep=' ', header=0, decimal='.', skiprows=[*range(1,number_frames_discard_beg)])
-		# {'FrameID' : 'int', ela_time : 'float', abs_time : 'int'}
-		print('Time to read cam.txt: {} (s)'.format(timer()-start))
+		camera = pd.read_csv(camera_path, engine='pyarrow', sep=' ', header=0, decimal='.', na_filter=False)
+		# dtype={time_experiment_f : 'int64', abs_time : 'int64', ela_time : 'float64'})
+		# skipfooter=1
+		camera = camera.iloc[:-1,:]
 
-		camera.rename(columns={'TotalTime' : ela_time}, inplace=True)
-		camera.rename(columns={'ID' : frame_id}, inplace=True)
+		camera.rename(columns={'FrameID' : time_experiment_f}, inplace=True)
+		
+		print('Time to read cam.txt: {} (s)'.format(timer()-start))
 		
 		return camera
 
@@ -186,7 +188,11 @@ def read_sync_reader(sync_reader_path):
 		return None
 
 
-def framerate_and_reference_frame(camera, first_frame_absolute_time, protocol_info_path, fish_name, fig_camera_name):
+def framerate_and_reference_frame(camera, fish_name, fig_camera_name):
+
+	first_frame_absolute_time = camera[abs_time].iloc[0]
+
+	camera = camera.drop(columns=abs_time, errors='ignore')
 
 	camera_diff = camera[ela_time].diff()
 
@@ -207,7 +213,7 @@ def framerate_and_reference_frame(camera, first_frame_absolute_time, protocol_in
 
 		if camera_diff_index_right_IFI_diff[i-1] == 1 and camera_diff_index_right_IFI_diff[i] == 1:
 
-			reference_frame_id = camera[frame_id].iloc[camera_diff_index_right_IFI[i] - 1]
+			reference_frame_id = camera[time_experiment_f].iloc[camera_diff_index_right_IFI[i] - 1]
 
 			# first_frame_absolute_time is not None when there is absolute time in the cam file.
 			if first_frame_absolute_time is not None:
@@ -222,21 +228,21 @@ def framerate_and_reference_frame(camera, first_frame_absolute_time, protocol_in
 
 		if camera_diff_index_right_IFI_diff[i-1] == 1 and camera_diff_index_right_IFI_diff[i] == 1:
 			
-			last_frame_id = camera[frame_id].iloc[camera_diff_index_right_IFI[i] - 1]
+			last_frame_id = camera[time_experiment_f].iloc[camera_diff_index_right_IFI[i] - 1]
 			#last_frame_time = first_frame_absolute_time + camera[time].iloc[camera_diff_index_right_IFI[i] - 1] - camera[time].iloc[0]
 
 			break
 
 
 	#* Second estimate of the interframe interval, using the mean, and assuming there is no increasing accumulation of frames in the buffer during the experiment; Only the region between the two frames identified in the previous two for loops is considered.
-	ifi = camera_diff.iloc[reference_frame_id - camera[frame_id].iloc[0] : last_frame_id - camera[frame_id].iloc[0]].mean()
+	ifi = camera_diff.iloc[reference_frame_id - camera[time_experiment_f].iloc[0] : last_frame_id - camera[time_experiment_f].iloc[0]].mean()
 
 	print('Second estimate of IFI: {} ms'.format(ifi))
 	predicted_framerate = 1000 / ifi
 	print('Estimated framerate: {} FPS'.format(predicted_framerate))
 
 
-	def lost_frames(camera, camera_diff, ifi, protocol_info_path, fish_name, fig_camera_name):
+	def lost_frames(camera, camera_diff, ifi, fish_name, fig_camera_name):
 
 
 		# Delay to capture frames by the computer
@@ -262,7 +268,7 @@ def framerate_and_reference_frame(camera, first_frame_absolute_time, protocol_in
 		if (Lost_frames := len(where_frames_lost) > 0):
 			print('Total number of lost frames: ', len(where_frames_lost))
 			print('Where: ', where_frames_lost)
-			save_info(protocol_info_path, fish_name, 'Lost frames.')
+			# save_info(protocol_info_path, fish_name, 'Lost frames.')
 		else:
 			print('No frames were lost.')
 
@@ -311,52 +317,81 @@ def framerate_and_reference_frame(camera, first_frame_absolute_time, protocol_in
 		return Lost_frames
 
 
-	Lost_frames = lost_frames(camera, camera_diff, ifi, protocol_info_path, fish_name, fig_camera_name)
+	Lost_frames = lost_frames(camera, camera_diff, ifi, fish_name, fig_camera_name)
 
 
 
 
 	return predicted_framerate, reference_frame_id, reference_frame_time, Lost_frames
 
-def read_protocol(protocol_path, reference_frame_time_or_id, protocol_info_path, fish_name):
-
+def read_protocol(protocol_path):
 
 	#* Read protocol file.
 	if Path(protocol_path).exists():
-		# Discarding the last column, which contains the cumulative number of bouts identified in C#.
-		protocol = pd.read_csv(str(protocol_path), sep=' ', header=0, names=[experiment_type, beg, end], usecols=[0, 1, 2], index_col=0)
+		# protocol = pd.read_csv(str(protocol_path), sep=' ', header=0, names=[stim_type, beg, end], usecols=[0, 1, 2], index_col=0)
+		protocol = pd.read_csv(protocol_path, engine='pyarrow', sep=' ', header=0, decimal='.', na_filter=False, names=[stim_type, beg, end])
+		# dtype={stim_type : 'str', beg : 'int', end : 'int'})
 
 	else:
-		save_info(protocol_info_path, fish_name, 'stim control file does not exist.')
-		
+
 		return None
 
 	#* Were the stimuli timings not saved?
 	if protocol.empty:
-		save_info(protocol_info_path, fish_name, 'stim control file is empty.')
 		
 		return None
-
 
 	if protocol.iloc[0,0] == 0:
 		
 		return None
-	
-	# #* Is the first stimulus fake? This happened at some point. There was sometimes a line in protocol file in excess.
-	# if protocol.loc[:,beg].iloc[0] == 0 and len(protocol.loc[protocol.index.get_level_values(experiment_type) == 'Cycle&Bout']) == expected_number_cs+1:
-	# 	save_info(protocol_info_path, fish_name, 'Lost beginning of first cycle.')
-		
-	# 	return None
-	
-	# protocol.rename(index={'Cycle&Bout': 'Cycle'}, inplace=True)
+
+	#* Right now, pyarrow engine ignores renaming when opening the csv.
+	protocol.rename(columns={'Beg' : beg, 'End' : end}, inplace=True)
+	protocol[stim_type] = protocol[stim_type].replace({'Cycle' : cs, 'Reinforcer' : us})
 	protocol.sort_values(by=beg, inplace=True)
 
-	# if reference_frame_time is not None:
-		# Getting here means that there is absolute time in the cam file.
-		# protocol = protocol - reference_frame_time
-	protocol = protocol - reference_frame_time_or_id
-
 	return protocol
+
+
+
+def highlight_stim_in_data(data, protocol):
+
+	protocol_ = protocol.copy()
+
+	protocol_[[beg, end]] = protocol_[[beg, end]].astype('float')
+
+	for cs_us in [cs, us]:
+
+		for beg_end in [beg, end]:
+
+			beg_end_name = ' beg' if beg_end == beg else ' end'
+
+			p = pd.DataFrame(protocol_.loc[protocol_[stim_type]==cs_us, beg_end]).rename(columns={beg_end : abs_time})
+
+			p[cs_us + beg_end_name] = np.arange(1, 1+len(p))
+
+			data = pd.merge_ordered(data, p, on=abs_time, how='outer').drop_duplicates(abs_time, keep='first').set_index(abs_time)
+
+
+	data.loc[:,[cs_beg, cs_end, us_beg, us_end]] = data[[cs_beg, cs_end, us_beg, us_end]].fillna(0)
+
+	data.loc[:,[time_experiment_f, ela_time]] = data[[time_experiment_f, ela_time]].interpolate(kind='slinear')
+
+	data = data.reset_index().dropna()
+
+	data[time_experiment_f] = data[time_experiment_f].astype('int64')
+
+
+	#* Fix dtypes.
+	data[cols_stim] = data[cols_stim].astype('int16')
+
+	for stim in cols_stim:
+		
+		data[stim] = data.loc[:, stim].astype(pd.api.types.CategoricalDtype(categories=data[stim].unique().sort(), ordered=True))
+
+	return data
+
+
 
 def protocol_info(protocol):
 
@@ -417,21 +452,37 @@ def map_abs_time_to_elapsed_time(camera, protocol):
 		#* Because here I am relying on "absolute time" (UNIX time, which has ms-resolution), some rows in the original camera dataframe may have the same value of absolute time.
 		camera_protocol = camera_protocol.drop_duplicates(abs_time, keep='first')
 
-		# protocol.loc['Cycle',beg_end] = camera_protocol[camera_protocol[experiment_type]=='Cycle'].set_index(experiment_type).loc[:,ela_time]
-		# protocol.loc['Reinforcer',beg_end] = camera_protocol[camera_protocol[experiment_type]=='Reinforcer'].set_index(experiment_type).loc[:,ela_time]
-		# protocol.loc[:,beg_end] = camera_protocol[camera_protocol[experiment_type].notna()].set_index(experiment_type).loc[:,ela_time].to_numpy()
+		# protocol.loc['Cycle',beg_end] = camera_protocol[camera_protocol[stim_type]=='Cycle'].set_index(stim_type).loc[:,ela_time]
+		# protocol.loc['Reinforcer',beg_end] = camera_protocol[camera_protocol[stim_type]=='Reinforcer'].set_index(stim_type).loc[:,ela_time]
+		# protocol.loc[:,beg_end] = camera_protocol[camera_protocol[stim_type].notna()].set_index(stim_type).loc[:,ela_time].to_numpy()
 
 		for stim in stimuli:
 
-			if len(camera_protocol[camera_protocol[experiment_type]==stim].set_index(experiment_type).loc[:,ela_time]) == 1:
+			if len(camera_protocol[camera_protocol[stim_type]==stim].set_index(stim_type).loc[:,ela_time]) == 1:
 				
-				protocol.loc[stim,beg_end] = camera_protocol[camera_protocol[experiment_type]==stim].set_index(experiment_type).loc[:,ela_time].to_numpy()[0]
+				protocol.loc[stim,beg_end] = camera_protocol[camera_protocol[stim_type]==stim].set_index(stim_type).loc[:,ela_time].to_numpy()[0]
 				
 			else:
 				
-				protocol.loc[stim,beg_end] = camera_protocol[camera_protocol[experiment_type]==stim].set_index(experiment_type).loc[:,ela_time]
+				protocol.loc[stim,beg_end] = camera_protocol[camera_protocol[stim_type]==stim].set_index(stim_type).loc[:,ela_time]
 
 	return protocol[protocol.notna().all(axis=1)]
+
+
+def merge_camera_with_data(data, camera):
+
+	# Further this is used to order the columns.
+	# data_cols_order = camera.columns.to_list() + data.columns[1:].to_list()
+
+	data = pd.merge_ordered(data, camera, on=time_experiment_f, how='inner')
+	# .drop_duplicates(abs_time, keep='first')
+
+	# #* Order the columns.
+	# data = data[data_cols_order]
+
+
+	return data
+
 
 
 def lost_stim(number_cycles, number_reinforcers, min_number_cs_trials, min_number_us_trials, protocol_info_path, fish_name, id_debug):
@@ -517,110 +568,80 @@ def number_frames_discard(data_path, reference_frame_id):
 
 
 
-def read_tail_tracking_data(data_path, reference_frame_id):
-# number_frames
+def read_tail_tracking_data(data_path):
+
 	# Angles in data come in radians.
 
 	start = timer()
 
 	try:
-
-		# na_filter=False to speed up.
-		# skipfooter=1 because in one file there were NaN's in, and only in, the last line.
-		data = pd.read_csv(data_path, sep=' ', header=0, usecols=cols_to_use_orig, decimal='.', na_filter=False) #, skipfooter=1)
-		# nrows=number_frames
+		data = pd.read_csv(data_path, engine='pyarrow', sep=' ', usecols=cols_to_use_orig, header=0, decimal='.', na_filter=False, names=[time_experiment_f]+data_cols)
+		# dtype=dict(zip(cols_to_use_orig, ['int64'] + ['float32']*len(cols_to_use_orig))))
+		# skipfooter=1
 		data = data.iloc[:-1,:]
+		
+		#* Right now, pyarrow engine ignores renaming when opening the csv.
+		data.rename(columns=dict(zip(cols_to_use_orig, [time_experiment_f] + data_cols)), inplace=True)
 
-		#! To correct a corrupted file (20220503_Tu_6dpf_delay_test_3-black_fish8).
-		# data = pd.read_csv(data_path, sep=' ', header=0, usecols=cols_to_use_orig, decimal='.', na_filter=False)
-		# data = data.iloc[:-1,:]
-		# for col in data.columns[1:]:
-		# 	data.loc[:,col] = data.loc[:,col].str.replace(',','.')
+		print('Time to read tail tracking .txt: {} (s)'.format(timer()-start))
+
+
+		#? maybe before this was necessary because "decimal" in pd.read_csv was set to ",".
+		#* Even if decimal separator is wrong, this will correct it.
 		# data.iloc[:,1:] = data.iloc[:,1:].astype('float32')
 
-	except:
-	# 	try:
-			
-	# 		data = pd.read_csv(data_path, sep=' ', header=0, usecols=cols_to_use_orig, decimal='.', na_filter=False)
+		#* Convert tail tracking data from radian to degree
+		data[data_cols] *= (180/np.pi)
+		
+		return data
 
-	# 	except:
+	except:
+
 		return None
 
-	print('Time to read tail tracking .txt: {} (s)'.format(timer()-start))
-
-	# data.iloc[:,0] = data.iloc[:,0].astype('int')
-	data.loc[:,frame_id] = data.loc[:, frame_id] - reference_frame_id
-	data = data[data[frame_id] >= 0]
-
-	#? maybe before this was necessary because "decimal" in pd.read_csv was set to ",".
-	#* Even if decimal separator is wrong, this will correct it.
-	data.iloc[:,1:] = data.iloc[:,1:].astype('float32')
-
-	# Convert tail tracking data from radian to degree
-	data.iloc[:,1:] = data.iloc[:,1:] * (180/np.pi)
-	
-	# Rename columns
-	data.rename(columns=dict(zip(cols_to_use_orig[1:], cols[1:])), inplace=True)
-
-	return data
 
 
 
 
 
 
-def tracking_errors(data, single_point_tracking_error_thr):
+def tracking_errors(data, single_point_tracking_error_thr = single_point_tracking_error_thr):
 
-	errors = False
-
-	if ((a := data.iloc[:,1:].abs().max()) > single_point_tracking_error_thr).any():
+	if ((a := data.loc[:,1:].abs().max()) > single_point_tracking_error_thr).any():
 		print('Possible tracking error! Max(abs(angle of individual point)):')
 		print(a)
 
-		errors = True
+		return True
 
-	if data.iloc[:,1:].isna().to_numpy().any():
+	elif data.iloc[:,1:].isna().to_numpy().any():
 		print('Possible tracking failures. There are NAs in data!')
 
-		errors = True
+		return True
 
-	return errors
+	else:
+		return False
+
+
+
+
 
 def interpolate_data(data, expected_framerate, predicted_framerate):
 	# expected_framerate is the framerate to which data is interpolated. So, output data is as if it had been acquired at the expected_framerate (700 FPS when I wrote this).
 
+	data_ = data.copy()
 
-	data.iloc[:,0] = data.iloc[:,0] * expected_framerate/predicted_framerate
-	
-	interp_function = interpolate.interp1d(data.iloc[:,0], data.iloc[:,1:], kind='slinear', axis=0, assume_sorted=True, bounds_error=False, fill_value="extrapolate")
+	#* Interpolate tail tracking data_ to the expected framerate.
+	data_[time_experiment_f] -= data_[time_experiment_f].iat[0]
 
-	data_ = pd.DataFrame(np.arange(data.iat[0,0], data.iat[-1,0]), columns=['Time (frame) [{} FPS]'.format(expected_framerate)])
-	data_[data.columns[1:]] = interp_function(data_.iloc[:,0])
+	data_[time_experiment_f] *= expected_framerate/predicted_framerate
 
-	# Old
-		# # data_['Original'] = True
+	interp_function = interpolate.interp1d(data_[time_experiment_f], data_.drop(columns=time_experiment_f), kind='slinear', axis=0, assume_sorted=True, bounds_error=False, fill_value="extrapolate")
 
-		# # # data.iloc[:,0] = (data.iloc[:,0] * 1000/predicted_framerate)  # ms
+	data = pd.DataFrame(np.arange(data_[time_experiment_f].iat[0], data_[time_experiment_f].iat[-1]), columns=[time_experiment_f])
 
-		# # Create a dataframe with what is going to be the index for interpolation.
-		# data_ = pd.DataFrame(np.nan((len(timepoints_at_expected_framerate), data.shape[1])), columns=data.columns.to_numpy(), dtype='float32')
-		# data_.iloc[:,0] = timepoints_at_expected_framerate
-		# data_['Original'] = False
+	data[data_.drop(columns=time_experiment_f).columns] = interp_function(data[time_experiment_f])
 
-		# print('!!!!!!!!!!', data)
-		# pd.concat([data.set_index(data.columns[0]), data_.set_index(data.columns[0])], axis=0, join='outer', copy=False).sort_index().reset_index().drop_duplicates(subset=[data.columns[0]], inplace=True)
-		# print('????????????', data)
-
-
-		# data.interpolate(method='slinear', axis=0, inplace=True, copy=False, assume_sorted=True)
-
-
-		# data.iloc[:,0] = np.arange(0, len(data))
-
-		#s Rename column with time.
-		# # data.rename(columns={data.columns[0]: 'Time (frame) [{} FPS]'.format(expected_framerate)}, inplace=True)
-
-	return data_
+	return data
 
 def rolling_window(a, window):
 
@@ -632,7 +653,7 @@ def rolling_window(a, window):
 def filter_data(data, space_bcf_window, time_bcf_window):
 
 	#* Select just the part of data to change.
-	data_ = data.loc[:, [data.columns[0]] + cols[1:]]
+	data_ = data.loc[:, [data.columns[0]] + data_cols[1:]]
 
 
 #! I think it does not make sense to do this
@@ -663,9 +684,11 @@ def filter_data(data, space_bcf_window, time_bcf_window):
 	# 	data_.loc[:, left_eye_angle] = data_.loc[:, left_eye_angle].rolling(window=time_bcf_window, center=center_window).mean().astype('float32')
 
 	#* Update data with the values changed in data_.
-	data.loc[:, [data.columns[0]] + cols[1:]] = data_
+	data.loc[:, [data.columns[0]] + data_cols[1:]] = data_
 	
 	data = data.dropna()
+
+	print('Max tail angle at the chosen point: {} deg'.format(round(data.loc[:,tail_angle].max())))
 
 	return data
 

@@ -253,7 +253,7 @@ for fish_path in tqdm(all_fish_raw_data_paths):
 
 
 	#* Set the columns' dtypes.
-	data[cols[1:]] = data[cols[1:]].astype('float32')
+	data[data_cols[1:]] = data[data_cols[1:]].astype('float32')
 	data[vigor_raw] = data[vigor_raw].astype('float32')
 	# data[vigor_digested] = data[vigor_digested].astype('float32')
 	data[time_trial] = data[time_trial].astype('int')

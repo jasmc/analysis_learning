@@ -1,3 +1,18 @@
+import pandas as pd
+
+
+A = pd.read_csv(r"C:\Users\joaqc\Desktop\20221115_01_delay_orange-1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_6dpfmp tail tracking.txt", sep=' ')
+A = A.tail(210000)
+A.to_csv(r"C:\Users\joaqc\Desktop\20000101_01_delay_orange-1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_6dpfmp tail tracking.txt", sep=' ', index=False)
+
+
+B = pd.read_csv(r"C:\Users\joaqc\Desktop\20221115_01_delay_orange-1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_6dpfcam.txt", sep=' ')
+B = B.tail(210000)
+B.to_csv(r"C:\Users\joaqc\Desktop\20000101_01_delay_orange-1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_6dpfcam.txt", sep=' ', index=False)
+
+
+C = pd.read_csv(r"C:\Users\joaqc\Desktop\20221115_01_delay_orange-1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_6dpfstim control.txt", sep=' ')
+C.to_csv(r"C:\Users\joaqc\Desktop\20000101_01_delay_orange-1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_6dpfstim control.txt", sep=' ', index=False)
 
 
 					
