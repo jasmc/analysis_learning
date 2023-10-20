@@ -215,6 +215,21 @@ for fish_path in tqdm(all_fish_raw_data_paths):
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 	#* time_bef_frame and time_aft_frame are for expected_framerate (700 FPS).
 	data = f.extract_data_around_stimuli(data, protocol, time_bef_frame, time_aft_frame, time_bcf_window, time_max_window, time_min_window)
 

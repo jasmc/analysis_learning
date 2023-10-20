@@ -60,10 +60,6 @@ warnings.filterwarnings(action='ignore', category=FutureWarning)
 
 number_tail_points: Final = 16
 
-#! CHANGE THIS TO A MORE CAUDAL POINT
-# Point of the tail chosen as the last one to be considered in the analysis, using a tracking with 15 points on the tail.
-chosen_tail_point: Final = 16 - 3
-
 # To define the whole extent of trials, i.e., regions in time before and after a stimulus.
 time_bef_ms: Final = -45000 # ms
 time_aft_ms: Final = 45000 # ms
@@ -115,6 +111,14 @@ time_experiment_f = 'Time (frame) [{} FPS]'.format(expected_framerate)
 # After interpolating, time_bef and time_aft can be used in number of frames.
 time_bef_frame: Final = int(np.ceil(time_bef_ms * expected_framerate/1000)) # frames
 time_aft_frame: Final = int(np.ceil(time_aft_ms * expected_framerate/1000)) # frames
+
+
+
+#! CHANGE THIS TO A MORE CAUDAL POINT
+# Point of the tail chosen as the last one to be considered in the analysis, using a tracking with 15 points on the tail.
+chosen_tail_point: Final = number_tail_points - space_bcf_window // 2
+
+
 
 
 # Width of the bins used to group bout_beg and bout_end data, in s.
@@ -289,29 +293,45 @@ arduino_value: Final = 'ArduinoValue'
 
 frame_id: Final = 'Frame number'
 
-tail_angle: Final = 'Angle {} (deg)'.format(chosen_tail_point)
 
 x_name: Final = 'X '
 y_name: Final = 'Y '
 angle_name: Final = 'Angle (deg) '
 
-cols_to_use_orig = ['FrameID']
-data_cols = []
-
-for i in range(number_tail_points):
-
-	cols_to_use_orig.append('x' + str(i))
-	cols_to_use_orig.append('y' + str(i))
-
-	data_cols.append(x_name + str(i))
-	data_cols.append(y_name + str(i))
+tail_angle: Final = angle_name + str(chosen_tail_point - 1)  # It's -1 because of 0-indexing in Python.
 
 
-for i in range(number_tail_points-1):
 
-	cols_to_use_orig.append('angle' + str(i))
 
-	data_cols.append(angle_name + str(i))
+cols_to_use_orig = ['FrameID'] + ['x' + str(i) for i in range(number_tail_points)] + ['y' + str(i) for i in range(number_tail_points)] + ['angle' + str(i) for i in range(number_tail_points - 1)]
+
+# x_cols = []
+# y_cols = []
+# angle_cols = []
+
+x_cols = [x_name + str(i) for i in range(number_tail_points)]
+y_cols = [y_name + str(i) for i in range(number_tail_points)]
+angle_cols = [angle_name + str(i) for i in range(number_tail_points - 1)]
+data_cols = x_cols + y_cols + angle_cols
+
+# for i in range(number_tail_points):
+
+# 	cols_to_use_orig.append('x' + str(i))
+# 	cols_to_use_orig.append('y' + str(i))
+
+# 	x_cols.append(x_name + str(i))
+# 	y_cols.append(y_name + str(i))
+# 	angle_cols.append(angle_name + str(i))
+
+# 	if i < 15:
+# 		cols_to_use_orig.append('angle' + str(i))
+
+
+# 	data_cols.append(x_name + str(i))
+# 	data_cols.append(y_name + str(i))
+
+# for i in range(number_tail_points-1):
+# 	data_cols.append(angle_name + str(i))
 
 
 

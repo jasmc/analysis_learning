@@ -21,13 +21,13 @@ camera_path = data_path.replace('mp tail tracking', 'cam')
 protocol_path = data_path.replace('mp tail tracking', 'stim control')
 
 fig_camera_name = r'C:\Users\joaqc\Desktop\2000 01_Test\Lost frames\test_fish' + '_camera.png'
+fig_behavior_name = r'C:\Users\joaqc\Desktop\2000 01_Test\Behavior\test_fish' + '_behavior.png'
 
-
+fish_name = r'20000101_01_delay_orange-1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_6dpfmp tail tracking'
 
 
 #* Open the file with information about the time of each frame.
 camera = f.read_camera(camera_path)
-
 
 #* Estimate the true framerate.
 predicted_framerate, reference_frame_id, reference_frame_time, Lost_frames = f.framerate_and_reference_frame(camera, name, fig_camera_name)
@@ -45,89 +45,63 @@ data = f.read_tail_tracking_data(data_path)
 #* Add information about the time of each frame to data.
 data = f.merge_camera_with_data(data, camera)
 
-
-
+del camera
 
 #* Interpolate data to the expected framerate
-data = f.interpolate_data(data, expected_framerate, predicted_framerate)
-
-	data_ = data.copy()
-
-	#* Interpolate tail tracking data_ to the expected framerate.
-	data_[time_experiment_f] -= data_[time_experiment_f].iat[0]
-
-	data_[time_experiment_f] *= expected_framerate/predicted_framerate
-
-	interp_function = interpolate.interp1d(data_[time_experiment_f], data_.drop(columns=time_experiment_f), kind='slinear', axis=0, assume_sorted=True, bounds_error=False, fill_value="extrapolate")
-this is not fully correct
-	data = pd.DataFrame(np.arange(data_[time_experiment_f].iat[0], data_[time_experiment_f].iat[-1]), columns=[time_experiment_f])
-
-	data[data_.drop(columns=time_experiment_f).columns] = interp_function(data[time_experiment_f])
-
-
-
-
-
-
-
+data = f.interpolate_data(data, predicted_framerate)
 
 #* Open the stim log.
 protocol = f.read_protocol(protocol_path)
 
-
 data = f.highlight_stim_in_data(data, protocol)
 
+del protocol
 
+# TODO clean up also coordinates of the tail
+#* Filter tail tracking data.
+#! Only filtering the angle data so far.
+data = f.filter_data(data)
 
+	# #TODO might want to test Adrien's way of filtering data (from Megabouts)
 
-data.dtypes
+	# data[angle_cols] = data[angle_cols].cumsum(axis=1)
 
+	# from sklearn.decomposition import PCA
+	# from scipy.signal import savgol_filter
 
+	# pca = PCA(n_components=4)
+	# low_D = pca.fit_transform(data[angle_cols])
+	# data[angle_cols] = pca.inverse_transform(low_D)
 
+	# data[angle_cols] = savgol_filter(data[angle_cols], window_length=11, polyorder=2, deriv=0, delta=1.0, axis=0, mode='interp', cval=0.0)
 
+f.plot_behavior_overview(data, fish_name, fig_behavior_name)
 
-
-import numpy as np
-
-np.arange(1.1,10.3)
-ZERO THE TIME COLS
-
-
-
-del camera, protocol
-
-
-
-
-
-data.dtypes
-
-
-
-
+#* Identify tail bouts.
+data = f.identify_bouts(data)
 
 
 
 
 
-
-
-		#* Filter tail tracking data.
-		data = f.filter_data(data, space_bcf_window, time_bcf_window)
-
-
-
-		#* Segment bouts
-		data = f.vigor_for_bout_detection(data, chosen_tail_point, time_min_window, time_max_window)
-		data = f.identify_bouts(data, bout_detection_thr_1, min_bout_duration, min_interbout_time, bout_detection_thr_2)
-
-
-		f.plot_behavior_overview(data, stem_fish_path_orig, fig_behavior_name)
+	#* Identify blocks of trials.
+	data = f.identify_blocks_trials(data, blocks_dict)
 
 
 
 
+	if f.lost_stim(len(data[data[cs_beg]!=0]), len(data[data[us_beg]!=0]), experiment.expected_number_cs, experiment.expected_number_us, experiment.protocol_info_path, stem_fish_path_orig, 2):
 
+		print(data[data[cs_beg]!=0])
+		print(data[data[us_beg]!=0])
+		continue
+
+
+
+
+
+
+data[tail_angle].plot()
 
 
 

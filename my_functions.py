@@ -372,22 +372,21 @@ def highlight_stim_in_data(data, protocol):
 
 			data = pd.merge_ordered(data, p, on=abs_time, how='outer').drop_duplicates(abs_time, keep='first').set_index(abs_time)
 
-
 	data.loc[:,[cs_beg, cs_end, us_beg, us_end]] = data[[cs_beg, cs_end, us_beg, us_end]].fillna(0)
 
 	data.loc[:,[time_experiment_f, ela_time]] = data[[time_experiment_f, ela_time]].interpolate(kind='slinear')
 
-	data = data.reset_index().dropna()
+	data = data.reset_index(drop=True).dropna().drop(columns=ela_time)
 
 	data[time_experiment_f] = data[time_experiment_f].astype('int64')
 
 
 	#* Fix dtypes.
-	data[cols_stim] = data[cols_stim].astype('int16')
+	data[cols_stim] = data[cols_stim].astype('Sparse[int16]')
 
 	for stim in cols_stim:
 		
-		data[stim] = data.loc[:, stim].astype(pd.api.types.CategoricalDtype(categories=data[stim].unique().sort(), ordered=True))
+		data[stim] = data.loc[:, stim].astype(pd.api.types.CategoricalDtype(categories=data[stim].unique(), ordered=True))
 
 	return data
 
@@ -591,7 +590,7 @@ def read_tail_tracking_data(data_path):
 		# data.iloc[:,1:] = data.iloc[:,1:].astype('float32')
 
 		#* Convert tail tracking data from radian to degree
-		data[data_cols] *= (180/np.pi)
+		data.loc[:,angle_cols] *= (180/np.pi)
 		
 		return data
 
@@ -625,7 +624,7 @@ def tracking_errors(data, single_point_tracking_error_thr = single_point_trackin
 
 
 
-def interpolate_data(data, expected_framerate, predicted_framerate):
+def interpolate_data(data, predicted_framerate, expected_framerate=expected_framerate):
 	# expected_framerate is the framerate to which data is interpolated. So, output data is as if it had been acquired at the expected_framerate (700 FPS when I wrote this).
 
 	data_ = data.copy()
@@ -650,61 +649,38 @@ def rolling_window(a, window):
 	strides = a.strides + (a.strides[-1],)
 	return np.lib.stride_tricks.as_strided(a, shape=shape, strides=strides)
 
-def filter_data(data, space_bcf_window, time_bcf_window):
-
-	#* Select just the part of data to change.
-	data_ = data.loc[:, [data.columns[0]] + data_cols[1:]]
+def filter_data(data, space_bcf_window=space_bcf_window, time_bcf_window=time_bcf_window):
 
 
-#! I think it does not make sense to do this
-	#* Calculate the cumulative sum in space
-	# This works as a filter in space
-	data_.iloc[:, 1:] = data_.iloc[:, 1:].cumsum(axis=1)
+	data_ = data[angle_cols].copy()
 
+	#* Calculate the cumulative sum in space.
+	data_[angle_cols] = data_[angle_cols].cumsum(axis=1)
 
-#! instead of this, just transpose before
-	#* Filter with a rolling average in space
-	#* Alexandre Laborde confirmed this.
+	#* Filter with a rolling average in space.
+	# This option is too slow. Using the transpose is also slow.
+	# data_[angle_cols] = data_[angle_cols].rolling(window=space_bcf_window, center=True, axis=1).mean()
+	#! Alexandre Laborde confirmed this.
 	# Not using pandas rolling mean beacause over columns it takes a lot of time (confirmed that with this way the result is the same)
 	# The fact that here we are using the cumsum means that when averaging more importance is given to the first points
-	data_.iloc[:, 2:-1] = np.mean(rolling_window(data_.iloc[:, 1:].to_numpy(), space_bcf_window), axis=2)
-	data_.iloc[:, 1] = data_.iloc[:, 1:3].mean(axis=1)
-	data_.iloc[:, -1] = data_.iloc[:, -2:].mean(axis=1)
+	data_[angle_cols[1:-1]] = np.mean(rolling_window(data_[angle_cols].to_numpy(), space_bcf_window), axis=2)
+	# data_.iloc[:, 2:-1] = np.mean(rolling_window(data_.iloc[:, 1:].to_numpy(), space_bcf_window), axis=2)
+	data_[angle_cols[0]] = data_[angle_cols[:3]].mean(axis=1)
+	# data_.iloc[:, 1] = data_.iloc[:, 1:3].mean(axis=1)
+	data_[angle_cols[-1]] = data_[angle_cols[-2:]].mean(axis=1)
+	# data_.iloc[:, -1] = data_.iloc[:, -2:].mean(axis=1)
 
-	# This does not work with data_ in float32. Might be a bug of Pandas.
-	# Too slow. Use alternative above.
-	# data_.iloc[:, 1:] = data_.astype('float').iloc[:, 1:].rolling(window=space_bcf_window, center=True, axis=1).mean()
-
-	#* Filter with a rolling average in time
-	data_.iloc[:, 1:] = data_.iloc[:, 1:].rolling(window=time_bcf_window, center=True, axis=0).mean()
-	
-	# Filter eye tracking data_
-	# if eyedata_:	
-	# 	data_.loc[:, right_eye_angle] = data_.loc[:, right_eye_angle].rolling(window=time_bcf_window, center=center_window).mean().astype('float32')
-	# 	data_.loc[:, left_eye_angle] = data_.loc[:, left_eye_angle].rolling(window=time_bcf_window, center=center_window).mean().astype('float32')
+	#* Filter with a rolling average in time.
+	data_[angle_cols] = data_[angle_cols].rolling(window=time_bcf_window, center=True, axis=0).mean()
 
 	#* Update data with the values changed in data_.
-	data.loc[:, [data.columns[0]] + data_cols[1:]] = data_
-	
+	data[angle_cols] = data_
+
 	data = data.dropna()
 
+	data[time_experiment_f] -= data[time_experiment_f].iloc[0]
+
 	print('Max tail angle at the chosen point: {} deg'.format(round(data.loc[:,tail_angle].max())))
-
-	return data
-
-def vigor_for_bout_detection(data, chosen_tail_point, time_min_window, time_max_window):
-	# Calculate 'vigor_bout_detection' (deg/ms)
-	#! JUST TRY THIS
-	#! data.loc[:, vigor_bout_detection] = (data.iloc[:,1:2+chosen_tail_point].diff(axis=1).diff().rolling(window=7, center=True, axis=0).mean() * expected_framerate / 1000).pow(2).sum(axis=1)
-
-	#* Calculate the cumulative sum of the angular velocity over space.
-	#* This allows to take into account movement in any segment with a single scalar value.
-	data.loc[:, vigor_bout_detection] = data.iloc[:,1:2+chosen_tail_point].diff().abs().sum(axis=1) * (expected_framerate / 1000) # deg/ms
-	
-	#* Calculate the abstract measure defined by me as 'vigor_bout_detection'.
-	data.loc[:, vigor_bout_detection] = data.loc[:, vigor_bout_detection].rolling(window=time_max_window, center=True, axis=0).max() - data.loc[:, vigor_bout_detection].rolling(window=time_min_window, center=True, axis=0).min()
-	
-	data.dropna(inplace=True)
 
 	return data
 
@@ -799,7 +775,7 @@ def plot_behavior_overview(data, fish_name, fig_behavior_name):
 
 	# print(timer() - start)
 	plt.figure(figsize=(28, 14))
-	plt.plot(data.iloc[:,0]/expected_framerate/60/60, data.iloc[:,1	+chosen_tail_point], 'black')
+	plt.plot(data[time_experiment_f]/expected_framerate/60/60, data[tail_angle], 'black')
 	plt.xlabel('Time (h)')
 	plt.ylabel('Tail end angle (deg)')
 	plt.suptitle('Behavior overview\n' + fish_name)
@@ -832,7 +808,27 @@ def extract_data_around_stimuli(data, protocol_frame, time_bef_frame, time_aft_f
 
 	return data
 
-def identify_bouts(data, bout_detection_thr_1, min_bout_duration, min_interbout_time, bout_detection_thr_2):
+
+def identify_bouts(data, time_min_window=time_min_window, time_max_window=time_max_window, bout_detection_thr_1=bout_detection_thr_1, min_bout_duration=min_bout_duration, min_interbout_time=min_interbout_time, bout_detection_thr_2=bout_detection_thr_2):
+
+	data = data.copy()
+
+	def vigor_for_bout_detection(data, time_min_window, time_max_window):
+		# Calculate 'vigor_bout_detection' (deg/ms)
+		#! JUST TRY THIS
+		#! data.loc[:, vigor_bout_detection] = (data.iloc[:,1:2+chosen_tail_point].diff(axis=1).diff().rolling(window=7, center=True, axis=0).mean() * expected_framerate / 1000).pow(2).sum(axis=1)
+
+		#* Calculate the cumulative sum of the angular velocity over space.
+		#* This allows to take into account movement in any segment with a single scalar value.
+		vigor = data[data_cols].diff().abs().sum(axis=1) * (expected_framerate / 1000) # deg/ms
+		
+		#* Calculate the abstract measure defined by me as 'vigor_bout_detection'.
+		vigor = vigor.rolling(window=time_max_window, center=True, axis=0).max() - vigor.rolling(window=time_min_window, center=True, axis=0).min()
+		
+		# vigor.dropna(inplace=True)
+
+		return vigor
+
 
 	#* Use the derivative to find the beginning and end of bouts.
 	def bouts_beg_and_end(bouts):
@@ -840,14 +836,16 @@ def identify_bouts(data, bout_detection_thr_1, min_bout_duration, min_interbout_
 		bouts_end = np.where(np.diff(bouts) < 0)[0]
 		return bouts_beg, bouts_end
 
+	vigor = vigor_for_bout_detection(data, time_min_window, time_max_window)
+
 
 	#* For each timepoint, bouts indicates whether it belongs to a bout or not.
 	# It cannot be initialized to an array of nan because of the derivative calculated below.
-	bouts = np.zeros(len(data.loc[:, vigor_bout_detection]))
+	bouts = np.zeros(len(vigor))
 
 
 	# bouts[0] and bouts[-1] = 0 to account for cases when the period under analysis starts in the middle of a bout or finishes in the middle of a bout.
-	bouts[1:-1][data[vigor_bout_detection].iloc[1:-1] >= bout_detection_thr_1] = 1
+	bouts[1:-1][vigor.iloc[1:-1] >= bout_detection_thr_1] = 1
 
 
 	bouts_beg, bouts_end = bouts_beg_and_end(bouts)
@@ -887,38 +885,11 @@ def identify_bouts(data, bout_detection_thr_1, min_bout_duration, min_interbout_
 		if data.iloc[bout_b : bout_e + 1, data.columns.get_loc(tail_angle)].diff().abs().max() * (expected_framerate / 1000) < bout_detection_thr_2:
 			bouts[bout_b : bout_e + 1] = 0
 
-
-	# Previous version
-			# for bout in range(len(bouts_beg)):
-			
-			# 	# Find the maximum of each bout.		
-			# 	bouts_max[bout] = data.iloc[bouts_beg[bout] : bouts_end[bout] + 1, data.columns.get_loc(tail_angle)].diff().abs().max()
-
-			# too_weak_bouts = np.where(bouts_max < bout_detection_thr_2)[0]
-			
-			# for weak_bouts in too_weak_bouts:
-
-			# 	bouts[bouts_beg[weak_bouts] : bouts_end[weak_bouts] + 1] = 0
-
 	data[bout] = bouts
-	#! data[bout_beg] = data[bout].diff() > 0
-	#! data[bout_end] = data[bout].diff() < 0
 
-	data[cols_bout] = data[cols_bout].astype('bool')
-
-	# # Create a column in data with the beginning and end of bouts.
-	# bouts_beg, bouts_end = bouts_beg_and_end(bouts)
-	
-	# data.iloc[bouts_beg, data.columns.get_loc(bout_beg)] = True
-	# data.iloc[bouts_end, data.columns.get_loc(bout_end)] = True
-	
-	# bouts_beg = data.iloc[bouts_beg,0].to_numpy()
-	# bouts_end = data.iloc[:,0].iloc[bouts_end].to_numpy()
-	# bouts_beg = data.iloc[:,0].iloc[np.where(data['Bout beg'])[0]].to_numpy()
-	# bouts_end = data.iloc[:,0].iloc[np.where(data['Bout end'])[0]].to_numpy()
+	data[bout] = data[bout].astype('Sparse[bool]')
 
 	return data
-	# , bouts_beg, bouts_end
 
 
 
