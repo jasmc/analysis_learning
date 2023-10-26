@@ -13,8 +13,8 @@ from importlib import reload
 reload(f)
 
 
-test_fish = r"C:\Users\joaqc\Desktop\2000 01_Test\Raw data\20000101_01_delay_orange-1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_6dpfmp tail tracking.txt"
-# test_fish = r"C:\Users\joaqc\Desktop\20221115_01_delay_orange-1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_6dpfmp tail tracking.txt"
+# test_fish = r"C:\Users\joaqc\Desktop\2000 01_Test\Raw data\20000101_01_delay_orange-1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_6dpfmp tail tracking.txt"
+test_fish = r"C:\Users\joaqc\Desktop\20221115_01_delay_orange-1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_6dpfmp tail tracking.txt"
 
 data_path = test_fish
 camera_path = data_path.replace('mp tail tracking', 'cam')
@@ -50,11 +50,41 @@ data = f.merge_camera_with_data(data, camera)
 
 del camera
 
+
+
+#!!!!!!! Fix abs_time to be more exactly the time at which the frames were acquired by the camera and not when they were caught by the computer
+
+# data = data.set_index(time_experiment_f)
+
+data.loc[:reference_frame_id] = np.arange(reference_frame_time - len(data.loc[:reference_frame_id]) * (1000 / predicted_framerate) , reference_frame_time, 1000 / predicted_framerate)
+		
+		np.arange(0, len(data), 1000 / predicted_framerate)
+
+
+len(data.loc[reference_frame_id:])
+
+data.loc[reference_frame_id:]
+
+
+
+
+
 #* Interpolate data to the expected framerate
 data = f.interpolate_data(data, predicted_framerate)
 
+
+
+
+
 #* Open the stim log.
 protocol = f.read_protocol(protocol_path)
+
+
+
+
+
+
+
 
 
 #!confirm

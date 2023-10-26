@@ -204,31 +204,34 @@ def framerate_and_reference_frame(camera, fish_name, fig_camera_name):
 	print('First estimate of IFI: {} ms'.format(ifi))
 
 
-	camera_diff_index_right_IFI = np.where(abs(camera_diff - ifi) <= max_interval_between_frames)[0]
+	camera_diff_index_correct_IFI = np.where(abs(camera_diff - ifi) <= max_interval_between_frames)[0]
 
-	camera_diff_index_right_IFI_diff = np.diff(camera_diff_index_right_IFI)
+	camera_diff_index_correct_IFI_diff = np.diff(camera_diff_index_correct_IFI)
 
 	#* Find a region at the beginning where the IFI from frame to frame does not vary significantly and is similar to the first estimate of the true IFI (ifi).
-	for i in range(1, len(camera_diff_index_right_IFI_diff)):
+	for i in range(1, len(camera_diff_index_correct_IFI_diff)):
 
-		if camera_diff_index_right_IFI_diff[i-1] == 1 and camera_diff_index_right_IFI_diff[i] == 1:
+		if camera_diff_index_correct_IFI_diff[i-1] == 1 and camera_diff_index_correct_IFI_diff[i] == 1:
 
-			reference_frame_id = camera[time_experiment_f].iloc[camera_diff_index_right_IFI[i] - 1]
+			reference_frame_id = camera[time_experiment_f].iloc[camera_diff_index_correct_IFI[i] - 1]
+
+
+#!!!!!! reference_frame_time should be relative to reference_frame_id
 
 			# first_frame_absolute_time is not None when there is absolute time in the cam file.
 			if first_frame_absolute_time is not None:
-				reference_frame_time = first_frame_absolute_time + camera[ela_time].iloc[camera_diff_index_right_IFI[i] - 1] - camera[ela_time].iloc[0]
+				reference_frame_time = first_frame_absolute_time + camera[ela_time].iloc[camera_diff_index_correct_IFI[i] - 1] - camera[ela_time].iloc[0]
 			else:
 				reference_frame_time = None
 
 			break
 
 	#* Find a similar region but at the end of the experiment.
-	for i in range(len(camera_diff_index_right_IFI_diff)-1, 0, -1):
+	for i in range(len(camera_diff_index_correct_IFI_diff)-1, 0, -1):
 
-		if camera_diff_index_right_IFI_diff[i-1] == 1 and camera_diff_index_right_IFI_diff[i] == 1:
+		if camera_diff_index_correct_IFI_diff[i-1] == 1 and camera_diff_index_correct_IFI_diff[i] == 1:
 			
-			last_frame_id = camera[time_experiment_f].iloc[camera_diff_index_right_IFI[i] - 1]
+			last_frame_id = camera[time_experiment_f].iloc[camera_diff_index_correct_IFI[i] - 1]
 			#last_frame_time = first_frame_absolute_time + camera[time].iloc[camera_diff_index_right_IFI[i] - 1] - camera[time].iloc[0]
 
 			break
@@ -634,7 +637,7 @@ def interpolate_data(data, predicted_framerate, expected_framerate=expected_fram
 
 	data_ = data.copy()
 
-	#* Interpolate tail tracking data_ to the expected framerate.
+	#* Interpolate tail tracking data to the expected framerate.
 	data_[time_experiment_f] -= data_[time_experiment_f].iat[0]
 
 	data_[time_experiment_f] *= expected_framerate/predicted_framerate
