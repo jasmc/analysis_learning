@@ -374,6 +374,11 @@ def highlight_stim_in_data(data, protocol):
 
 	data.loc[:,[cs_beg, cs_end, us_beg, us_end]] = data[[cs_beg, cs_end, us_beg, us_end]].fillna(0)
 
+
+
+#! confirm
+#! also, why interpolate ela_time if it is to remove it?
+#! does it make sense to interpolate based on abs_time, which is the time at which the frame was caught by the PC...? use ID?
 	data.loc[:,[time_experiment_f, ela_time]] = data[[time_experiment_f, ela_time]].interpolate(kind='slinear')
 
 	data = data.reset_index(drop=True).dropna().drop(columns=ela_time)

@@ -32,6 +32,9 @@ camera = f.read_camera(camera_path)
 #* Estimate the true framerate.
 predicted_framerate, reference_frame_id, reference_frame_time, Lost_frames = f.framerate_and_reference_frame(camera, name, fig_camera_name)
 
+#!!!!!!!!!!!! Very important to use the reference times!!!!!!! because of missing frames and abs_time not being 'exact'
+#! need to correct the absolute time ... to the time at which things are acquired
+
 #TODO
 # if Lost_frames:
 # 	return None
@@ -53,6 +56,8 @@ data = f.interpolate_data(data, predicted_framerate)
 #* Open the stim log.
 protocol = f.read_protocol(protocol_path)
 
+
+#!confirm
 data = f.highlight_stim_in_data(data, protocol)
 
 del protocol
