@@ -1,11 +1,14 @@
-
 from my_general_variables import *
 
 import my_functions as f
 
-import pandas as pd
 from pathlib import Path
-# import scipy as 
+import pandas as pd
+import numpy as np
+import re
+from PIL import Image
+import matplotlib.pyplot as plt
+
 
 
 
@@ -14,6 +17,8 @@ protocol_path = r"C:\Users\joaqc\Desktop\test_fish_2p\testWithImagingstim contro
 camera_path = r"C:\Users\joaqc\Desktop\test_fish_2p\testWithImagingcam.txt"
 
 galvo_path = r"C:\Users\joaqc\Desktop\test_fish_2p\test.txt"
+
+images_path = r"C:\Users\joaqc\Desktop\test_fish_2p"
 
 
 
@@ -99,17 +104,40 @@ camera[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']] = camera[cols_stim + ['PMT_OF
 
 
 
-#! Open the images and take the mean
+
+#* Pad the image paths
+# List all files in the folder
+# files = os.listdir(folder_path)
+images_paths = [*Path(images_path).glob('*tiff')]
+
+# Regex pattern to find all integer numbers in the file names
+pattern = re.compile(r'(\d+)')
+
+# Iterate through each file and rename it
+for images_name in images_paths:
+
+	new_image_name = re.sub(pattern, lambda x: x.group(1).zfill(10), str(images_name.stem))
+	
+	images_name.rename(Path(images_path).joinpath(new_image_name + '.tiff'))
 
 
 
 
 
+#* Open the images and take the mean
+images_paths = [*Path(images_path).glob('*tiff')]
+
+images_mean = [0 for _ in images_paths]
+
+for image_i, image in enumerate(images_paths):
+	
+	images_mean[image_i] = np.mean(np.array(Image.open(image)))
 
 
 
 
 
+plt.plot(images_mean)
 
 
 
