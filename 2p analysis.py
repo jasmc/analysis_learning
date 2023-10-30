@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt
 
 
 
-
 protocol_path = r"C:\Users\joaqc\Desktop\test_fish_2p\testWithImagingstim control.txt"
 
 camera_path = r"C:\Users\joaqc\Desktop\test_fish_2p\testWithImagingcam.txt"
@@ -203,3 +202,26 @@ camera.dtypes
 
 
 camera.plot()
+
+
+
+
+
+
+import struct
+
+galvo_path = Path(r"C:\Users\joaqc\Desktop\monacoshutterSat, Oct 28, 2023 6-04-58 PM.dat")
+
+# galvo_bits = open(galvo_path, 'rb')
+# galvo_bits = galvo_bits.read()
+# struct.unpack('>i', galvo_bits)
+
+
+
+
+
+# Reading and decoding data from the file
+with open(str(galvo_path), 'rb') as f:
+    binary_data = f.read()
+    decoded_data = binary_data.decode('ascii', 'ignore')
+    print(decoded_data)

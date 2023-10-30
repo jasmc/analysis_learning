@@ -13,8 +13,8 @@ from importlib import reload
 reload(f)
 
 
-# test_fish = r"C:\Users\joaqc\Desktop\2000 01_Test\Raw data\20000101_01_delay_orange-1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_6dpfmp tail tracking.txt"
-test_fish = r"C:\Users\joaqc\Desktop\20221115_01_delay_orange-1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_6dpfmp tail tracking.txt"
+test_fish = r"C:\Users\joaqc\Desktop\2000 01_Test\Raw data\20000101_01_delay_orange-1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_6dpfmp tail tracking.txt"
+# test_fish = r"C:\Users\joaqc\Desktop\20221115_01_delay_orange-1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_6dpfmp tail tracking.txt"
 
 data_path = test_fish
 camera_path = data_path.replace('mp tail tracking', 'cam')
@@ -39,6 +39,9 @@ predicted_framerate, reference_frame_id, reference_frame_time, Lost_frames = f.f
 # if Lost_frames:
 # 	return None
 
+#* Discard frames that will not be used in camera.
+camera = camera[camera[frame_id] >= reference_frame_id]
+
 #* Open tail tracking data.
 data = f.read_tail_tracking_data(data_path)
 
@@ -48,24 +51,17 @@ data = f.read_tail_tracking_data(data_path)
 #* Add information about the time of each frame to data.
 data = f.merge_camera_with_data(data, camera)
 
-del camera
+#? maybe I can discard ela_time...
 
+del camera
 
 
 #!!!!!!! Fix abs_time to be more exactly the time at which the frames were acquired by the camera and not when they were caught by the computer
 
-# data = data.set_index(time_experiment_f)
+#! check how reference_frame_time is calculated
 
-data.loc[:reference_frame_id] = np.arange(reference_frame_time - len(data.loc[:reference_frame_id]) * (1000 / predicted_framerate) , reference_frame_time, 1000 / predicted_framerate)
-		
-		np.arange(0, len(data), 1000 / predicted_framerate)
-
-
-len(data.loc[reference_frame_id:])
-
-data.loc[reference_frame_id:]
-
-
+#! The delay between acquiring and catching the frame is disregarded and unknown.
+data[abs_time] = np.linspace(reference_frame_time, reference_frame_time + len(data) * (1000 / predicted_framerate), len(data))
 
 
 

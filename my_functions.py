@@ -156,7 +156,7 @@ def read_camera(camera_path):
 		# skipfooter=1
 		camera = camera.iloc[:-1,:]
 
-		camera.rename(columns={'FrameID' : time_experiment_f}, inplace=True)
+		camera.rename(columns={'FrameID' : frame_id}, inplace=True)
 		
 		print('Time to read cam.txt: {} (s)'.format(timer()-start))
 		
@@ -213,7 +213,7 @@ def framerate_and_reference_frame(camera, fish_name, fig_camera_name):
 
 		if camera_diff_index_correct_IFI_diff[i-1] == 1 and camera_diff_index_correct_IFI_diff[i] == 1:
 
-			reference_frame_id = camera[time_experiment_f].iloc[camera_diff_index_correct_IFI[i] - 1]
+			reference_frame_id = camera[frame_id].iloc[camera_diff_index_correct_IFI[i] - 1]
 
 
 #!!!!!! reference_frame_time should be relative to reference_frame_id
@@ -231,14 +231,14 @@ def framerate_and_reference_frame(camera, fish_name, fig_camera_name):
 
 		if camera_diff_index_correct_IFI_diff[i-1] == 1 and camera_diff_index_correct_IFI_diff[i] == 1:
 			
-			last_frame_id = camera[time_experiment_f].iloc[camera_diff_index_correct_IFI[i] - 1]
+			last_frame_id = camera[frame_id].iloc[camera_diff_index_correct_IFI[i] - 1]
 			#last_frame_time = first_frame_absolute_time + camera[time].iloc[camera_diff_index_right_IFI[i] - 1] - camera[time].iloc[0]
 
 			break
 
 
 	#* Second estimate of the interframe interval, using the mean, and assuming there is no increasing accumulation of frames in the buffer during the experiment; Only the region between the two frames identified in the previous two for loops is considered.
-	ifi = camera_diff.iloc[reference_frame_id - camera[time_experiment_f].iloc[0] : last_frame_id - camera[time_experiment_f].iloc[0]].mean()
+	ifi = camera_diff.iloc[reference_frame_id - camera[frame_id].iloc[0] : last_frame_id - camera[frame_id].iloc[0]].mean()
 
 	print('Second estimate of IFI: {} ms'.format(ifi))
 	predicted_framerate = 1000 / ifi
@@ -481,8 +481,10 @@ def merge_camera_with_data(data, camera):
 	# Further this is used to order the columns.
 	# data_cols_order = camera.columns.to_list() + data.columns[1:].to_list()
 
-	data = pd.merge_ordered(data, camera, on=time_experiment_f, how='inner')
+	data = pd.merge_ordered(data, camera, on=frame_id, how='inner')
 	# .drop_duplicates(abs_time, keep='first')
+
+	data[frame_id] -= data[frame_id].iat[0]
 
 	# #* Order the columns.
 	# data = data[data_cols_order]
@@ -588,7 +590,7 @@ def read_tail_tracking_data(data_path):
 		data = data.iloc[:-1,:]
 		
 		#* Right now, pyarrow engine ignores renaming when opening the csv.
-		data.rename(columns=dict(zip(cols_to_use_orig, [time_experiment_f] + data_cols)), inplace=True)
+		data.rename(columns=dict(zip(cols_to_use_orig, [frame_id] + data_cols)), inplace=True)
 
 		print('Time to read tail tracking .txt: {} (s)'.format(timer()-start))
 
@@ -638,9 +640,11 @@ def interpolate_data(data, predicted_framerate, expected_framerate=expected_fram
 	data_ = data.copy()
 
 	#* Interpolate tail tracking data to the expected framerate.
-	data_[time_experiment_f] -= data_[time_experiment_f].iat[0]
+	# data_[time_experiment_f] -= data_[time_experiment_f].iat[0]
 
-	data_[time_experiment_f] *= expected_framerate/predicted_framerate
+	data_[frame_id] *= expected_framerate/predicted_framerate
+
+	data_.rename(columns={frame_id : time_experiment_f}, inplace=True)
 
 	interp_function = interpolate.interp1d(data_[time_experiment_f], data_.drop(columns=time_experiment_f), kind='slinear', axis=0, assume_sorted=True, bounds_error=False, fill_value="extrapolate")
 
