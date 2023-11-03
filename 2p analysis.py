@@ -11,13 +11,13 @@ import matplotlib.pyplot as plt
 
 
 
-protocol_path = r"C:\Users\joaqc\Desktop\test_fish_2p\testWithImagingstim control.txt"
+protocol_path = r"I:\2p test\TEST_stim control.txt"
 
-camera_path = r"C:\Users\joaqc\Desktop\test_fish_2p\testWithImagingcam.txt"
+camera_path = r"I:\2p test\TEST_cam.txt"
 
-galvo_path = r"C:\Users\joaqc\Desktop\test_fish_2p\test.txt"
+# galvo_path = r"C:\Users\joaqc\Desktop\test_fish_2p\test.txt"
 
-images_path = r"C:\Users\joaqc\Desktop\test_fish_2p"
+# images_path = r"C:\Users\joaqc\Desktop\test_fish_2p"
 
 
 
@@ -29,21 +29,24 @@ protocol = protocol.iloc[1:]
 camera = pd.read_csv(camera_path, engine='pyarrow', sep=' ', header=0, decimal='.', na_filter=False)
 
 
-galvo = pd.read_csv(galvo_path, engine='pyarrow', sep='\t', header=4, decimal='.', na_filter=False)
-
-galvo.rename(columns={'time' : abs_time, 'Dev1/ai0' : galvo_value}, inplace=True)
-
-galvo = galvo.iloc[:,[0,1]]
-
-galvo[abs_time] = galvo[abs_time].astype('datetime64[ns]') - pd.Timedelta('1h')
-
-# Calculate unixtime in ms
-galvo[abs_time] = galvo[abs_time].astype('int64') / 10**6
-# galvo = (galvo[abs_time] - pd.Timestamp("1970-01-01")) // pd.Timedelta('1s')
-# galvo = galvo[abs_time].map(pd.Timestamp.timestamp)
 
 
-# galvo.plot(y='GalvoValue')
+
+# galvo = pd.read_csv(galvo_path, engine='pyarrow', sep='\t', header=4, decimal='.', na_filter=False)
+
+# galvo.rename(columns={'time' : abs_time, 'Dev1/ai0' : galvo_value}, inplace=True)
+
+# galvo = galvo.iloc[:,[0,1]]
+
+# galvo[abs_time] = galvo[abs_time].astype('datetime64[ns]') - pd.Timedelta('1h')
+
+# # Calculate unixtime in ms
+# galvo[abs_time] = galvo[abs_time].astype('int64') / 10**6
+# # galvo = (galvo[abs_time] - pd.Timestamp("1970-01-01")) // pd.Timedelta('1s')
+# # galvo = galvo[abs_time].map(pd.Timestamp.timestamp)
+
+
+# # galvo.plot(y='GalvoValue')
 
 
 
@@ -70,12 +73,12 @@ for cs_us in [cs, us, 'PMT_OFF']:
 
 del protocol_, p
 
-camera = pd.merge_ordered(camera, galvo, on=abs_time, how='outer').drop_duplicates(abs_time, keep='first')
+# camera = pd.merge_ordered(camera, galvo, on=abs_time, how='outer').drop_duplicates(abs_time, keep='first')
 
-camera.loc[:,[cs_beg, cs_end, us_beg, us_end, 'PMT_OFF beg', 'PMT_OFF end', 'GalvoValue']] = camera[[cs_beg, cs_end, us_beg, us_end, 'PMT_OFF beg', 'PMT_OFF end', 'GalvoValue']].fillna(0)
+# camera.loc[:,[cs_beg, cs_end, us_beg, us_end, 'PMT_OFF beg', 'PMT_OFF end', 'GalvoValue']] = camera[[cs_beg, cs_end, us_beg, us_end, 'PMT_OFF beg', 'PMT_OFF end', 'GalvoValue']].fillna(0)
 
-del galvo
-
+# del galvo
+camera.loc[:,[cs_beg, cs_end, us_beg, us_end, 'PMT_OFF beg', 'PMT_OFF end']] = camera[[cs_beg, cs_end, us_beg, us_end, 'PMT_OFF beg', 'PMT_OFF end']].fillna(0)
 
 
 # camera.plot(x='ID', y=abs_time)
@@ -104,39 +107,39 @@ camera[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']] = camera[cols_stim + ['PMT_OF
 
 
 
-#* Pad the image paths
-# List all files in the folder
-# files = os.listdir(folder_path)
-images_paths = [*Path(images_path).glob('*tiff')]
+# #* Pad the image paths
+# # List all files in the folder
+# # files = os.listdir(folder_path)
+# images_paths = [*Path(images_path).glob('*tiff')]
 
-# Regex pattern to find all integer numbers in the file names
-pattern = re.compile(r'(\d+)')
+# # Regex pattern to find all integer numbers in the file names
+# pattern = re.compile(r'(\d+)')
 
-# Iterate through each file and rename it
-for images_name in images_paths:
+# # Iterate through each file and rename it
+# for images_name in images_paths:
 
-	new_image_name = re.sub(pattern, lambda x: x.group(1).zfill(10), str(images_name.stem))
+# 	new_image_name = re.sub(pattern, lambda x: x.group(1).zfill(10), str(images_name.stem))
 	
-	images_name.rename(Path(images_path).joinpath(new_image_name + '.tiff'))
+# 	images_name.rename(Path(images_path).joinpath(new_image_name + '.tiff'))
 
 
 
 
 
-#* Open the images and take the mean
-images_paths = [*Path(images_path).glob('*tiff')]
+# #* Open the images and take the mean
+# images_paths = [*Path(images_path).glob('*tiff')]
 
-images_mean = [0 for _ in images_paths]
+# images_mean = [0 for _ in images_paths]
 
-for image_i, image in enumerate(images_paths):
+# for image_i, image in enumerate(images_paths):
 	
-	images_mean[image_i] = np.mean(np.array(Image.open(image)))
+# 	images_mean[image_i] = np.mean(np.array(Image.open(image)))
 
 
 
 
 
-plt.plot(images_mean)
+# plt.plot(images_mean)
 
 
 
@@ -168,20 +171,33 @@ camera['ID'] -= camera['ID'].iat[0]
 
 #! Shape of the galvoValue
 
-camera.plot(x='ID', y='GalvoValue', )
+# camera.plot(x='ID', y='GalvoValue', )
+
+camera = camera.iloc[10000:70000]
+
+
+
+
+
+plt.plot(camera[us_beg], 'green')
+plt.plot(camera[us_beg], 'red')
+
+
+
+
 
 
 camera.plot(x='ID', y=[us_beg, us_end, 'PMT_OFF beg', 'PMT_OFF end'], )
 
+
 camera.plot(x='ID', y=[us_beg, us_end, cs_beg, cs_end], )
 
 
-camera.plot(x='ID', y=[ 'PMT_OFF beg', 'PMT_OFF end'], xlim=(31500, 33000))
+camera.plot(x='ID', y=[ 'PMT_OFF beg', 'PMT_OFF end'])
 
 # camera[abs_time].diff().plot()
 
 camera.plot(x='ID', y=[us_beg, us_end],)
-			xlim=(31500, 33000))
 
 
 

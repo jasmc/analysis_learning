@@ -13,8 +13,18 @@ from importlib import reload
 reload(f)
 
 
+import my_experiment_specific_variables as exp_var
+
+
+
 test_fish = r"C:\Users\joaqc\Desktop\2000 01_Test\Raw data\20000101_01_delay_orange-1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_6dpfmp tail tracking.txt"
+
 # test_fish = r"C:\Users\joaqc\Desktop\20221115_01_delay_orange-1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_6dpfmp tail tracking.txt"
+
+
+
+
+
 
 data_path = test_fish
 camera_path = data_path.replace('mp tail tracking', 'cam')
@@ -26,20 +36,25 @@ fig_behavior_name = r'C:\Users\joaqc\Desktop\2000 01_Test\Behavior\test_fish' + 
 fish_name = r'20000101_01_delay_orange-1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_6dpfmp tail tracking'
 
 
+
+
+
+
+
 #* Open the file with information about the time of each frame.
 camera = f.read_camera(camera_path)
 
 #* Estimate the true framerate.
-predicted_framerate, reference_frame_id, reference_frame_time, Lost_frames = f.framerate_and_reference_frame(camera, name, fig_camera_name)
-
-#!!!!!!!!!!!! Very important to use the reference times!!!!!!! because of missing frames and abs_time not being 'exact'
-#! need to correct the absolute time ... to the time at which things are acquired
+predicted_framerate, reference_frame_id, Lost_frames = f.framerate_and_reference_frame(camera, name, fig_camera_name)
 
 #TODO
 # if Lost_frames:
 # 	return None
 
-#* Discard frames that will not be used in camera.
+camera = camera.drop(columns=ela_time)
+
+#* Discard frames that will not be used (in camera and hence further down).
+# The calculated interframe interval before the reference frame is variable. Discard what happens up to then (also achieved by using how='inner' in merge_camera_with_data).
 camera = camera[camera[frame_id] >= reference_frame_id]
 
 #* Open tail tracking data.
@@ -51,60 +66,43 @@ data = f.read_tail_tracking_data(data_path)
 #* Add information about the time of each frame to data.
 data = f.merge_camera_with_data(data, camera)
 
-#? maybe I can discard ela_time...
-
 del camera
 
+#* Fix abs_time so that the time of each frame becomes closer to the time at which the frames were acquired by the camera and not when they were caught by the computer.
+# The delay between acquiring and catching the frame is unknown and therefore disregarded.
+data[abs_time] = np.linspace(data[abs_time].iat[0], data[abs_time].iat[0] + len(data) * (1000 / predicted_framerate), len(data))
 
-#!!!!!!! Fix abs_time to be more exactly the time at which the frames were acquired by the camera and not when they were caught by the computer
-
-#! check how reference_frame_time is calculated
-
-#! The delay between acquiring and catching the frame is disregarded and unknown.
-data[abs_time] = np.linspace(reference_frame_time, reference_frame_time + len(data) * (1000 / predicted_framerate), len(data))
-
-
-
-#* Interpolate data to the expected framerate
+#* Interpolate data to the expected framerate.
 data = f.interpolate_data(data, predicted_framerate)
-
-
-
-
 
 #* Open the stim log.
 protocol = f.read_protocol(protocol_path)
 
 
-
-
-
-
-
-
-
-#!confirm
-data = f.highlight_stim_in_data(data, protocol)
+#* Identify the stimuli, trials and blocks of the experiment.
+#TODO replace by exp_var.experiments_info[Experiment.name]
+data = f.highlight_stim_trials_blocks_in_data(data, protocol, blocks_info = exp_var.experiments_info['Test']['parts']['blocks'][cs])
 
 del protocol
+
+
+
+#TODO
+	# if f.lost_stim(len(data[data[cs_beg]!=0]), len(data[data[us_beg]!=0]), experiment.expected_number_cs, experiment.expected_number_us, experiment.protocol_info_path, stem_fish_path_orig, 2):
+
+	# 	print(data[data[cs_beg]!=0])
+	# 	print(data[data[us_beg]!=0])
+	# 	continue
+
+
+
 
 # TODO clean up also coordinates of the tail
 #* Filter tail tracking data.
 #! Only filtering the angle data so far.
+# TODO might want to test Adrien's way of filtering data (from Megabouts)
 data = f.filter_data(data)
 
-	# #TODO might want to test Adrien's way of filtering data (from Megabouts)
-
-	# data[angle_cols] = data[angle_cols].cumsum(axis=1)
-
-	# from sklearn.decomposition import PCA
-	# from scipy.signal import savgol_filter
-
-	# pca = PCA(n_components=4)
-	# low_D = pca.fit_transform(data[angle_cols])
-	# data[angle_cols] = pca.inverse_transform(low_D)
-
-	# data[angle_cols] = savgol_filter(data[angle_cols], window_length=11, polyorder=2, deriv=0, delta=1.0, axis=0, mode='interp', cval=0.0)
 
 f.plot_behavior_overview(data, fish_name, fig_behavior_name)
 
@@ -115,49 +113,56 @@ data = f.identify_bouts(data)
 
 
 
-	#* Identify blocks of trials.
-	data = f.identify_blocks_trials(data, blocks_dict)
+
+
+#TODO implement this??? Include in one of the functions above????
+	#* time_bef_frame and time_aft_frame are for expected_framerate (700 FPS).
+	data = f.extract_data_around_stimuli(data, protocol, time_bef_frame, time_aft_frame, time_bcf_window, time_max_window, time_min_window)
+
+
+	data.iloc[:,0] = data.iloc[:,0] - data.iat[0,0]
+
+
+	f.plot_cropped_experiment(data, expected_framerate, bout_detection_thr_1, bout_detection_thr_2, downsampling_step, stem_fish_path_orig, fig_cropped_exp_with_bout_detection_name)
+
+
+	data.drop(columns=vigor_bout_detection, inplace=True)
+
+
+
+#TODO not sure if should save this as well
+	#* Calculate tail vigor.
+	data[vigor_raw] = data.iloc[:,1:2+chosen_tail_point].diff().abs().sum(axis=1) * (expected_framerate / 1000) # deg/ms
+
+
+
+#! check if this works with HDF
+
+	strain, day, fish_number, age, experiment, condition, rig_name, protocol_number, rig_cs_color = self.fish_info()
+
+
+	data.attrs = {'Strain' : strain,
+				'Day' : day,
+				'Fish no.' : fish_number,
+				'Age (dpf)' : age,
+				'Experiment' : experiment,
+				'Condition' : condition,
+				'Rig name' : rig_name,
+				'Protocol number' : protocol_number,
+				'CS color' : rig_cs_color}
 
 
 
 
-	if f.lost_stim(len(data[data[cs_beg]!=0]), len(data[data[us_beg]!=0]), experiment.expected_number_cs, experiment.expected_number_us, experiment.protocol_info_path, stem_fish_path_orig, 2):
+#! HDF5   !!!!!!!!!
+#!  organize hierarchically in experiment/condition and then all the corresponding fish
+#! save all fish in the same HDF5
+pd.set_option('io.hdf.default_format','table')
 
-		print(data[data[cs_beg]!=0])
-		print(data[data[us_beg]!=0])
-		continue
-
-
-
+#! try gzip
 
 
-
-data[tail_angle].plot()
-
-
-
-
-
-data.dtypes
-
-data.columns
-
-
-fix dtypes
-	set some to categorical data
-
-
-
-
-dtypes_ditc = { frame_id : 'int64'
-	abs_time : 'int64',			   
-				}
-
-
-
-
-
-
+#!!!!!!!!!!!!!!!!!!!!! UPDATE PREPOCESS METHOD WITH THIS. BUT FIRST CHECK WHAT IS ALREADY THERE
 
 
 
