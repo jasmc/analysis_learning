@@ -1,5 +1,4 @@
 from my_general_variables import *
-
 import my_functions as f
 
 from pathlib import Path
@@ -9,16 +8,15 @@ import re
 from PIL import Image
 import matplotlib.pyplot as plt
 
+protocol_path = r"D:\data\joaquim\test_1105\test_stim control.txt"
 
+camera_path = r"D:\data\joaquim\test_1105\test_two photon sync reader.txt"
 
+# galvo_path = r"E:\data\test\zscan\test1\monacoshutterSat, Oct 28, 2023 6-04-58 PM.dat"
+# # r"E:\data\test\zscan\conversion.txt"
+# # r"D:\data\joaquim\test_fish\conversion.txt"
 
-protocol_path = r"C:\Users\joaqc\Desktop\test_fish_2p\testWithImagingstim control.txt"
-
-camera_path = r"C:\Users\joaqc\Desktop\test_fish_2p\testWithImagingcam.txt"
-
-galvo_path = r"C:\Users\joaqc\Desktop\test_fish_2p\test.txt"
-
-images_path = r"C:\Users\joaqc\Desktop\test_fish_2p"
+images_path = r"D:\data\joaquim\test_1105"
 
 
 
@@ -28,7 +26,6 @@ protocol = protocol.iloc[1:]
 
 
 camera = pd.read_csv(camera_path, engine='pyarrow', sep=' ', header=0, decimal='.', na_filter=False)
-
 
 galvo = pd.read_csv(galvo_path, engine='pyarrow', sep='\t', header=4, decimal='.', na_filter=False)
 
@@ -48,7 +45,7 @@ galvo[abs_time] = galvo[abs_time].astype('int64') / 10**6
 
 
 
-
+camera['AblationValue'].iloc[20000:22000].plot()
 
 # camera = f.highlight_stim_in_data(camera, protocol)
 
@@ -79,19 +76,19 @@ del galvo
 
 
 
-# camera.plot(x='ID', y=abs_time)
+# camera.plot(x='FrameID', y=abs_time)
 
 
 
 # camera = camera.set_index(abs_time)
 
-camera.loc[:,['ID', ela_time]] = camera[['ID', ela_time]].interpolate(kind='slinear')
+camera.loc[:,['FrameID', ela_time]] = camera[['FrameID', ela_time]].interpolate(kind='slinear')
 
 # camera = camera.reset_index(drop=True).dropna().drop(columns=[ela_time, abs_time])
 
 camera = camera.drop(columns=[ela_time, abs_time])
 
-# camera['ID'] = camera['ID'].astype('int64')
+# camera['FrameID'] = camera['FrameID'].astype('int64')
 
 
 #* Fix dtypes.
@@ -146,42 +143,48 @@ plt.plot(images_mean)
 
 
 
-camera['ID'] -= camera['ID'].iat[0]
+camera['FrameID'] -= camera['FrameID'].iat[0]
+
+
+
+
+with open(galvo_path, 'rb') as file:
+    binary_string = file.read()
+
+# print(binary_string)
+
+# with open(r'E:\\data\\test\\zscan\\conversionNEW.txt', 'w') as new_file:
+# 	new_file.write(binary_string)
+	
+
+text_string = binary_string.decode('')
+print(text_string)
 
 
 
 
 
 
+camera = camera.fillna(0)
 
 
-
-
-
-
-
-
-
-
-
-
-
+camera[camera['US beg'].notna()]
 
 #! Shape of the galvoValue
 
-camera.plot(x='ID', y='GalvoValue', )
+camera.plot(x='FrameID', y='GalvoValue', )
 
 
-camera.plot(x='ID', y=[us_beg, us_end, 'PMT_OFF beg', 'PMT_OFF end'], )
+camera.plot(x='FrameID', y=[us_beg, us_end, 'PMT_OFF beg', 'PMT_OFF end'], )
 
-camera.plot(x='ID', y=[us_beg, us_end, cs_beg, cs_end], )
+camera.plot(y=[us_beg, us_end, cs_beg, cs_end], )
 
 
-camera.plot(x='ID', y=[ 'PMT_OFF beg', 'PMT_OFF end'], xlim=(31500, 33000))
+# camera.plot(x='FrameID', y=[ 'PMT_OFF beg', 'PMT_OFF end'], xlim=(31500, 33000))
 
 # camera[abs_time].diff().plot()
 
-camera.plot(x='ID', y=[us_beg, us_end],)
+camera.plot(x='FrameID', y=[us_beg, us_end],)
 			xlim=(31500, 33000))
 
 
