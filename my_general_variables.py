@@ -61,10 +61,10 @@ warnings.filterwarnings(action='ignore', category=FutureWarning)
 number_tail_points: Final = 16
 
 # To define the whole extent of trials, i.e., regions in time before and after a stimulus.
-time_bef_ms: Final = -45000 # ms
-time_aft_ms: Final = 45000 # ms
-time_bef: Final = -45 # ms
-time_aft: Final = 45 # ms
+# time_bef_ms: Final = 45000 # ms
+# time_aft_ms: Final = 45000 # ms
+time_bef_s: Final = 45 # ms
+time_aft_s: Final = 45 # ms
 
 
 
@@ -109,8 +109,8 @@ expected_framerate: Final = 700 # FPS
 time_experiment_f = 'Time (frame) [{} FPS]'.format(expected_framerate)
 
 # After interpolating, time_bef and time_aft can be used in number of frames.
-time_bef_frame: Final = int(np.ceil(time_bef_ms * expected_framerate/1000)) # frames
-time_aft_frame: Final = int(np.ceil(time_aft_ms * expected_framerate/1000)) # frames
+# time_bef_frame: Final = int(np.ceil(time_bef_ms * expected_framerate/1000)) # frames
+# time_aft_frame: Final = int(np.ceil(time_aft_ms * expected_framerate/1000)) # frames
 
 
 
@@ -128,7 +128,7 @@ binning_window_long: Final = 1 # s
 
 time_bins_short = list(np.arange(-binning_window, t_crop_data_bef_s-binning_window, -binning_window))[::-1] + list(np.arange(0, t_crop_data_aft_s+binning_window, binning_window))
 
-time_bins_long = list(np.arange(-binning_window_long, time_bef-binning_window_long, -binning_window_long))[::-1] + list(np.arange(0, time_aft+binning_window_long, binning_window_long))
+time_bins_long = list(np.arange(-binning_window_long, time_bef_s-binning_window_long, -binning_window_long))[::-1] + list(np.arange(0, time_aft_s+binning_window_long, binning_window_long))
 
 bin_or_window_name = str(binning_window) + '-s window'
 
@@ -176,6 +176,9 @@ cs_end: Final = 'CS end'
 us_beg: Final = 'US beg'
 us_end: Final = 'US end'
 
+cs_trial: Final = 'CS trial'
+us_trial: Final = 'US trial'
+
 vigor_bout_detection: Final = 'Vigour for bout detection (deg/ms)'
 vigor_raw: Final = 'Vigour (deg/ms)'
 vigor_digested: Final = 'Scaled vigour (AU)'
@@ -213,7 +216,7 @@ type_trial_csus: Final = 'Trial type'
 #! Change this name!
 time_trial: Final = 'Trial time (frame) [700 FPS]'
 time_trial_s: Final = 'Trial time (s)'
-block_name: Final = 'Block name'
+phase: Final = 'Phase'
 
 
 
@@ -240,11 +243,10 @@ trace: Final = 'trace'
 
 trials: Final = 'trials'
 blocks: Final = 'blocks'
-phases: Final = 'phases'
 
 
 number_elements: Final = 'trials in each block'
-names_trials_blocks_phases: Final = 'names of blocks'
+names_trials_blocks_blocks: Final = 'names of blocks'
 
 name_in_path: Final = 'name in original path'
 
@@ -338,7 +340,7 @@ data_cols = x_cols + y_cols + angle_cols
 
 
 
-cols_stim = [cs_beg, cs_end, us_beg, us_end]
+cols_stim = [cs_beg, cs_end, us_beg, us_end, cs_trial, us_trial]
 			#  , type_trial_csus, number_trial, block_name]
 
 cols_bout = [bout_beg, bout_end, bout]

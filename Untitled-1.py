@@ -97,17 +97,17 @@ C.to_csv(r"C:\Users\joaqc\Desktop\20000101_01_delay_orange-1_mitfaMinusMinus,ela
 
 
 
-					trials_cs_blocks_phases = [np.arange(5,15), np.arange(15,65), np.arange(65,95)]
+					trials_cs_blocks_blocks = [np.arange(5,15), np.arange(15,65), np.arange(65,95)]
 
-					trials_us_blocks_phases = [np.arange(15,65)]
+					trials_us_blocks_blocks = [np.arange(15,65)]
 
-					names_phases_cs = [
+					names_blocks_cs = [
 						'Pre',
 						'Train',
 						'Post'
 					]
 
-					names_phases_us = [
+					names_blocks_us = [
 						'Train'
 					]
 
@@ -209,17 +209,17 @@ C.to_csv(r"C:\Users\joaqc\Desktop\20000101_01_delay_orange-1_mitfaMinusMinus,ela
 
 
 
-					trials_cs_blocks_phases = [np.arange(5,15), np.arange(15,65), np.arange(65,95)]
+					trials_cs_blocks_blocks = [np.arange(5,15), np.arange(15,65), np.arange(65,95)]
 
-					trials_us_blocks_phases = [np.arange(15,65)]
+					trials_us_blocks_blocks = [np.arange(15,65)]
 
-					names_phases_cs = [
+					names_blocks_cs = [
 						'Pre',
 						'Train',
 						'Post'
 					]
 
-					names_phases_us = [
+					names_blocks_us = [
 						'Train'
 					]
 
@@ -323,17 +323,17 @@ C.to_csv(r"C:\Users\joaqc\Desktop\20000101_01_delay_orange-1_mitfaMinusMinus,ela
 
 
 
-					trials_cs_blocks_phases = [np.arange(5,15), np.arange(15,65), np.arange(65,95)]
+					trials_cs_blocks_blocks = [np.arange(5,15), np.arange(15,65), np.arange(65,95)]
 
-					trials_us_blocks_phases = [np.arange(15,65)]
+					trials_us_blocks_blocks = [np.arange(15,65)]
 
-					names_phases_cs = [
+					names_blocks_cs = [
 						'Pre',
 						'Train',
 						'Post'
 					]
 
-					names_phases_us = [
+					names_blocks_us = [
 						'Train'
 					]
 
@@ -419,17 +419,17 @@ C.to_csv(r"C:\Users\joaqc\Desktop\20000101_01_delay_orange-1_mitfaMinusMinus,ela
 
 
 
-					trials_cs_blocks_phases = [np.arange(5,15), np.arange(15,65), np.arange(65,95)]
+					trials_cs_blocks_blocks = [np.arange(5,15), np.arange(15,65), np.arange(65,95)]
 
-					trials_us_blocks_phases = [np.arange(18,65)]
+					trials_us_blocks_blocks = [np.arange(18,65)]
 
-					names_phases_cs = [
+					names_blocks_cs = [
 						'Pre',
 						'Train',
 						'Post'
 					]
 
-					names_phases_us = [
+					names_blocks_us = [
 						'Train'
 					]
 
@@ -516,17 +516,17 @@ C.to_csv(r"C:\Users\joaqc\Desktop\20000101_01_delay_orange-1_mitfaMinusMinus,ela
 
 
 
-					trials_cs_blocks_phases = [np.arange(5,15), np.arange(15,65), np.arange(65,70)]
+					trials_cs_blocks_blocks = [np.arange(5,15), np.arange(15,65), np.arange(65,70)]
 
-					trials_us_blocks_phases = [np.arange(15,65)]
+					trials_us_blocks_blocks = [np.arange(15,65)]
 
-					names_phases_cs = [
+					names_blocks_cs = [
 						'Pre',
 						'Train',
 						'Post'
 					]
 
-					names_phases_us = [
+					names_blocks_us = [
 						'Train'
 					]
 
@@ -611,16 +611,16 @@ C.to_csv(r"C:\Users\joaqc\Desktop\20000101_01_delay_orange-1_mitfaMinusMinus,ela
 
 
 
-					trials_cs_blocks_phases = [np.arange(5,15), np.arange(15,65)]
+					trials_cs_blocks_blocks = [np.arange(5,15), np.arange(15,65)]
 
-					trials_us_blocks_phases = [np.arange(15,65)]
+					trials_us_blocks_blocks = [np.arange(15,65)]
 
-					names_phases_cs = [
+					names_blocks_cs = [
 						'Pre',
 						'Train',
 					]
 
-					names_phases_us = [
+					names_blocks_us = [
 						'Train'
 					]
 
@@ -678,13 +678,13 @@ C.to_csv(r"C:\Users\joaqc\Desktop\20000101_01_delay_orange-1_mitfaMinusMinus,ela
 
 
 
-					trials_cs_blocks_phases = [np.arange(64,74)]
+					trials_cs_blocks_blocks = [np.arange(64,74)]
 
-					trials_us_blocks_phases = []
+					trials_us_blocks_blocks = []
 
-					names_phases_cs = ['Test']
+					names_blocks_cs = ['Test']
 
-					names_phases_us = []
+					names_blocks_us = []
 
 				case 'longTermSpacedVsMassed-2':
 
@@ -775,15 +775,15 @@ C.to_csv(r"C:\Users\joaqc\Desktop\20000101_01_delay_orange-1_mitfaMinusMinus,ela
 
 
 
-					trials_cs_blocks_phases = [np.arange(1,31), np.arange(31,81), np.arange(81,111)]
+					trials_cs_blocks_blocks = [np.arange(1,31), np.arange(31,81), np.arange(81,111)]
 
-					trials_us_blocks_phases = [np.arange(14,60)]
+					trials_us_blocks_blocks = [np.arange(14,60)]
 
-					names_phases_cs = ['Test',
+					names_blocks_cs = ['Test',
 										'Retrain',
 										'Post-retrain']
 
-					names_phases_us = ['Retrain']
+					names_blocks_us = ['Retrain']
 
 
 
@@ -901,20 +901,20 @@ C.to_csv(r"C:\Users\joaqc\Desktop\20000101_01_delay_orange-1_mitfaMinusMinus,ela
 
 
 
-					trials_cs_blocks_phases = [np.arange(5,15), np.arange(15,65), np.arange(65, 95), np.arange(95, 145), np.arange(145, 175)]
+					trials_cs_blocks_blocks = [np.arange(5,15), np.arange(15,65), np.arange(65, 95), np.arange(95, 145), np.arange(145, 175)]
 
-					trials_us_blocks_phases = [np.arange(15,65), np.arange(79, 117)]
+					trials_us_blocks_blocks = [np.arange(15,65), np.arange(79, 117)]
 
 
 
-					names_phases_cs = [
+					names_blocks_cs = [
 						'Pre',
 						'Train',
 						'Test',
 						'Retrain',
 						'Post-retrain']
 
-					names_phases_us = [
+					names_blocks_us = [
 						'Train',
 						'Retrain']
 

@@ -156,7 +156,7 @@ def read_camera(camera_path):
 		# skipfooter=1
 		camera = camera.iloc[:-1,:]
 
-		camera.rename(columns={'FrameID' : time_experiment_f}, inplace=True)
+		camera.rename(columns={'FrameID' : frame_id}, inplace=True)
 		
 		print('Time to read cam.txt: {} (s)'.format(timer()-start))
 		
@@ -190,7 +190,7 @@ def read_sync_reader(sync_reader_path):
 
 def framerate_and_reference_frame(camera, fish_name, fig_camera_name):
 
-	first_frame_absolute_time = camera[abs_time].iloc[0]
+	# first_frame_absolute_time = camera[abs_time].iloc[0]
 
 	camera = camera.drop(columns=abs_time, errors='ignore')
 
@@ -213,16 +213,14 @@ def framerate_and_reference_frame(camera, fish_name, fig_camera_name):
 
 		if camera_diff_index_correct_IFI_diff[i-1] == 1 and camera_diff_index_correct_IFI_diff[i] == 1:
 
-			reference_frame_id = camera[time_experiment_f].iloc[camera_diff_index_correct_IFI[i] - 1]
+			reference_frame_id = camera[frame_id].iloc[camera_diff_index_correct_IFI[i] - 1]
 
 
-#!!!!!! reference_frame_time should be relative to reference_frame_id
-
-			# first_frame_absolute_time is not None when there is absolute time in the cam file.
-			if first_frame_absolute_time is not None:
-				reference_frame_time = first_frame_absolute_time + camera[ela_time].iloc[camera_diff_index_correct_IFI[i] - 1] - camera[ela_time].iloc[0]
-			else:
-				reference_frame_time = None
+			# # first_frame_absolute_time is not None when there is absolute time in the cam file.
+			# if first_frame_absolute_time is not None:
+			# 	reference_frame_time = first_frame_absolute_time + camera[ela_time].iloc[camera_diff_index_correct_IFI[i] - 1] - camera[ela_time].iloc[0]
+			# else:
+			# 	reference_frame_time = None
 
 			break
 
@@ -231,14 +229,14 @@ def framerate_and_reference_frame(camera, fish_name, fig_camera_name):
 
 		if camera_diff_index_correct_IFI_diff[i-1] == 1 and camera_diff_index_correct_IFI_diff[i] == 1:
 			
-			last_frame_id = camera[time_experiment_f].iloc[camera_diff_index_correct_IFI[i] - 1]
+			last_frame_id = camera[frame_id].iloc[camera_diff_index_correct_IFI[i] - 1]
 			#last_frame_time = first_frame_absolute_time + camera[time].iloc[camera_diff_index_right_IFI[i] - 1] - camera[time].iloc[0]
 
 			break
 
 
 	#* Second estimate of the interframe interval, using the mean, and assuming there is no increasing accumulation of frames in the buffer during the experiment; Only the region between the two frames identified in the previous two for loops is considered.
-	ifi = camera_diff.iloc[reference_frame_id - camera[time_experiment_f].iloc[0] : last_frame_id - camera[time_experiment_f].iloc[0]].mean()
+	ifi = camera_diff.iloc[reference_frame_id - camera[frame_id].iloc[0] : last_frame_id - camera[frame_id].iloc[0]].mean()
 
 	print('Second estimate of IFI: {} ms'.format(ifi))
 	predicted_framerate = 1000 / ifi
@@ -325,7 +323,7 @@ def framerate_and_reference_frame(camera, fish_name, fig_camera_name):
 
 
 
-	return predicted_framerate, reference_frame_id, reference_frame_time, Lost_frames
+	return predicted_framerate, reference_frame_id, Lost_frames
 
 def read_protocol(protocol_path):
 
@@ -357,7 +355,9 @@ def read_protocol(protocol_path):
 
 
 
-def highlight_stim_in_data(data, protocol):
+def highlight_stim_trials_blocks_in_data(data, protocol, blocks_info):
+
+	data[[cs_trial, us_trial, phase]] = [0, 0, '']
 
 	protocol_ = protocol.copy()
 
@@ -369,32 +369,58 @@ def highlight_stim_in_data(data, protocol):
 
 			beg_end_name = ' beg' if beg_end == beg else ' end'
 
+			beg_end_name = cs_us + beg_end_name
+
 			p = pd.DataFrame(protocol_.loc[protocol_[stim_type]==cs_us, beg_end]).rename(columns={beg_end : abs_time})
 
-			p[cs_us + beg_end_name] = np.arange(1, 1+len(p))
+			p[beg_end_name] = np.arange(1, 1+len(p))
 
-			data = pd.merge_ordered(data, p, on=abs_time, how='outer').drop_duplicates(abs_time, keep='first').set_index(abs_time)
-
-	data.loc[:,[cs_beg, cs_end, us_beg, us_end]] = data[[cs_beg, cs_end, us_beg, us_end]].fillna(0)
+			data = pd.merge_ordered(data, p, on=abs_time, how='outer').drop_duplicates(abs_time, keep='first')
 
 
+			#* Identify trials.
+			if beg_end == beg:
 
-#! confirm
-#! also, why interpolate ela_time if it is to remove it?
-#! does it make sense to interpolate based on abs_time, which is the time at which the frame was caught by the PC...? use ID?
-	data.loc[:,[time_experiment_f, ela_time]] = data[[time_experiment_f, ela_time]].interpolate(kind='slinear')
+				trials_beg_end = pd.DataFrame([p[abs_time].to_numpy() - time_bef_s * 1000, p[abs_time].to_numpy() + time_aft_s * 1000], index=[beg, end]).T
+				
+				beg_end_name = cs_us + ' trial'
 
-	data = data.reset_index(drop=True).dropna().drop(columns=ela_time)
+				# data[beg_end_name] = 0
+
+				for i in range(len(p)):
+					
+					data.loc[data[abs_time].between(trials_beg_end[beg].iat[i], trials_beg_end[end].iat[i]), beg_end_name] = i + 1
+
+	#* Identify the blocks of the experiment.
+	for i, j in zip(blocks_info['elements'], blocks_info['names_elements']):
+			
+		data.loc[data[cs_trial].between(i[0], i[-1]), phase] = j
+
+
+	data.loc[:, phase] = data[phase].fillna('')
+	data.loc[:, cols_stim] = data[cols_stim].fillna(0)
+
+
+	data = data.set_index(abs_time)
+
+	cols_subset = ~data.columns.isin(cols_stim + [phase])
+	data.loc[:, cols_subset] = data.loc[:, cols_subset].interpolate(kind='slinear')
+
+	data = data.reset_index(drop=True).dropna()
+
+	#* Reorder the columns.
+	data = data[data.columns[cols_subset].to_list() + cols_stim + [phase]]
 
 	data[time_experiment_f] = data[time_experiment_f].astype('int64')
 
-
-	#* Fix dtypes.
+	data[phase] = data[phase].astype(pd.SparseDtype('string', ''))
 	data[cols_stim] = data[cols_stim].astype('Sparse[int16]')
 
-	for stim in cols_stim:
+	#* Fix dtypes.
+	for stim in cols_stim + [phase]:
 		
 		data[stim] = data.loc[:, stim].astype(pd.api.types.CategoricalDtype(categories=data[stim].unique(), ordered=True))
+
 
 	return data
 
@@ -444,36 +470,36 @@ def protocol_info(protocol):
 
 	return number_cycles, number_reinforcers, number_trials_plot, number_blocks_plot, number_bouts, habituation_duration, cs_dur, cs_isi, us_dur, us_isi
 
-def map_abs_time_to_elapsed_time(camera, protocol):
+# def map_abs_time_to_elapsed_time(camera, protocol):
 	
-	stimuli = protocol.index.unique()
+# 	stimuli = protocol.index.unique()
 
-	camera[abs_time] = camera[abs_time].astype('float')
+# 	camera[abs_time] = camera[abs_time].astype('float')
 	
-	for beg_end in [beg, end]:
+# 	for beg_end in [beg, end]:
 
-		protocol_ = protocol.loc[:,beg_end].reset_index().rename(columns={beg_end : abs_time})
+# 		protocol_ = protocol.loc[:,beg_end].reset_index().rename(columns={beg_end : abs_time})
 
-		camera_protocol = pd.merge_ordered(camera, protocol_).set_index(abs_time).interpolate(kind='slinear').reset_index()
+# 		camera_protocol = pd.merge_ordered(camera, protocol_).set_index(abs_time).interpolate(kind='slinear').reset_index()
 
-		#* Because here I am relying on "absolute time" (UNIX time, which has ms-resolution), some rows in the original camera dataframe may have the same value of absolute time.
-		camera_protocol = camera_protocol.drop_duplicates(abs_time, keep='first')
+# 		#* Because here I am relying on "absolute time" (UNIX time, which has ms-resolution), some rows in the original camera dataframe may have the same value of absolute time.
+# 		camera_protocol = camera_protocol.drop_duplicates(abs_time, keep='first')
 
-		# protocol.loc['Cycle',beg_end] = camera_protocol[camera_protocol[stim_type]=='Cycle'].set_index(stim_type).loc[:,ela_time]
-		# protocol.loc['Reinforcer',beg_end] = camera_protocol[camera_protocol[stim_type]=='Reinforcer'].set_index(stim_type).loc[:,ela_time]
-		# protocol.loc[:,beg_end] = camera_protocol[camera_protocol[stim_type].notna()].set_index(stim_type).loc[:,ela_time].to_numpy()
+# 		# protocol.loc['Cycle',beg_end] = camera_protocol[camera_protocol[stim_type]=='Cycle'].set_index(stim_type).loc[:,ela_time]
+# 		# protocol.loc['Reinforcer',beg_end] = camera_protocol[camera_protocol[stim_type]=='Reinforcer'].set_index(stim_type).loc[:,ela_time]
+# 		# protocol.loc[:,beg_end] = camera_protocol[camera_protocol[stim_type].notna()].set_index(stim_type).loc[:,ela_time].to_numpy()
 
-		for stim in stimuli:
+# 		for stim in stimuli:
 
-			if len(camera_protocol[camera_protocol[stim_type]==stim].set_index(stim_type).loc[:,ela_time]) == 1:
+# 			if len(camera_protocol[camera_protocol[stim_type]==stim].set_index(stim_type).loc[:,ela_time]) == 1:
 				
-				protocol.loc[stim,beg_end] = camera_protocol[camera_protocol[stim_type]==stim].set_index(stim_type).loc[:,ela_time].to_numpy()[0]
+# 				protocol.loc[stim,beg_end] = camera_protocol[camera_protocol[stim_type]==stim].set_index(stim_type).loc[:,ela_time].to_numpy()[0]
 				
-			else:
+# 			else:
 				
-				protocol.loc[stim,beg_end] = camera_protocol[camera_protocol[stim_type]==stim].set_index(stim_type).loc[:,ela_time]
+# 				protocol.loc[stim,beg_end] = camera_protocol[camera_protocol[stim_type]==stim].set_index(stim_type).loc[:,ela_time]
 
-	return protocol[protocol.notna().all(axis=1)]
+# 	return protocol[protocol.notna().all(axis=1)]
 
 
 def merge_camera_with_data(data, camera):
@@ -481,8 +507,10 @@ def merge_camera_with_data(data, camera):
 	# Further this is used to order the columns.
 	# data_cols_order = camera.columns.to_list() + data.columns[1:].to_list()
 
-	data = pd.merge_ordered(data, camera, on=time_experiment_f, how='inner')
+	data = pd.merge_ordered(data, camera, on=frame_id, how='inner')
 	# .drop_duplicates(abs_time, keep='first')
+
+	data[frame_id] -= data[frame_id].iat[0]
 
 	# #* Order the columns.
 	# data = data[data_cols_order]
@@ -588,7 +616,7 @@ def read_tail_tracking_data(data_path):
 		data = data.iloc[:-1,:]
 		
 		#* Right now, pyarrow engine ignores renaming when opening the csv.
-		data.rename(columns=dict(zip(cols_to_use_orig, [time_experiment_f] + data_cols)), inplace=True)
+		data.rename(columns=dict(zip(cols_to_use_orig, [frame_id] + data_cols)), inplace=True)
 
 		print('Time to read tail tracking .txt: {} (s)'.format(timer()-start))
 
@@ -638,9 +666,10 @@ def interpolate_data(data, predicted_framerate, expected_framerate=expected_fram
 	data_ = data.copy()
 
 	#* Interpolate tail tracking data to the expected framerate.
-	data_[time_experiment_f] -= data_[time_experiment_f].iat[0]
 
-	data_[time_experiment_f] *= expected_framerate/predicted_framerate
+	data_[frame_id] *= expected_framerate/predicted_framerate
+
+	data_.rename(columns={frame_id : time_experiment_f}, inplace=True)
 
 	interp_function = interpolate.interp1d(data_[time_experiment_f], data_.drop(columns=time_experiment_f), kind='slinear', axis=0, assume_sorted=True, bounds_error=False, fill_value="extrapolate")
 
@@ -686,9 +715,25 @@ def filter_data(data, space_bcf_window=space_bcf_window, time_bcf_window=time_bc
 
 	data = data.dropna()
 
-	data[time_experiment_f] -= data[time_experiment_f].iloc[0]
+	data[time_experiment_f] -= data[time_experiment_f].iat[0]
 
 	print('Max tail angle at the chosen point: {} deg'.format(round(data.loc[:,tail_angle].max())))
+
+
+	
+# TODO might want to test Adrien's way of filtering data (from Megabouts)
+
+	# data[angle_cols] = data[angle_cols].cumsum(axis=1)
+
+	# from sklearn.decomposition import PCA
+	# from scipy.signal import savgol_filter
+
+	# pca = PCA(n_components=4)
+	# low_D = pca.fit_transform(data[angle_cols])
+	# data[angle_cols] = pca.inverse_transform(low_D)
+
+	# data[angle_cols] = savgol_filter(data[angle_cols], window_length=11, polyorder=2, deriv=0, delta=1.0, axis=0, mode='interp', cval=0.0)
+
 
 	return data
 
@@ -1208,16 +1253,16 @@ def identify_trials(data, time_bef_frame, time_aft_frame):
 
 def identify_blocks_trials(data, blocks_dict):
 
-	data[block_name] = ''
+	data[phase] = ''
 
 	for cs_us in [cs,us]:
 
-		blocks_csus = blocks_dict[blocks][cs_us][number_elements]
+		blocks_csus = blocks_dict[cs_us]['elements']
 
 		for s_i, trials_in_s in enumerate(blocks_csus):
 
 			# if type(trials_in_s) is list:
-			data.loc[(data[type_trial_csus]==cs_us) & (data[number_trial].astype('int').isin([t for t in trials_in_s])), block_name] = blocks_dict[blocks][cs_us][names_trials_blocks_phases][s_i]
+			data.loc[(data[type_trial_csus]==cs_us) & (data[number_trial].astype('int').isin([t for t in trials_in_s])), phase] = blocks_dict[cs_us]['names_elements'][s_i]
 			# s_i + 1
 
 			# In case of single trials and blocks_csus entries being scalars and not lists with a single entry.
@@ -1226,7 +1271,7 @@ def identify_blocks_trials(data, blocks_dict):
 			# 	data.loc[data[number_trial] == str(trials_in_s), name_block] = s_i + 1
 
 
-		data[block_name] = data[block_name].astype(pd.api.types.CategoricalDtype(categories=blocks_dict[blocks][cs_us][names_trials_blocks_phases], ordered=True))
+		data[phase] = data[phase].astype(pd.api.types.CategoricalDtype(categories=blocks_dict[blocks][cs_us][names_trials_blocks_blocks], ordered=True))
 
 
 	return data
@@ -1459,14 +1504,14 @@ def prepareData(data):
 
 def change_block_names (data, blocks_csus, blocks_csus_names):
 
-	data.drop(columns=block_name,inplace=True)
+	data.drop(columns=phase,inplace=True)
 
-	data[block_name] = ''
+	data[phase] = ''
 
 	for s_i, trials_in_s in enumerate(blocks_csus):
 
-		data.loc[(data[number_trial].astype('int').isin(trials_in_s)), block_name] = blocks_csus_names[s_i]
+		data.loc[(data[number_trial].astype('int').isin(trials_in_s)), phase] = blocks_csus_names[s_i]
 
-	data[block_name] = data[block_name].astype(pd.api.types.CategoricalDtype(categories=blocks_csus_names, ordered=True))
+	data[phase] = data[phase].astype(pd.api.types.CategoricalDtype(categories=blocks_csus_names, ordered=True))
 
 	return data
