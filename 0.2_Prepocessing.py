@@ -271,7 +271,7 @@ for fish_path in tqdm(all_fish_raw_data_paths):
 	data[data_cols[1:]] = data[data_cols[1:]].astype('float32')
 	data[vigor_raw] = data[vigor_raw].astype('float32')
 	# data[vigor_digested] = data[vigor_digested].astype('float32')
-	data[time_trial] = data[time_trial].astype('int')
+	data[time_trial_f] = data[time_trial_f].astype('int')
 	data[cols_bout] = data[cols_bout].astype(pd.SparseDtype('bool'))
 
 

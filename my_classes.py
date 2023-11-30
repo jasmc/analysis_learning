@@ -250,7 +250,9 @@ class Fish:
 		strain = info[4]
 		age = info[5].replace('dpf', '')
 
-		return strain, day, fish_number, age, self.experiment, condition, rig_name, protocol_number, rig_cs_color
+		return {'Strain' : strain, 'Day' : day, 'Fish no.' : fish_number, 'Age (dpf)' : age, 'Experiment' : self.experiment, 'Condition' : condition, 'Rig name' : rig_name, 'Protocol number' : protocol_number, 'CS color' : rig_cs_color}
+
+		# return strain, day, fish_number, age, self.experiment, condition, rig_name, protocol_number, rig_cs_color
 
 
 #! method to read fish data from HDF5. has to call the All_Fish class in principle
@@ -259,13 +261,23 @@ class Fish:
 		pass
 
 #TODO
-	def get_path(self, alignment):
+	# def get_path(self, alignment):
 		
-		if alignment == 'Raw':
+	# 	if alignment == 'Raw':
+	# 		return Experiment.get_experiment_info(self.experiment).path_home / 'Raw data' / self.name
+		
+	# 	elif alignment in [cs, us, 'Whole processed']:
+	# 		return Experiment.get_experiment_info(self.experiment).path_save / 'Processed data' / 'parquet files' / '1. Original' / alignment / self.name / 'pkl'
+
+	def get_path(self, dataset_type):
+MISSES ARGUMENT FOR LOCATION OF HDF
+AND CONDITION NEEDS TO COME FROM SOMEWHERE ELSE...
+		if dataset_type == 'Raw':
 			return Experiment.get_experiment_info(self.experiment).path_home / 'Raw data' / self.name
 		
-		elif alignment in [cs, us, 'Whole processed']:
-			return Experiment.get_experiment_info(self.experiment).path_save / 'Processed data' / 'parquet files' / '1. Original' / alignment / self.name / 'pkl'
+		elif dataset_type == 'HDF':
+			return Experiment.get_experiment_info(self.experiment) / self.condition / self.name / 'h5'
+
 
 
 	def preprocess(self, Overwrite):
@@ -559,7 +571,7 @@ class Fish:
 		# data[cols[1:]] = data[cols[1:]].astype('float32')
 		data[vigor_raw] = data[vigor_raw].astype('float32')
 		# data[vigor_digested] = data[vigor_digested].astype('float32')
-		data[time_trial] = data[time_trial].astype('int')
+		data[time_trial_f] = data[time_trial_f].astype('int')
 		data[cols_bout] = data[cols_bout].astype(pd.SparseDtype('bool'))
 
 
@@ -885,7 +897,7 @@ class Fish:
 		# data[cols[1:]] = data[cols[1:]].astype('float32')
 		data[vigor_raw] = data[vigor_raw].astype('float32')
 		# data[vigor_digested] = data[vigor_digested].astype('float32')
-		data[time_trial] = data[time_trial].astype('int')
+		data[time_trial_f] = data[time_trial_f].astype('int')
 		data[cols_bout] = data[cols_bout].astype(pd.SparseDtype('bool'))
 
 

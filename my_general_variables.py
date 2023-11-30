@@ -106,7 +106,7 @@ bout_detection_thr_2: Final = 1 # deg/ms
 
 # Interpolate data to this framerate.
 expected_framerate: Final = 700 # FPS
-time_experiment_f = 'Time (frame) [{} FPS]'.format(expected_framerate)
+time_experiment_f = 'Experiment time (frame) [{} FPS]'.format(expected_framerate)
 
 # After interpolating, time_bef and time_aft can be used in number of frames.
 # time_bef_frame: Final = int(np.ceil(time_bef_ms * expected_framerate/1000)) # frames
@@ -160,7 +160,7 @@ mean_bef_onset = 'Mean '+str(baseline_window)+' s before'
 
 #* Variables containing strings
 
-stim_type: Final = 'Type'
+# 'Type': Final = 'Type'
 beg: Final = 'beg (ms)'
 end: Final = 'end (ms)'
 
@@ -214,7 +214,9 @@ number_trial: Final = 'Trial number'
 type_trial_csus: Final = 'Trial type'
 # alignment: Final = 'Alignment'
 #! Change this name!
-time_trial: Final = 'Trial time (frame) [700 FPS]'
+time_trial_f: Final = 'Trial time (frame) [700 FPS]'
+cs_time_trial_f: Final = 'CS trial time (frame) [700 FPS]'
+us_time_trial_f: Final = 'US trial time (frame) [700 FPS]'
 time_trial_s: Final = 'Trial time (s)'
 phase: Final = 'Phase'
 
@@ -340,7 +342,8 @@ data_cols = x_cols + y_cols + angle_cols
 
 
 
-cols_stim = [cs_beg, cs_end, us_beg, us_end, cs_trial, us_trial]
+cols_stim = [cs_beg, cs_end, us_beg, us_end]
+			#  , cs_trial, us_trial]
 			#  , type_trial_csus, number_trial, block_name]
 
 cols_bout = [bout_beg, bout_end, bout]

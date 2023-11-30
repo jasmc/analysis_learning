@@ -17,6 +17,7 @@ import my_experiment_specific_variables as exp_var
 
 
 
+
 test_fish = r"C:\Users\joaqc\Desktop\2000 01_Test\Raw data\20000101_01_delay_orange-1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_6dpfmp tail tracking.txt"
 
 # test_fish = r"C:\Users\joaqc\Desktop\20221115_01_delay_orange-1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_6dpfmp tail tracking.txt"
@@ -33,7 +34,7 @@ protocol_path = data_path.replace('mp tail tracking', 'stim control')
 fig_camera_name = r'C:\Users\joaqc\Desktop\2000 01_Test\Lost frames\test_fish' + '_camera.png'
 fig_behavior_name = r'C:\Users\joaqc\Desktop\2000 01_Test\Behavior\test_fish' + '_behavior.png'
 
-fish_name = r'20000101_01_delay_orange-1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_6dpfmp tail tracking'
+fish_name = r'20000101_01_delay_orange-1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_6dpf'
 
 
 
@@ -81,9 +82,10 @@ protocol = f.read_protocol(protocol_path)
 
 #* Identify the stimuli, trials and blocks of the experiment.
 #TODO replace by exp_var.experiments_info[Experiment.name]
-data = f.highlight_stim_trials_blocks_in_data(data, protocol, blocks_info = exp_var.experiments_info['Test']['parts']['blocks'][cs])
-
+data = f.identify_trials(data, protocol)
+# , blocks_info = exp_var.experiments_info['Test']['parts']['phases']
 del protocol
+
 
 
 
@@ -104,15 +106,36 @@ del protocol
 data = f.filter_data(data)
 
 
-f.plot_behavior_overview(data, fish_name, fig_behavior_name)
 
-#* Identify tail bouts.
-data = f.identify_bouts(data)
-
-
-
+store = pd.HDFStore(r"C:\Users\joaqc\Desktop\2000 01_Test\all_data.h5", complevel=4, complib="zlib")
+store.append(fish_name, data, data_columns=[cs, us], expectedrows=len(data))
+store.get_storer(fish_name).attrs['Fish info'] = self.fish_info()
+store.close()
 
 
+
+
+
+
+
+
+	f.plot_behavior_overview(data, fish_name, fig_behavior_name)
+
+
+	#* Identify tail bouts.
+	data = f.identify_bouts(data)
+
+
+
+
+
+
+
+#TODO create a function to calculate time_trial_f and insert it in the dataset.
+	# #Todo move to function this part
+	# data[[cs_time_trial_f, us_time_trial_f]] = np.nan
+
+	# extra_time_window = np.max([time_bcf_window, time_max_window, time_min_window])
 
 
 #TODO implement this??? Include in one of the functions above????
@@ -120,51 +143,95 @@ data = f.identify_bouts(data)
 	data = f.extract_data_around_stimuli(data, protocol, time_bef_frame, time_aft_frame, time_bcf_window, time_max_window, time_min_window)
 
 
-	data.iloc[:,0] = data.iloc[:,0] - data.iat[0,0]
+	# data.iloc[:,0] = data.iloc[:,0] - data.iat[0,0]
 
 
 	f.plot_cropped_experiment(data, expected_framerate, bout_detection_thr_1, bout_detection_thr_2, downsampling_step, stem_fish_path_orig, fig_cropped_exp_with_bout_detection_name)
 
 
-	data.drop(columns=vigor_bout_detection, inplace=True)
+	# data.drop(columns=vigor_bout_detection, inplace=True)
 
 
 
-#TODO not sure if should save this as well
-	#* Calculate tail vigor.
-	data[vigor_raw] = data.iloc[:,1:2+chosen_tail_point].diff().abs().sum(axis=1) * (expected_framerate / 1000) # deg/ms
-
-
-
-#! check if this works with HDF
-
-	strain, day, fish_number, age, experiment, condition, rig_name, protocol_number, rig_cs_color = self.fish_info()
-
-
-	data.attrs = {'Strain' : strain,
-				'Day' : day,
-				'Fish no.' : fish_number,
-				'Age (dpf)' : age,
-				'Experiment' : experiment,
-				'Condition' : condition,
-				'Rig name' : rig_name,
-				'Protocol number' : protocol_number,
-				'CS color' : rig_cs_color}
+# #TODO not sure if should save this as well
+# 	#* Calculate tail vigor.
+# 	data[vigor_raw] = data.iloc[:,1:2+chosen_tail_point].diff().abs().sum(axis=1) * (expected_framerate / 1000) # deg/ms
 
 
 
 
-#! HDF5   !!!!!!!!!
-#!  organize hierarchically in experiment/condition and then all the corresponding fish
-#! save all fish in the same HDF5
-pd.set_option('io.hdf.default_format','table')
 
-#! try gzip
+
+
+
+
+
+
+
+#!!!!!!!!!!
+
+Oftentimes when appending large amounts of data to a store, it is useful to turn off index creation for each append, then recreate at the end.
+df_1 = pd.DataFrame(np.random.randn(10, 2), columns=list("AB"))
+
+df_2 = pd.DataFrame(np.random.randn(10, 2), columns=list("AB"))
+
+st = pd.HDFStore("appends.h5", mode="w")
+
+st.append("df", df_1, data_columns=["B"], index=False)
+
+st.append("df", df_2, data_columns=["B"], index=False)
+
+st.get_storer("df").table
+Out[540]: 
+/df/table (Table(20,)) ''
+  description := {
+  "index": Int64Col(shape=(), dflt=0, pos=0),
+  "values_block_0": Float64Col(shape=(1,), dflt=0.0, pos=1),
+  "B": Float64Col(shape=(), dflt=0.0, pos=2)}
+  byteorder := 'little'
+  chunkshape := (2730,)
+Then create the index when finished appending.
+
+st.create_table_index("df", columns=["B"], optlevel=9, kind="full")
+
+st.get_storer("df").table
+Out[542]: 
+/df/table (Table(20,)) ''
+  description := {
+  "index": Int64Col(shape=(), dflt=0, pos=0),
+  "values_block_0": Float64Col(shape=(1,), dflt=0.0, pos=1),
+  "B": Float64Col(shape=(), dflt=0.0, pos=2)}
+  byteorder := 'little'
+  chunkshape := (2730,)
+  autoindex := True
+  colindexes := {
+    "B": Index(9, fullshuffle, zlib(1)).is_csi=True}
+
+st.close()
+
+
+
+
+
+#!!!!!!!!!!!!!
+You can pass chunksize=<int> to append, specifying the write chunksize (default is 50000). This will significantly lower your memory usage on writing.
+
+
+#!!!!!!!!!!
+You can pass expectedrows=<int> to the first append, to set the TOTAL number of rows that PyTables will expect. This will optimize read/write performance.
+
+
+
+
 
 
 #!!!!!!!!!!!!!!!!!!!!! UPDATE PREPOCESS METHOD WITH THIS. BUT FIRST CHECK WHAT IS ALREADY THERE
 
 
+
+
+
+#! Use HDFStore.append() to concat all the fish a single experiment
 
 # f.read_camera((camera_path))
 # a = repr("C:\Users\joaqc\Desktop\2000 01_Test\Raw data\20000101_01_delay_orange-1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_6dpfcam.txt")

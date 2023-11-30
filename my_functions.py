@@ -151,7 +151,8 @@ def read_camera(camera_path):
 		start = timer()
 		
 		# camera = pd.read_csv(str(camera_path), sep='\t', header=0, decimal='.', skiprows=[*range(1,number_frames_discard_beg)])
-		camera = pd.read_csv(camera_path, engine='pyarrow', sep=' ', header=0, decimal='.', na_filter=False)
+		camera = pd.read_csv(camera_path, engine='pyarrow', sep=' ', header=0, decimal='.')
+		# , na_filter=False
 		# dtype={time_experiment_f : 'int64', abs_time : 'int64', ela_time : 'float64'})
 		# skipfooter=1
 		camera = camera.iloc[:-1,:]
@@ -329,9 +330,9 @@ def read_protocol(protocol_path):
 
 	#* Read protocol file.
 	if Path(protocol_path).exists():
-		# protocol = pd.read_csv(str(protocol_path), sep=' ', header=0, names=[stim_type, beg, end], usecols=[0, 1, 2], index_col=0)
-		protocol = pd.read_csv(protocol_path, engine='pyarrow', sep=' ', header=0, decimal='.', na_filter=False, names=[stim_type, beg, end])
-		# dtype={stim_type : 'str', beg : 'int', end : 'int'})
+		# protocol = pd.read_csv(str(protocol_path), sep=' ', header=0, names=['Type', beg, end], usecols=[0, 1, 2], index_col=0)
+		protocol = pd.read_csv(protocol_path, engine='pyarrow', sep=' ', header=0, decimal='.', names=['Type', beg, end])
+		# dtype={'Type' : 'str', beg : 'int', end : 'int'})
 
 	else:
 
@@ -348,78 +349,102 @@ def read_protocol(protocol_path):
 
 	#* Right now, pyarrow engine ignores renaming when opening the csv.
 	protocol.rename(columns={'Beg' : beg, 'End' : end}, inplace=True)
-	protocol[stim_type] = protocol[stim_type].replace({'Cycle' : cs, 'Reinforcer' : us})
+	protocol['Type'] = protocol['Type'].replace({'Cycle' : cs, 'Reinforcer' : us})
 	protocol.sort_values(by=beg, inplace=True)
 
 	return protocol
 
 
 
-def highlight_stim_trials_blocks_in_data(data, protocol, blocks_info):
+def identify_trials(data, protocol):
+# blocks_info
+	data[[cs, us]] = [0, 0]
 
-	data[[cs_trial, us_trial, phase]] = [0, 0, '']
 
-	protocol_ = protocol.copy()
+	# protocol_ = protocol.copy()
 
-	protocol_[[beg, end]] = protocol_[[beg, end]].astype('float')
+	# protocol_[[beg, end]] = protocol_[[beg, end]].astype('float')
 
 	for cs_us in [cs, us]:
 
-		for beg_end in [beg, end]:
+		# data[cs_us] = 0
 
-			beg_end_name = ' beg' if beg_end == beg else ' end'
+		protocol_sub = protocol.loc[protocol['Type']==cs_us, [beg, end]].to_numpy()
 
-			beg_end_name = cs_us + beg_end_name
-
-			p = pd.DataFrame(protocol_.loc[protocol_[stim_type]==cs_us, beg_end]).rename(columns={beg_end : abs_time})
-
-			p[beg_end_name] = np.arange(1, 1+len(p))
-
-			data = pd.merge_ordered(data, p, on=abs_time, how='outer').drop_duplicates(abs_time, keep='first')
-
-
-			#* Identify trials.
-			if beg_end == beg:
-
-				trials_beg_end = pd.DataFrame([p[abs_time].to_numpy() - time_bef_s * 1000, p[abs_time].to_numpy() + time_aft_s * 1000], index=[beg, end]).T
-				
-				beg_end_name = cs_us + ' trial'
-
-				# data[beg_end_name] = 0
-
-				for i in range(len(p)):
-					
-					data.loc[data[abs_time].between(trials_beg_end[beg].iat[i], trials_beg_end[end].iat[i]), beg_end_name] = i + 1
-
-	#* Identify the blocks of the experiment.
-	for i, j in zip(blocks_info['elements'], blocks_info['names_elements']):
+		for i, p in enumerate(protocol_sub):
 			
-		data.loc[data[cs_trial].between(i[0], i[-1]), phase] = j
+			# mask = data[abs_time].between(p[0], p[1])
+
+			data.loc[data[abs_time].between(p[0], p[1]), cs_us] = i + 1
+
+			#! highlight phases
 
 
-	data.loc[:, phase] = data[phase].fillna('')
-	data.loc[:, cols_stim] = data[cols_stim].fillna(0)
+
+# #!!!!!!!!!!!                      GET RID OF CS BEG AND CS END. SINGLE COLUMN
+# 	for cs_us in [cs, us]:
+
+# 		for beg_end in [beg, end]:
+
+# 			beg_end_name = ' beg' if beg_end == beg else ' end'
+
+# 			beg_end_name = cs_us + beg_end_name
+
+# 			p = pd.DataFrame(protocol_.loc[protocol_['Type']==cs_us, beg_end]).rename(columns={beg_end : abs_time})
+
+# 			p[beg_end_name] = np.arange(1, 1+len(p))
+
+# 			data = pd.merge_ordered(data, p, on=abs_time, how='outer').drop_duplicates(abs_time, keep='first')
+
+# #! Does not make sense when stimuli are very close to each other. REMOVE
+# 			# #* Identify trials.
+# 			# if beg_end == beg:
+
+# 			# 	trials_beg_end = pd.DataFrame([p[abs_time].to_numpy() - time_bef_s * 1000, p[abs_time].to_numpy() + time_aft_s * 1000], index=[beg, end]).T
+				
+# 			# 	beg_end_name = cs_us + ' trial'
+
+# 			# 	# data[beg_end_name] = 0
+
+# 			# 	for i in range(len(p)):
+
+# 			# 		data.loc[data[abs_time].between(trials_beg_end[beg].iat[i], trials_beg_end[end].iat[i]), beg_end_name] = i + 1
+
+# 			# if beg_end == beg:
+
+# 			# 	#* Identify experimental blocks.
+# 			# 	for i, j in zip(blocks_info[cs_us]['elements'], blocks_info[cs_us]['names_elements']):
+					
+# 			# 		data.at[data[beg_end_name] == i[0], abs_time].to_numpy() - time_bef_s * 1000
+# 			# 		data.at[data[beg_end_name] == i[-1], abs_time].to_numpy() + time_aft_s * 1000
+
+# 			# 		data.loc[data[beg_end_name].between(i[0], i[-1]), phase] = j
+
+
+	# data.loc[:, phase] = data[phase].fillna('')
+	# data.loc[:, cols_stim] = data[cols_stim].fillna(0)
 
 
 	data = data.set_index(abs_time)
 
-	cols_subset = ~data.columns.isin(cols_stim + [phase])
-	data.loc[:, cols_subset] = data.loc[:, cols_subset].interpolate(kind='slinear')
+	# cols_subset = ~data.columns.isin([cs, us])
+# + [phase]
+	data.loc[:, data_cols] = data.loc[:, data_cols].interpolate(kind='slinear')
 
 	data = data.reset_index(drop=True).dropna()
 
 	#* Reorder the columns.
-	data = data[data.columns[cols_subset].to_list() + cols_stim + [phase]]
-
+	# data = data[data.columns[data_cols].to_list() + [cs, us]]
+#  + [phase]
 	data[time_experiment_f] = data[time_experiment_f].astype('int64')
 
-	data[phase] = data[phase].astype(pd.SparseDtype('string', ''))
-	data[cols_stim] = data[cols_stim].astype('Sparse[int16]')
+	# data[phase] = data[phase].astype(pd.SparseDtype('string', ''))
+	data[[cs, us]] = data[[cs, us]].astype('Sparse[int16]')
 
 	#* Fix dtypes.
-	for stim in cols_stim + [phase]:
-		
-		data[stim] = data.loc[:, stim].astype(pd.api.types.CategoricalDtype(categories=data[stim].unique(), ordered=True))
+	for cs_us in [cs, us]:
+#  + [phase]
+		data[cs_us] = data.loc[:, cs_us].astype(pd.api.types.CategoricalDtype(categories=data[cs_us].unique(), ordered=True))
 
 
 	return data
@@ -485,19 +510,19 @@ def protocol_info(protocol):
 # 		#* Because here I am relying on "absolute time" (UNIX time, which has ms-resolution), some rows in the original camera dataframe may have the same value of absolute time.
 # 		camera_protocol = camera_protocol.drop_duplicates(abs_time, keep='first')
 
-# 		# protocol.loc['Cycle',beg_end] = camera_protocol[camera_protocol[stim_type]=='Cycle'].set_index(stim_type).loc[:,ela_time]
-# 		# protocol.loc['Reinforcer',beg_end] = camera_protocol[camera_protocol[stim_type]=='Reinforcer'].set_index(stim_type).loc[:,ela_time]
-# 		# protocol.loc[:,beg_end] = camera_protocol[camera_protocol[stim_type].notna()].set_index(stim_type).loc[:,ela_time].to_numpy()
+# 		# protocol.loc['Cycle',beg_end] = camera_protocol[camera_protocol['Type']=='Cycle'].set_index('Type').loc[:,ela_time]
+# 		# protocol.loc['Reinforcer',beg_end] = camera_protocol[camera_protocol['Type']=='Reinforcer'].set_index('Type').loc[:,ela_time]
+# 		# protocol.loc[:,beg_end] = camera_protocol[camera_protocol['Type'].notna()].set_index('Type').loc[:,ela_time].to_numpy()
 
 # 		for stim in stimuli:
 
-# 			if len(camera_protocol[camera_protocol[stim_type]==stim].set_index(stim_type).loc[:,ela_time]) == 1:
+# 			if len(camera_protocol[camera_protocol['Type']==stim].set_index('Type').loc[:,ela_time]) == 1:
 				
-# 				protocol.loc[stim,beg_end] = camera_protocol[camera_protocol[stim_type]==stim].set_index(stim_type).loc[:,ela_time].to_numpy()[0]
+# 				protocol.loc[stim,beg_end] = camera_protocol[camera_protocol['Type']==stim].set_index('Type').loc[:,ela_time].to_numpy()[0]
 				
 # 			else:
 				
-# 				protocol.loc[stim,beg_end] = camera_protocol[camera_protocol[stim_type]==stim].set_index(stim_type).loc[:,ela_time]
+# 				protocol.loc[stim,beg_end] = camera_protocol[camera_protocol['Type']==stim].set_index('Type').loc[:,ela_time]
 
 # 	return protocol[protocol.notna().all(axis=1)]
 
@@ -717,6 +742,8 @@ def filter_data(data, space_bcf_window=space_bcf_window, time_bcf_window=time_bc
 
 	data[time_experiment_f] -= data[time_experiment_f].iat[0]
 
+	data = data.set_index(time_experiment_f)
+
 	print('Max tail angle at the chosen point: {} deg'.format(round(data.loc[:,tail_angle].max())))
 
 
@@ -846,7 +873,7 @@ def extract_data_around_stimuli(data, protocol_frame, time_bef_frame, time_aft_f
 
 	extra_time_window = np.max([time_bcf_window, time_max_window, time_min_window])
 
-	protocol_frame[beg] = protocol_frame[beg] + time_bef_frame- 2*extra_time_window
+	protocol_frame[beg] = protocol_frame[beg] + time_bef_frame - 2*extra_time_window
 	protocol_frame[end] = protocol_frame[end] + time_aft_frame + 2*extra_time_window
 
 	# rows_to_skip contains the line numbers with data belonging to frames between trials and not within each trial time span (-time_bef to time_aft referenced to stim).
@@ -1181,7 +1208,7 @@ def clean_data(data):
 
 	# return data
 
-def identify_trials(data, time_bef_frame, time_aft_frame):
+def identify_trials_old(data, time_bef_frame, time_aft_frame):
 
 	trials_list = []
 
@@ -1204,7 +1231,7 @@ def identify_trials(data, time_bef_frame, time_aft_frame):
 			# trial[time_trial] is not given by np.arange(time_bef_frame, time_aft_frame + 1) because there may be "incomplete' trials at the end (stopped before trial_reference + time_aft_frame).
 			# trial[[type_trial_csus, number_trial, time_trial]] = cs_us, str(t), np.arange(time_bef_frame, len(trial) + time_bef_frame)	
 			trial[[type_trial_csus, number_trial]] = cs_us, str(t)
-			trial[time_trial] = np.arange(time_bef_frame, len(trial) + time_bef_frame)
+			trial[time_trial_f] = np.arange(time_bef_frame, len(trial) + time_bef_frame)
 			# 1000/expected_framerate
 
 			trials_list.append(trial)
@@ -1292,7 +1319,7 @@ def calculate_digested_vigor(data):
 
 			data_trial = data_stim.loc[data_stim[number_trial] == t]
 
-			mean_vigor_baseline_window = data_trial.loc[data_trial[time_trial].between(-baseline_window*expected_framerate, 0), vigor_raw].mean()
+			mean_vigor_baseline_window = data_trial.loc[data_trial[time_trial_f].between(-baseline_window*expected_framerate, 0), vigor_raw].mean()
 
 
 			#* Kind of deltaF/F.
@@ -1329,9 +1356,9 @@ def calculate_digested_vigor(data):
 
 def convert_time_from_frame_to_s(data):
 
-	data[time_trial] = data[time_trial] / expected_framerate # s
+	data[time_trial_f] = data[time_trial_f] / expected_framerate # s
 	
-	return data.rename(columns={time_trial : time_trial_s})
+	return data.rename(columns={time_trial_f : time_trial_s})
 
 
 def convert_time_from_s_to_frame(data):
@@ -1340,7 +1367,7 @@ def convert_time_from_s_to_frame(data):
 	
 	data[time_trial_s] = data[time_trial_s].astype('int')
 	
-	return data.rename(columns={time_trial_s : time_trial})
+	return data.rename(columns={time_trial_s : time_trial_f})
 
 
 
@@ -1449,7 +1476,7 @@ def setDtypesAndSortIndex(data):
 
 	#* Set the columns' dtypes.
 	data = data.astype({
-		time_trial:'int32',
+		time_trial_f:'int32',
 		cs_beg:	CategoricalDtype(categories=np.sort(data[cs_beg].unique()), ordered=True),
 		cs_end:	CategoricalDtype(categories=np.sort(data[cs_end].unique()), ordered=True),
 		us_beg:	CategoricalDtype(categories=np.sort(data[us_beg].unique()), ordered=True),
