@@ -18,23 +18,23 @@ pio.templates.default = "plotly_dark"
 
 
 
+number_rows_read = None
+
+
+pmt_off_beg = 'PMT_OFF beg'
+pmt_off_end = 'PMT_OFF end'
 
 
 
 
+protocol_path = r"C:\Users\joaqc\Desktop\test fish 05122023\behavior exp_1\test_1_exp_stim control.txt"
 
+data_path = r"C:\Users\joaqc\Desktop\test fish 05122023\behavior exp_1\test_1_exp_cam.txt"
 
+# galvo_path = r"C:\Users\joaqc\Desktop\test fish 05122023\behavior exp_1\test_1_exp_two photon sync reader.txt"
+galvo_path = r"C:\Users\joaqc\Desktop\test fish 05122023\imaging exp_1\signalsfeedback.xls"
 
-
-protocol_path = r"C:\Users\joaqc\Desktop\test_1105\test_stim control.txt"
-
-protocol_path = r"C:\Users\joaqc\Desktop\test_1105\test_stim control.txt"
-
-data_path = r"C:\Users\joaqc\Desktop\test_1105\test_cam.txt"
-
-galvo_path = r"C:\Users\joaqc\Desktop\test_1105\test_two photon sync reader.txt"
-
-images_path = r"C:\Users\joaqc\Desktop\test_1105"
+images_path = r"C:\Users\joaqc\Desktop\test fish 05122023\imaging exp_1"
 
 
 
@@ -42,34 +42,52 @@ protocol = f.read_protocol(protocol_path)
 # pd.read_csv(protocol_path, engine='pyarrow', sep=' ', header=0, decimal='.')
 					#    na_filter=False)
 
-
 # protocol = protocol.iloc[1:]
 
 
-data = pd.read_csv(data_path, engine='pyarrow', sep=' ', header=0, decimal='.')
+data = pd.read_csv(data_path, engine='c', sep=' ', header=0, decimal='.', nrows=number_rows_read)
+
+data[abs_time] = data[abs_time].astype('float64')
 
 
-galvo = pd.read_csv(galvo_path, engine='pyarrow', sep=' ', header=0, decimal='.')
+galvo = pd.read_csv(galvo_path, sep='\t', decimal='.', usecols=[0,1], names=[abs_time, 'GalvoValue'], dtype={'GalvoValue':'float64'}, skip_blank_lines=True, skipinitialspace=True, nrows=number_rows_read).dropna(axis=0)
 
-galvo = galvo.drop(columns='GalvoValue')
+galvo[abs_time] = pd.to_datetime(galvo[abs_time])
 
-galvo = galvo.rename(columns={'AblationValue' : 'GalvoValue'})
-
-galvo = galvo.rename(columns={'FrameID' : 'ID'})
-
-galvo = galvo.drop(columns=['ElapsedTime', 'AbsoluteTime'])
-
-		# galvo_peaks = galvo['GalvoValue'].diff()
-
-		# galvo_peaks[galvo_peaks>1.5]
+# Calculate unixtime in ms
+galvo[abs_time] = galvo[abs_time].astype('int64') / 10**6
+# galvo = (galvo[abs_time] - pd.Timestamp("1970-01-01")) // pd.Timedelta('1s')
+# galvo = galvo[abs_time].map(pd.Timestamp.timestamp)
 
 
-		# galvo_peaks = galvo_peaks.to_numpy()
+
+# data.dropna(subset=['GalvoValue', 'ID'])
 
 
-		# galvo_peaks = np.where(galvo_peaks>1.5)
 
-		# # galvo_peaks = np.where(galvo_peaks>1.5, 5, 0)
+# galvo_peaks = galvo['GalvoValue'].diff()
+
+# # galvo_peaks[galvo_peaks>1.5]
+
+
+# galvo_peaks = galvo_peaks.to_numpy()
+
+
+# galvo_peaks = np.where(galvo_peaks>1.5)
+
+# galvo_peaks = np.where(galvo_peaks>1.5, 5, 0)
+
+
+
+# galvo.plot(abs_time, 'GalvoValue')
+
+# galvo = galvo.drop(columns='GalvoValue')
+
+# galvo = galvo.rename(columns={'AblationValue' : 'GalvoValue'})
+
+# galvo = galvo.rename(columns={'FrameID' : 'ID'})
+
+# galvo = galvo.drop(columns=['ElapsedTime', 'AbsoluteTime'])
 
 
 
@@ -81,7 +99,7 @@ galvo = galvo.drop(columns=['ElapsedTime', 'AbsoluteTime'])
 
 # fig = go.Figure()
 # fig.add_trace(go.Scattergl(x=np.arange(len(galvo)), y=galvo['GalvoValue'].to_numpy()))
-# # fig.add_trace(go.Scattergl(x=np.arange(len(galvo)), y=galvo_peaks))
+# fig.add_trace(go.Scattergl(x=np.arange(len(galvo)), y=galvo_peaks))
 # fig.add_trace(go.Scattergl(x=np.arange(len(galvo)), y=galvo['GalvoValue'].to_numpy()))
 
 
@@ -134,18 +152,165 @@ for cs_us in [cs, us, 'PMT_OFF']:
 
 		data = pd.merge_ordered(data, p, on=abs_time, how='outer').drop_duplicates(abs_time, keep='first')
 
-del protocol_, p
-
-data = pd.merge_ordered(data, galvo, on='ID', how='outer').drop_duplicates(abs_time, keep='first')
+# del protocol_, p
 
 
+#!
+DATA = data.copy()
 
-del galvo
+# plt.plot(data[us_beg], 'ko')
+
+data = pd.merge_ordered(data, galvo, on=abs_time, how='outer').drop_duplicates(abs_time, keep='first')
+
+data.loc[data[pmt_off_beg].notna(), pmt_off_beg] = 1
+data.loc[data[pmt_off_end].notna(), pmt_off_end] = 1
+
+data.loc[data[us_beg].notna(), us_beg] = 1
+data.loc[data[us_end].notna(), us_end] = 1
+
+# del galvo
+
+
+index_pmt_beg = np.zeros(len(data[data[pmt_off_beg].notna()]))
+# len(index_pmt_beg)
+
+
+for index in data.loc[data[pmt_off_beg].notna(), abs_time]:
+
+	data_sub = data.loc[data[abs_time].between(index - 1000, index + 3000)]
+	
+	
+	plt.plot(data_sub[abs_time], data_sub[pmt_off_beg] + 1, 'ko')
+	plt.plot(data_sub[abs_time], data_sub[pmt_off_end] + 1, 'go')
+	plt.plot(data_sub[abs_time], data_sub[us_beg] + 1, '.')
+	plt.plot(data_sub[abs_time], data_sub[us_end] + 1, '.')
+	plt.plot(data_sub[abs_time], data_sub[galvo_value])
+
+
+
+	print(data_sub.loc[data_sub[pmt_off_end].notna(), abs_time].to_numpy() - data_sub.loc[data_sub[pmt_off_beg].notna(), abs_time].to_numpy(), data_sub.loc[data_sub[us_beg].notna(), abs_time].to_numpy() - data_sub.loc[data_sub[pmt_off_beg].notna(), abs_time].to_numpy(), data_sub.loc[data_sub[pmt_off_end].notna(), abs_time].to_numpy() - data_sub.loc[data_sub[us_end].notna(), abs_time].to_numpy())
+
+	break
+
+
+
+
+
+
+
+
+
+
+
+
 
 data.loc[:,[cs_beg, cs_end, us_beg, us_end, 'PMT_OFF beg', 'PMT_OFF end']] = data[[cs_beg, cs_end, us_beg, us_end, 'PMT_OFF beg', 'PMT_OFF end']].fillna(0)
 
+
+plt.plot(data[abs_time], data['PMT_OFF beg'], 'ko')
+plt.plot(data[abs_time], data[galvo_value])
+
+# data = data.dropna(subset='ID')
+
+
+
+
+
+
+
+
+
+
+
 #* Fix dtypes.
-# data[cols_stim[:-2] + ['PMT_OFF beg', 'PMT_OFF end']] = data[cols_stim[:-2] + ['PMT_OFF beg', 'PMT_OFF end']].astype('Sparse[int16]')
+data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']] = data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']].astype('Sparse[int16]')
+
+data['ID'] = data['ID'].astype('int')
+
+
+
+
+
+#* Pad the image paths
+# List all files in the folder
+# files = os.listdir(folder_path)
+images_paths = [*Path(images_path).glob('*tiff')]
+
+# Regex pattern to find all integer numbers in the file names
+pattern = re.compile(r'(\d+)')
+
+# Iterate through each file and rename it
+for images_name in images_paths:
+
+	new_image_name = re.sub(pattern, lambda x: x.group(1).zfill(10), str(images_name.stem))
+	
+	images_name.rename(Path(images_path).joinpath(new_image_name + '.tiff'))
+
+
+
+
+#* Open the images and take the mean
+images_paths = [*Path(images_path).glob('*tiff')]
+
+number_images = len(images_paths)
+
+images_mean = [0 for _ in images_paths]
+
+for image_i, image in enumerate(images_paths):
+	
+	images_mean[image_i] = np.sum(np.array(Image.open(image)))
+	# [240:260, 240:260])
+
+
+images_mean = np.array(images_mean, dtype='int')
+
+
+
+
+
+plt.plot(data['PMT_OFF beg'])
+plt.plot(data['PMT_OFF end'])
+plt.plot(images_mean*(-1/20000))
+
+plt.plot(images_mean)
+plt.plot(A)
+
+
+A = np.diff(images_mean)
+# *(-1/20000)
+
+len(A[A<-50000])
+
+
+plt.plot(data[abs_time], y=data[galvo_value])
+plt.plot(data[abs_time], y=data[pmt_off_beg])
+plt.plot(data[abs_time], y=data[pmt_off_end])
+
+
+fig = go.Figure()
+fig.add_trace(go.Scattergl(x=data[abs_time], y=data[galvo_value].to_numpy()))
+fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_beg].to_numpy()))
+fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_end].to_numpy()))
+
+
+fig.write_html(r"C:\Users\joaqc\Desktop\test.html")
+
+
+
+
+
+
+#region
+
+need to find the beginning of each imaging frame
+
+
+
+
+
+
+
+
 
 # A = data['GalvoValue'] / data[ela_time].diff()
 # B = data['GalvoValue'] / data[abs_time].diff()
@@ -238,38 +403,12 @@ fig.add_trace(go.Scattergl(x=x, y=data['PMT_OFF beg'].to_numpy()*200))
 # fig.add_trace(go.Scattergl(x=np.arange(len(data)), y=data['GalvoValue'].to_numpy()))
 
 
+#endregion
 
 
 
 
 
-
-
-#* Pad the image paths
-# List all files in the folder
-# files = os.listdir(folder_path)
-images_paths = [*Path(images_path).glob('*tiff')]
-
-# Regex pattern to find all integer numbers in the file names
-pattern = re.compile(r'(\d+)')
-
-# Iterate through each file and rename it
-for images_name in images_paths:
-
-	new_image_name = re.sub(pattern, lambda x: x.group(1).zfill(10), str(images_name.stem))
-	
-	images_name.rename(Path(images_path).joinpath(new_image_name + '.tiff'))
-
-#* Open the images and take the mean
-images_paths = [*Path(images_path).glob('*tiff')]
-
-number_images = len(images_paths)
-
-images_mean = [0 for _ in images_paths]
-
-for image_i, image in enumerate(images_paths):
-	
-	images_mean[image_i] = np.mean(np.array(Image.open(image)))
 
 
 

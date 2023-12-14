@@ -166,30 +166,6 @@ class Experiment:
 
 
 
-class AllFishInfo:
-
-	def add_fish(self, fish):
-		# SORT TABLE
-		pass
-
-	def remove_fish(self, fish):
-		pass
-
-	def sort_table(self):
-		pass
-
-#! method to get data (or just the relative paths in the HDF5) according to all possible parameters (exp., condition, age, day, etc)
-	# def 
-		#! should call Fish(fish).get_data()
-
-
-	#! CREATE method to get the corresponding relative path inside the huge HDF5
-
-	#! read parquet files from single fish, seleting the required cols and concat
-		# get all fish in AllFishInfo
-
-
-
 class Fish:
 
 	def __init__(self, experiment=None, fish_name=r'20180315_6dpf_black-1_mitfaminusminus,elavl3gff,10uasgcamp6fef05_01_delay', fish_raw_path=None):
@@ -197,37 +173,71 @@ class Fish:
 		if fish_raw_path is None:
 			self.experiment = experiment
 			self.name = fish_name.lower()
-			# self.fish_raw_path = self.get_path('Raw')
+			self.fish_raw_path = self.get_path('Raw')
 
 		else:
-			self.experiment, self.name = self.fish_name_and_experiment_from_path(fish_raw_path)
+
+			fish_path = Path(fish_raw_path)
+#! ESCPE STRINGS
+			self.experiment = exp_var.map_folder_to_experiment[fish_path.parts[-3]]
+			self.name = fish_path.stem.replace('mp tail tracking', '').replace('cam', '').replace('stim control', '').replace('scape sync reader', '').lower()
 			self.fish_raw_path = fish_raw_path
-
-
-	@classmethod
-	def from_path(cls, fish_raw_path):
-
-		experiment, fish_name = cls.fish_name_and_experiment_from_path(fish_raw_path)
 		
-		fish_raw_path = Path(fish_raw_path)
-		parent, stem, extension = fish_raw_path.parent, fish_raw_path.stem, fish_raw_path.suffix 
-		stem = stem.replace('cam', 'mp tail tracking').replace('stim control', 'mp tail tracking').replace('scape sync reader', 'mp tail tracking')
-		fish_raw_path = fish_raw_path.joinpath(parent, stem).with_suffix(extension)
+#! take this out of a function
+		# [setattr(self, key, value) for key, value in self._fish_info().items()]
+		info = self.name.split('_')
+		day = info[0]
 
-		return cls(experiment, fish_name, fish_raw_path)
+		# strain = info[1]
+		# age = info[2].replace('dpf', '')
+		# condition = info[3]
+		# rig = info[4]
+		# fish_number = info[5].replace('fish', '')
 
-	@staticmethod
-	def fish_name_and_experiment_from_path(fish_path):
+		fish_number = info[1]
+		condition = info[2]	
+		rig_name, protocol_number = info[3].split('-')
 
-		fish_path = Path(fish_path)
-		fish_name = fish_path.stem.replace('mp tail tracking', '').replace('cam', '').replace('stim control', '').replace('scape sync reader', '').lower()
-		experiment = exp_var.map_folder_to_experiment[fish_path.parts[-3]]
+		if rig_name in ['orange', 'brown']:
+			rig_cs_color = 'white'
+		elif rig_name in ['blue', 'black']:
+			rig_cs_color = 'red'
+		
+		strain = info[4]
+		age = info[5].replace('dpf', '')
+
+
+
+
+	# @classmethod
+	# def from_path(cls, fish_raw_path_):
+
+	# 	experiment, fish_name = cls.fish_name_and_experiment_from_path(fish_raw_path_)
+		
+	# 	fish_raw_path_ = Path(fish_raw_path_)
+	# 	parent, stem, extension = fish_raw_path_.parent, fish_raw_path_.stem, fish_raw_path_.suffix 
+	# 	stem = stem.replace('cam', 'mp tail tracking').replace('stim control', 'mp tail tracking').replace('scape sync reader', 'mp tail tracking')
+	# 	fish_raw_path_ = fish_raw_path_.joinpath(parent, stem).with_suffix(extension)
+
+	# 	return cls(experiment, fish_name, fish_raw_path=fish_raw_path_)
+
+
+	# def fish_name_and_experiment_from_path(fish_path):
+
+	# 	fish_path = Path(fish_path)
+	# 	fish_name = fish_path.stem.replace('mp tail tracking', '').replace('cam', '').replace('stim control', '').replace('scape sync reader', '').lower()
+	# 	experiment = exp_var.map_folder_to_experiment[fish_path.parts[-3]]
 	
-		return experiment, fish_name
+	# 	return experiment, fish_name
 	
+	
+	def _key(self):
+
+		return '//'.join((self.experiment, self.condition, self.name))
+
 		
 #!!! USE PROPERTY STUFF HERE
-	def fish_info(self):
+	def _fish_info(self):
 
 		info = self.name.split('_')
 		day = info[0]
@@ -250,11 +260,110 @@ class Fish:
 		strain = info[4]
 		age = info[5].replace('dpf', '')
 
-		return {'Strain' : strain, 'Day' : day, 'Fish no.' : fish_number, 'Age (dpf)' : age, 'Experiment' : self.experiment, 'Condition' : condition, 'Rig name' : rig_name, 'Protocol number' : protocol_number, 'CS color' : rig_cs_color}
+		return {'strain' : strain, 'day' : day, 'fish no.' : fish_number, 'age (dpf)' : age, 'condition' : condition, 'rig name' : rig_name, 'protocol number' : protocol_number, 'CS color' : rig_cs_color}
 
 		# return strain, day, fish_number, age, self.experiment, condition, rig_name, protocol_number, rig_cs_color
 
 
+	def get_path(self, dataset_type):
+		if dataset_type == 'Raw':
+			return Experiment.get_experiment_info(self.experiment, 'path_home') / self.name
+
+
+#! MISSES ARGUMENT FOR LOCATION OF HDF
+#! AND CONDITION NEEDS TO COME FROM SOMEWHERE ELSE...
+		elif dataset_type == 'HDF':
+			return Experiment.get_experiment_info(self.experiment) / self.condition / self.name / 'h5'
+
+
+	def preprocess(self):
+		#, Repeat_analysis: bool , all_data_path = None
+
+		# if Repeat_analysis or not AllData.is_fish_processed(all_data_path, self):
+
+		if self.fish_raw_path is None:
+			self.fish_raw_path = self.get_path(self, 'Raw')
+
+		data_path = str(self.fish_raw_path)
+		protocol_path = data_path.replace('mp tail tracking', 'stim control')
+		camera_path = data_path.replace('mp tail tracking', 'cam')
+		# sync_reader_path = data_path.replace('mp tail tracking', 'scape sync reader')
+
+		fig_camera_name = Experiment.path_first_analysis(self.experiment, self.name, 'Lost frames', 'png')
+		fig_protocol_name = Experiment.path_first_analysis(self.experiment, self.name, 'Summary of protocol actually run', 'png')
+
+		#* Open the file with information about the time of each frame.
+		camera = f.read_camera(camera_path)
+
+		#* Estimate the true framerate.
+		predicted_framerate, reference_frame_id, Lost_frames = f.framerate_and_reference_frame(camera, name, fig_camera_name)
+
+	#TODO
+		if Lost_frames:
+			return None
+
+		camera = camera.drop(columns=ela_time)
+
+		#* Discard frames that will not be used (in camera and hence further down).
+		# The calculated interframe interval before the reference frame is variable. Discard what happens up to then (also achieved by using how='inner' in merge_camera_with_data).
+		camera = camera[camera[frame_id] >= reference_frame_id]
+
+		#* Open tail tracking data.
+		data = f.read_tail_tracking_data(data_path)
+
+	#TODO
+		# if (data := f.read_tail_tracking_data(data_path, reference_frame_id)) is None:
+
+		# 	f.save_info(protocol_info_path, self.name, 'Tail tracking might be corrupted!')
+		# 	return None
+
+		# #* Look for possible tail tracking errors.
+		# if f.tracking_errors(data, single_point_tracking_error_thr):
+		# 	return None
+
+		#* Add information about the time of each frame to data.
+		data = f.merge_camera_with_data(data, camera)
+
+		#* Fix abs_time so that the time of each frame becomes closer to the time at which the frames were acquired by the camera and not when they were caught by the computer.
+		# The delay between acquiring and catching the frame is unknown and therefore disregarded.
+		data[abs_time] = np.linspace(data[abs_time].iat[0], data[abs_time].iat[0] + len(data) * (1000 / predicted_framerate), len(data))
+
+		#* Interpolate data to the expected framerate.
+		data = f.interpolate_data(data, predicted_framerate)
+
+		#* Open the stim log.
+		protocol = f.read_protocol(protocol_path)
+
+
+		#* Identify the stimuli, trials and blocks of the experiment.
+	#TODO replace by exp_var.experiments_info[Experiment.name]
+		data = f.identify_trials(data, protocol)
+
+
+	#TODO
+			# if f.lost_stim(len(data[data[cs_beg]!=0]), len(data[data[us_beg]!=0]), experiment.expected_number_cs, experiment.expected_number_us, experiment.protocol_info_path, stem_fish_path_orig, 2):
+
+			# 	print(data[data[cs_beg]!=0])
+			# 	print(data[data[us_beg]!=0])
+			# 	continue
+
+
+		self.data = data
+
+	def filter_data(self):
+
+		# TODO clean up also coordinates of the tail
+		#! Only filtering the angle data so far.
+			#* Filter tail tracking data.
+		# TODO might want to test Adrien's way of filtering data (from Megabouts)
+		data = f.filter_data(data)
+
+		self.data = data
+			# return data
+
+
+
+		
 #! method to read fish data from HDF5. has to call the All_Fish class in principle
 	def get_data(self, cols):
 		#! cols are the columns to read from the dataframe
@@ -269,18 +378,7 @@ class Fish:
 	# 	elif alignment in [cs, us, 'Whole processed']:
 	# 		return Experiment.get_experiment_info(self.experiment).path_save / 'Processed data' / 'parquet files' / '1. Original' / alignment / self.name / 'pkl'
 
-	def get_path(self, dataset_type):
-MISSES ARGUMENT FOR LOCATION OF HDF
-AND CONDITION NEEDS TO COME FROM SOMEWHERE ELSE...
-		if dataset_type == 'Raw':
-			return Experiment.get_experiment_info(self.experiment).path_home / 'Raw data' / self.name
-		
-		elif dataset_type == 'HDF':
-			return Experiment.get_experiment_info(self.experiment) / self.condition / self.name / 'h5'
-
-
-
-	def preprocess(self, Overwrite):
+	def preprocess1(self, Overwrite):
 
 		if self.fish_raw_path is None:
 			self.fish_raw_path = self.get_path(self, 'Raw')
@@ -422,11 +520,6 @@ AND CONDITION NEEDS TO COME FROM SOMEWHERE ELSE...
 
 			f.save_info(protocol_info_path, self.name, 'Tail tracking might be corrupted!')
 			return None
-
-
-
-
-
 
 		#* Look for possible tail tracking errors.
 		if f.tracking_errors(data, single_point_tracking_error_thr):
@@ -967,3 +1060,64 @@ AND CONDITION NEEDS TO COME FROM SOMEWHERE ELSE...
 		#! HDF5   !!!!!!!!!
 		#!  organize hierarchically in experiment/condition and then all the corresponding fish
 		#! save all fish in the same HDF5
+
+
+
+class AllData:
+
+	def __init__(self, hdf_store_path):
+		
+		self.path = hdf_store_path
+		# self.store = pd.HDFStore(hdf_store_path, complevel=4, complib="zlib")
+
+	def add_fish_data(self, fish: Fish):
+	# , HDF_format='table'
+		with pd.HDFStore(self.path, complevel=4, complib="zlib") as store:
+			
+			# if HDF_format == 'fixed':
+				
+			# 	store.put(fish.name, fish.data, format=HDF_format, data_columns=[cs, us], append=False)
+			# elif HDF_format == 'table':
+				
+			store.append(fish.name, fish.data, data_columns=[cs, us], expectedrows=len(fish.data), append=False)
+			
+			store.get_storer(self.name).attrs['Fish info'] = fish.__dict__.items()
+			# fish.fish_info()
+
+# 	def add_fish_processed_data(self, fish: Fish):
+		
+# 		# store = pd.HDFStore(r"C:\Users\joaqc\Desktop\2000 01_Test\all_data.h5", complevel=4, complib="zlib")
+# 		# try:
+# #TODO use put to save raw data in fixed format
+
+
+# 		self.store.get_storer(self.name).attrs['Fish info'] = fish.fish_info()
+# 		self.store.close()
+# 		# except:
+# 		# 	print('Need to preprocess fish data!')		
+
+#! SORT TABLE
+	
+	def remove_fish(self, fish):
+		pass
+
+	def sort_table(self):
+		pass
+
+	# @staticmethod
+	def fish_is_in_store(self, fish: Fish):
+
+		with pd.HDFStore(self.path, complevel=4, complib="zlib") as store:
+		
+			return fish._key() in store
+
+#! method to get data (or just the relative paths in the HDF5) according to all possible parameters (exp., condition, age, day, etc)
+	# def 
+		#! should call Fish(fish).get_data()
+
+
+	#! CREATE method to get the corresponding relative path inside the huge HDF5
+
+	#! read parquet files from single fish, seleting the required cols and concat
+		# get all fish in AllFishInfo
+

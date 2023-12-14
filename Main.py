@@ -16,11 +16,42 @@ reload(f)
 import my_experiment_specific_variables as exp_var
 
 
+store_raw = r"C:\Users\joaqc\Desktop\2000 01_Test\all_data_raw.h5"
 
 
 test_fish = r"C:\Users\joaqc\Desktop\2000 01_Test\Raw data\20000101_01_delay_orange-1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_6dpfmp tail tracking.txt"
 
-# test_fish = r"C:\Users\joaqc\Desktop\20221115_01_delay_orange-1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_6dpfmp tail tracking.txt"
+
+
+# CORRECT. FIHS.NAME IS WRONG
+
+fish = Fish('Test', fish_raw_path=test_fish)
+
+
+print(fish.__dict__)
+
+
+
+all_data_raw = AllData(store_raw)
+
+
+fish._key()
+
+
+if not all_data_raw.fish_is_in_store(fish):
+	
+	fish.preprocess()
+	
+	all_data_raw.add_fish_data(fish)
+dict([(key, value) for key, value in fish.__dict__.items() if key != 'data'])
+#! save in fixed format 
+# , Raw_data=True
+
+fish.fish_info()
+
+fish.name
+# test_fish = r"C:\Users\joaqc\Desktop\20221115_01_delay_orange-1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_6dpfm
+# 265404p tail tracking.txt"
 
 
 
@@ -205,7 +236,7 @@ Out[542]:
   chunkshape := (2730,)
   autoindex := True
   colindexes := {
-    "B": Index(9, fullshuffle, zlib(1)).is_csi=True}
+	"B": Index(9, fullshuffle, zlib(1)).is_csi=True}
 
 st.close()
 
