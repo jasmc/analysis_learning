@@ -6,6 +6,8 @@ import pandas as pd
 import numpy as np
 import re
 
+from scipy import interpolate
+
 from PIL import Image
 import matplotlib.pyplot as plt
 
@@ -52,6 +54,7 @@ data[abs_time] = data[abs_time].astype('float64')
 
 galvo = pd.read_csv(galvo_path, sep='\t', decimal='.', usecols=[0,1], names=[abs_time, 'GalvoValue'], dtype={'GalvoValue':'float64'}, skip_blank_lines=True, skipinitialspace=True, nrows=number_rows_read).dropna(axis=0)
 
+
 galvo[abs_time] = pd.to_datetime(galvo[abs_time])
 
 # Calculate unixtime in ms
@@ -61,7 +64,74 @@ galvo[abs_time] = galvo[abs_time].astype('int64') / 10**6
 
 
 
+galvo['1diff'] = galvo[galvo_value].diff()
+
+galvo['2diff'] = galvo['1diff'].diff()
+
+galvo['3'] = 0
+galvo['3'].iloc[:-1] = galvo['2diff'][1:]
+
+
+beg_frames = galvo.loc[(galvo['1diff'] > 0.1) & ((galvo['2diff'] < 0) | (galvo['3'] < 0))]
+
+
+A = beg_frames[abs_time].diff()
+
+mask = (A > 400) & (A < 550)
+
+
+galvo['beg'] = np.nan
+
+galvo.loc[beg_frames[mask].index, 'beg'] = 1
+
+# len(beg_frames[mask].index) /2
+
+
+# A[(A > 400) & (A < 550)].max()
+
+# number_images * 2
+
+
+
+
+
+# plt.plot(galvo[abs_time].iloc[6400:6420], galvo[galvo_value].iloc[6400:6420], 'k.')
+# plt.plot(galvo[abs_time].iloc[6400:6420], galvo['1diff'].iloc[6400:6420], 'g.')
+# plt.plot(galvo[abs_time].iloc[6400:6420], galvo['2diff'].iloc[6400:6420], 'r.')
+
+# plt.plot(galvo[abs_time].iloc[6400:6420], galvo['beg'].iloc[6400:6420], 'bo')
+
 # data.dropna(subset=['GalvoValue', 'ID'])
+
+space = 100
+
+index=815563
+
+for i, index in enumerate(galvo[galvo['beg'].notna()].index[100:110]):
+
+	fig = go.Figure()
+	fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space][galvo_value].to_numpy()))
+	# fig.add_trace(go.Scattergl(x=galvo[::2].loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space][galvo_value][::2].to_numpy()))
+	fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space]['1diff'].to_numpy()))
+	fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space]['2diff'].to_numpy()))
+	fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space]['3'].to_numpy()))
+
+	# fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time][:-1], y=galvo.loc[index - space : index + space]['2diff'].to_numpy()[1:]))
+	# fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space]['2diff'].diff().to_numpy()))
+	fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space]['beg'].to_numpy()))
+
+
+	fig.show()
+
+
+
+	# plt.plot(galvo.loc[index - space : index + space][abs_time], galvo.loc[index - space : index + space][galvo_value], 'k.')
+	# plt.plot(galvo.loc[index - space : index + space][abs_time], galvo.loc[index - space : index + space]['1diff'], 'g.')
+	# plt.plot(galvo.loc[index - space : index + space][abs_time], galvo.loc[index - space : index + space]['2diff'], 'r.')
+
+	# plt.plot(galvo.loc[index - space : index + space][abs_time], galvo.loc[index - space : index + space]['beg'], 'bo')
+
+	# plt.show()
 
 
 
@@ -168,67 +238,63 @@ data.loc[data[pmt_off_end].notna(), pmt_off_end] = 1
 data.loc[data[us_beg].notna(), us_beg] = 1
 data.loc[data[us_end].notna(), us_end] = 1
 
+
+
+
+interp_function = interpolate.interp1d(galvo[abs_time], galvo[galvo_value], kind='slinear', axis=0, assume_sorted=True, bounds_error=False)
+
+data[galvo_value] = interp_function(data[abs_time])
+
+
+
 # del galvo
 
 
-index_pmt_beg = np.zeros(len(data[data[pmt_off_beg].notna()]))
-# len(index_pmt_beg)
+		# index_pmt_beg = np.zeros(len(data[data[pmt_off_beg].notna()]))
+		# # len(index_pmt_beg)
 
 
-for index in data.loc[data[pmt_off_beg].notna(), abs_time]:
+		# for index in data.loc[data[pmt_off_beg].notna(), abs_time]:
 
-	data_sub = data.loc[data[abs_time].between(index - 1000, index + 3000)]
-	
-	
-	plt.plot(data_sub[abs_time], data_sub[pmt_off_beg] + 1, 'ko')
-	plt.plot(data_sub[abs_time], data_sub[pmt_off_end] + 1, 'go')
-	plt.plot(data_sub[abs_time], data_sub[us_beg] + 1, '.')
-	plt.plot(data_sub[abs_time], data_sub[us_end] + 1, '.')
-	plt.plot(data_sub[abs_time], data_sub[galvo_value])
-
-
-
-	print(data_sub.loc[data_sub[pmt_off_end].notna(), abs_time].to_numpy() - data_sub.loc[data_sub[pmt_off_beg].notna(), abs_time].to_numpy(), data_sub.loc[data_sub[us_beg].notna(), abs_time].to_numpy() - data_sub.loc[data_sub[pmt_off_beg].notna(), abs_time].to_numpy(), data_sub.loc[data_sub[pmt_off_end].notna(), abs_time].to_numpy() - data_sub.loc[data_sub[us_end].notna(), abs_time].to_numpy())
-
-	break
+		# 	data_sub = data.loc[data[abs_time].between(index - 1000, index + 3000)]
+			
+			
+		# 	plt.plot(data_sub[abs_time], data_sub[pmt_off_beg] + 1, 'ko')
+		# 	plt.plot(data_sub[abs_time], data_sub[pmt_off_end] + 1, 'go')
+		# 	plt.plot(data_sub[abs_time], data_sub[us_beg] + 1, '.')
+		# 	plt.plot(data_sub[abs_time], data_sub[us_end] + 1, '.')
+		# 	plt.plot(data_sub[abs_time], data_sub[galvo_value])
 
 
 
+		# 	print(data_sub.loc[data_sub[pmt_off_end].notna(), abs_time].to_numpy() - data_sub.loc[data_sub[pmt_off_beg].notna(), abs_time].to_numpy(), data_sub.loc[data_sub[us_beg].notna(), abs_time].to_numpy() - data_sub.loc[data_sub[pmt_off_beg].notna(), abs_time].to_numpy(), data_sub.loc[data_sub[pmt_off_end].notna(), abs_time].to_numpy() - data_sub.loc[data_sub[us_end].notna(), abs_time].to_numpy())
+
+		# 	break
 
 
 
 
 
 
+A = data[galvo_value].diff()
 
 
 
-
-data.loc[:,[cs_beg, cs_end, us_beg, us_end, 'PMT_OFF beg', 'PMT_OFF end']] = data[[cs_beg, cs_end, us_beg, us_end, 'PMT_OFF beg', 'PMT_OFF end']].fillna(0)
-
-
-plt.plot(data[abs_time], data['PMT_OFF beg'], 'ko')
-plt.plot(data[abs_time], data[galvo_value])
-
-# data = data.dropna(subset='ID')
+A[A>2]
 
 
+data.iloc[5000:][galvo_value].plot()
 
 
+len(images_mean)
 
+
+plt.plot(A.iloc[5000:10000], 'k.')
+plt.plot(data[galvo_value].iloc[5000:10000], 'g.')
 
 
 
-
-
-
-#* Fix dtypes.
-data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']] = data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']].astype('Sparse[int16]')
-
-data['ID'] = data['ID'].astype('int')
-
-
-
+plt.plot(images_mean)
 
 
 #* Pad the image paths
@@ -268,7 +334,65 @@ images_mean = np.array(images_mean, dtype='int')
 
 
 
-plt.plot(data['PMT_OFF beg'])
+
+data['image'] = 0
+
+
+
+
+B = data.loc[data['beg'].notna(), 'image'].iloc[::2].index
+
+data.loc[B, 'image'] = images_mean[1:-1]
+
+
+
+len(images_mean[1:-1])
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+data.loc[:,[cs_beg, cs_end, us_beg, us_end, 'PMT_OFF beg', 'PMT_OFF end']] = data[[cs_beg, cs_end, us_beg, us_end, 'PMT_OFF beg', 'PMT_OFF end']].fillna(0)
+
+
+plt.plot(data[abs_time], data['PMT_OFF beg'], 'ko')
+plt.plot(data[abs_time], data[galvo_value])
+
+# data = data.dropna(subset='ID')
+
+
+
+
+data.dtypes
+
+
+
+
+
+
+#* Fix dtypes.
+data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']] = data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']].astype('Sparse[int16]')
+
+data['ID'] = data['ID'].astype('int')
+
+
+
+
+
+
+
+
+
+plt.plot(data['image'])
 plt.plot(data['PMT_OFF end'])
 plt.plot(images_mean*(-1/20000))
 
@@ -287,11 +411,20 @@ plt.plot(data[abs_time], y=data[pmt_off_beg])
 plt.plot(data[abs_time], y=data[pmt_off_end])
 
 
-fig = go.Figure()
-fig.add_trace(go.Scattergl(x=data[abs_time], y=data[galvo_value].to_numpy()))
-fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_beg].to_numpy()))
-fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_end].to_numpy()))
+space = 10000
 
+for index in data[data[us_beg]>0].index:
+	
+	data_sub = data.loc[index-space:index+space]
+
+	fig = go.Figure()
+	fig.add_trace(go.Scattergl(x=data_sub[abs_time], y=data_sub[galvo_value].to_numpy()))
+	fig.add_trace(go.Scattergl(x=data_sub[abs_time], y=data_sub['image'].to_numpy()))
+	fig.add_trace(go.Scattergl(x=data_sub[abs_time], y=data_sub[pmt_off_beg].to_numpy()))
+	fig.add_trace(go.Scattergl(x=data_sub[abs_time], y=data_sub[pmt_off_end].to_numpy()))
+
+
+	break
 
 fig.write_html(r"C:\Users\joaqc\Desktop\test.html")
 
@@ -312,8 +445,8 @@ need to find the beginning of each imaging frame
 
 
 
-# A = data['GalvoValue'] / data[ela_time].diff()
 # B = data['GalvoValue'] / data[abs_time].diff()
+# A = data['GalvoValue'] / data[ela_time].diff()
 
 # fig = go.Figure()
 # fig.add_trace(go.Scattergl(x=np.arange(len(A)), y=A.to_numpy()))

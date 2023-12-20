@@ -168,45 +168,35 @@ class Experiment:
 
 class Fish:
 
-	def __init__(self, experiment=None, fish_name=r'20180315_6dpf_black-1_mitfaminusminus,elavl3gff,10uasgcamp6fef05_01_delay', fish_raw_path=None):
+	def __init__(self, experiment : str, fish_name=None, fish_raw_path=None):
 
 		if fish_raw_path is None:
+			#! self.fish_raw_path = self.get_path('Raw')
 			self.experiment = experiment
 			self.name = fish_name.lower()
-			self.fish_raw_path = self.get_path('Raw')
 
 		else:
 
-			fish_path = Path(fish_raw_path)
 #! ESCPE STRINGS
-			self.experiment = exp_var.map_folder_to_experiment[fish_path.parts[-3]]
-			self.name = fish_path.stem.replace('mp tail tracking', '').replace('cam', '').replace('stim control', '').replace('scape sync reader', '').lower()
-			self.fish_raw_path = fish_raw_path
-		
+			self.fish_raw_path = Path(fish_raw_path.replace('mp tail tracking', '').replace('cam', '').replace('stim control', '').replace('scape sync reader', '').replace('.txt', ''))
+			self.experiment = exp_var.map_folder_to_experiment[self.fish_raw_path.parts[-3]]
+			self.name = self.fish_raw_path.stem.lower()
+
 #! take this out of a function
 		# [setattr(self, key, value) for key, value in self._fish_info().items()]
 		info = self.name.split('_')
-		day = info[0]
+		self.day = info[0]
+		self.fish_number = info[1]
+		self.condition = info[2]
+		self.rig_name, self.protocol_number = info[3].split('-')
 
-		# strain = info[1]
-		# age = info[2].replace('dpf', '')
-		# condition = info[3]
-		# rig = info[4]
-		# fish_number = info[5].replace('fish', '')
-
-		fish_number = info[1]
-		condition = info[2]	
-		rig_name, protocol_number = info[3].split('-')
-
-		if rig_name in ['orange', 'brown']:
-			rig_cs_color = 'white'
-		elif rig_name in ['blue', 'black']:
-			rig_cs_color = 'red'
+		if self.rig_name in ['orange', 'brown']:
+			self.rig_cs_color = 'white'
+		elif self.rig_name in ['blue', 'black']:
+			self.rig_cs_color = 'red'
 		
-		strain = info[4]
-		age = info[5].replace('dpf', '')
-
-
+		self.strain = info[4]
+		self.age = info[5].replace('dpf', '')
 
 
 	# @classmethod
@@ -284,9 +274,9 @@ class Fish:
 		if self.fish_raw_path is None:
 			self.fish_raw_path = self.get_path(self, 'Raw')
 
-		data_path = str(self.fish_raw_path)
-		protocol_path = data_path.replace('mp tail tracking', 'stim control')
-		camera_path = data_path.replace('mp tail tracking', 'cam')
+		data_path = str(self.fish_raw_path) + 'mp tail tracking.txt'
+		protocol_path = str(self.fish_raw_path) + 'stim control.txt'
+		camera_path = str(self.fish_raw_path) + 'cam.txt'
 		# sync_reader_path = data_path.replace('mp tail tracking', 'scape sync reader')
 
 		fig_camera_name = Experiment.path_first_analysis(self.experiment, self.name, 'Lost frames', 'png')
@@ -297,6 +287,7 @@ class Fish:
 
 		#* Estimate the true framerate.
 		predicted_framerate, reference_frame_id, Lost_frames = f.framerate_and_reference_frame(camera, name, fig_camera_name)
+		
 
 	#TODO
 		if Lost_frames:
@@ -304,12 +295,16 @@ class Fish:
 
 		camera = camera.drop(columns=ela_time)
 
+
+		
 		#* Discard frames that will not be used (in camera and hence further down).
 		# The calculated interframe interval before the reference frame is variable. Discard what happens up to then (also achieved by using how='inner' in merge_camera_with_data).
 		camera = camera[camera[frame_id] >= reference_frame_id]
 
+
 		#* Open tail tracking data.
 		data = f.read_tail_tracking_data(data_path)
+
 
 	#TODO
 		# if (data := f.read_tail_tracking_data(data_path, reference_frame_id)) is None:
@@ -348,7 +343,7 @@ class Fish:
 			# 	continue
 
 
-		self.data = data
+		self.data_raw = data
 
 	def filter_data(self):
 
@@ -1070,7 +1065,7 @@ class AllData:
 		self.path = hdf_store_path
 		# self.store = pd.HDFStore(hdf_store_path, complevel=4, complib="zlib")
 
-	def add_fish_data(self, fish: Fish):
+	def add_fish_raw_data(self, fish: Fish):
 	# , HDF_format='table'
 		with pd.HDFStore(self.path, complevel=4, complib="zlib") as store:
 			
@@ -1078,11 +1073,19 @@ class AllData:
 				
 			# 	store.put(fish.name, fish.data, format=HDF_format, data_columns=[cs, us], append=False)
 			# elif HDF_format == 'table':
-				
-			store.append(fish.name, fish.data, data_columns=[cs, us], expectedrows=len(fish.data), append=False)
 			
-			store.get_storer(self.name).attrs['Fish info'] = fish.__dict__.items()
-			# fish.fish_info()
+			store.append(fish._key(), fish.data_raw, data_columns=[cs, us], expectedrows=len(fish.data_raw), append=False)
+				
+			metadata = {}
+
+			for key, value in fish.__dict__.items():
+				
+				if key != 'data_raw':
+				
+					metadata[key] = value
+
+			store.get_storer(fish._key()).attrs['Fish info'] = metadata
+			
 
 # 	def add_fish_processed_data(self, fish: Fish):
 		

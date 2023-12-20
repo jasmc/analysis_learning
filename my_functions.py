@@ -632,9 +632,10 @@ def read_tail_tracking_data(data_path):
 
 	# Angles in data come in radians.
 
-	start = timer()
-
 	try:
+		
+		start = timer()
+		
 		data = pd.read_csv(data_path, engine='pyarrow', sep=' ', usecols=cols_to_use_orig, header=0, decimal='.', na_filter=False, names=[time_experiment_f]+data_cols)
 		# dtype=dict(zip(cols_to_use_orig, ['int64'] + ['float32']*len(cols_to_use_orig))))
 		# skipfooter=1
