@@ -220,39 +220,51 @@ class Fish:
 	
 	# 	return experiment, fish_name
 	
+	def metadata(self):
+		
+		metadata = {}
+
+		for key, value in fish.__dict__.items():
+			
+			if 'data' not in key and key != 'name':
+			
+				metadata[key] = value
+
+		return metadata
 	
-	def _key(self):
+
+	def key(self):
 
 		return '//'.join((self.experiment, self.condition, self.name))
 
 		
-#!!! USE PROPERTY STUFF HERE
-	def _fish_info(self):
+# #!!! USE PROPERTY STUFF HERE
+# 	def _fish_info(self):
 
-		info = self.name.split('_')
-		day = info[0]
+# 		info = self.name.split('_')
+# 		day = info[0]
 
-		# strain = info[1]
-		# age = info[2].replace('dpf', '')
-		# condition = info[3]
-		# rig = info[4]
-		# fish_number = info[5].replace('fish', '')
+# 		# strain = info[1]
+# 		# age = info[2].replace('dpf', '')
+# 		# condition = info[3]
+# 		# rig = info[4]
+# 		# fish_number = info[5].replace('fish', '')
 
-		fish_number = info[1]
-		condition = info[2]	
-		rig_name, protocol_number = info[3].split('-')
+# 		fish_number = info[1]
+# 		condition = info[2]	
+# 		rig_name, protocol_number = info[3].split('-')
 
-		if rig_name in ['orange', 'brown']:
-			rig_cs_color = 'white'
-		elif rig_name in ['blue', 'black']:
-			rig_cs_color = 'red'
+# 		if rig_name in ['orange', 'brown']:
+# 			rig_cs_color = 'white'
+# 		elif rig_name in ['blue', 'black']:
+# 			rig_cs_color = 'red'
 		
-		strain = info[4]
-		age = info[5].replace('dpf', '')
+# 		strain = info[4]
+# 		age = info[5].replace('dpf', '')
 
-		return {'strain' : strain, 'day' : day, 'fish no.' : fish_number, 'age (dpf)' : age, 'condition' : condition, 'rig name' : rig_name, 'protocol number' : protocol_number, 'CS color' : rig_cs_color}
+# 		return {'strain' : strain, 'day' : day, 'fish no.' : fish_number, 'age (dpf)' : age, 'condition' : condition, 'rig name' : rig_name, 'protocol number' : protocol_number, 'CS color' : rig_cs_color}
 
-		# return strain, day, fish_number, age, self.experiment, condition, rig_name, protocol_number, rig_cs_color
+# 		# return strain, day, fish_number, age, self.experiment, condition, rig_name, protocol_number, rig_cs_color
 
 
 	def get_path(self, dataset_type):
@@ -360,7 +372,7 @@ class Fish:
 
 		
 #! method to read fish data from HDF5. has to call the All_Fish class in principle
-	def get_data(self, cols):
+	def get_data(self, store: AllData, cols):
 		#! cols are the columns to read from the dataframe
 		pass
 
@@ -1060,10 +1072,11 @@ class Fish:
 
 class AllData:
 
-	def __init__(self, hdf_store_path):
+	def __init__(self, hdf_store_path: str):
 		
-		self.path = hdf_store_path
+		self.path = Path(hdf_store_path)
 		# self.store = pd.HDFStore(hdf_store_path, complevel=4, complib="zlib")
+
 
 	def add_fish_raw_data(self, fish: Fish):
 	# , HDF_format='table'
@@ -1073,19 +1086,51 @@ class AllData:
 				
 			# 	store.put(fish.name, fish.data, format=HDF_format, data_columns=[cs, us], append=False)
 			# elif HDF_format == 'table':
-			
-			store.append(fish._key(), fish.data_raw, data_columns=[cs, us], expectedrows=len(fish.data_raw), append=False)
-				
-			metadata = {}
 
-			for key, value in fish.__dict__.items():
-				
-				if key != 'data_raw':
-				
-					metadata[key] = value
+	#! CONFIRM THE DATA_COLS
+			store.append(fish.key(), fish.data_raw, data_columns=[cs, us], expectedrows=len(fish.data_raw), append=False)
 
-			store.get_storer(fish._key()).attrs['Fish info'] = metadata
+
+			store.get_storer(fish.key()).attrs['Fish info'] = fish.metadata()
+
+
+
+
+
+#!!!!!!!!!!!!!!!!     overload: Experiment=...    , Condition=...,    cols to query
+	def get_fish_data(self, fish: Fish, fish_name=None):
+
+		with pd.HDFStore(self.path, complevel=4, complib="zlib") as store:
+
+			if fish == None:
+
+				for dataset_path_in_store in store.keys():
+
+					if 'meta' not in dataset_path_in_store and fish_name == dataset_path_in_store.split("/")[3]:
+
+						return store.select(dataset_path_in_store)		
+
+			else:
+				
+				return store.select(fish.key())
+
+#! def get_experiment_data and so on
+
+
+#! method to get data (or just the relative paths in the HDF5) according to all possible parameters (exp., condition, age, day, etc)
+	# def 
+		#! should call Fish(fish).get_data()
+
+
+
+	def get_fish_metadata(self, fish: Fish):
+		
+		with pd.HDFStore(self.path, complevel=4, complib="zlib") as store:
 			
+			return store.get_storer(fish.key()).attrs['Fish info']
+
+
+
 
 # 	def add_fish_processed_data(self, fish: Fish):
 		
@@ -1097,30 +1142,53 @@ class AllData:
 # 		self.store.get_storer(self.name).attrs['Fish info'] = fish.fish_info()
 # 		self.store.close()
 # 		# except:
-# 		# 	print('Need to preprocess fish data!')		
+# 		# 	print('Need to preprocess fish data!')
 
 #! SORT TABLE
 	
 	def remove_fish(self, fish):
 		pass
 
-	def sort_table(self):
-		pass
+
 
 	# @staticmethod
 	def fish_is_in_store(self, fish: Fish):
 
 		with pd.HDFStore(self.path, complevel=4, complib="zlib") as store:
 		
-			return fish._key() in store
-
-#! method to get data (or just the relative paths in the HDF5) according to all possible parameters (exp., condition, age, day, etc)
-	# def 
-		#! should call Fish(fish).get_data()
+			return fish.key() in store
 
 
-	#! CREATE method to get the corresponding relative path inside the huge HDF5
 
-	#! read parquet files from single fish, seleting the required cols and concat
+	#! read HDF files from single fish, seleting the required cols and concat
 		# get all fish in AllFishInfo
 
+
+
+class AllMetadata:
+
+	def __init__(self, excel_path: str):
+
+		self.path = Path(excel_path)
+
+
+	def get_table_metadata(self):
+
+		if Path(self.path).exists():
+			
+			self.table = pd.read_csv(self.path)
+
+		else:
+
+			self.table = pd.DataFrame()
+
+
+
+#!!!!!!!!!!!!!
+	def sort_table(self):
+		pass
+
+	def update_from_data_store(self, store: AllData):
+
+		#! update table with all fish data in the HDF store
+		pass

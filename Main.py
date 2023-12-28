@@ -42,19 +42,25 @@ if not all_data_raw.fish_is_in_store(fish):
 	
 	all_data_raw.add_fish_raw_data(fish)
 
+		#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+				#! ADD TO EXCEL AS WELL
+				use Pandas DataFrame
+
+else:
+
+	##!!!! get fish data from the store
+	fish.get_data()
+
+
+#! test retrieval of fish data from store
+	
+#! test querying cols in fish data
+
+
 print('done')
 
 
 
-
-
-
-
-
-
-# #* Retrieve metadata
-# with pd.HDFStore(store_raw, complevel=4, complib="zlib") as store:
-# 	print(store.get_storer(fish._key()).attrs['Fish info'])
 
 
 

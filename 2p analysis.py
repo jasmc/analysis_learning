@@ -8,7 +8,8 @@ import re
 
 from scipy import interpolate
 
-from PIL import Image
+from PIL import Image, ImageSequence
+
 import matplotlib.pyplot as plt
 
 
@@ -29,14 +30,16 @@ pmt_off_end = 'PMT_OFF end'
 
 
 
-protocol_path = r"C:\Users\joaqc\Desktop\test fish 05122023\behavior exp_1\test_1_exp_stim control.txt"
 
-data_path = r"C:\Users\joaqc\Desktop\test fish 05122023\behavior exp_1\test_1_exp_cam.txt"
+
+protocol_path = r"C:\Users\joaqc\Desktop\test_1\test_1_stim control.txt"
+
+data_path = r"C:\Users\joaqc\Desktop\test_1\test_1_cam.txt"
 
 # galvo_path = r"C:\Users\joaqc\Desktop\test fish 05122023\behavior exp_1\test_1_exp_two photon sync reader.txt"
-galvo_path = r"C:\Users\joaqc\Desktop\test fish 05122023\imaging exp_1\signalsfeedback.xls"
+galvo_path = r"C:\Users\joaqc\Desktop\test_1\signalsfeedback.xls"
 
-images_path = r"C:\Users\joaqc\Desktop\test fish 05122023\imaging exp_1"
+images_path = r"C:\Users\joaqc\Desktop\test_1"
 
 
 
@@ -63,6 +66,8 @@ galvo[abs_time] = galvo[abs_time].astype('int64') / 10**6
 # galvo = galvo[abs_time].map(pd.Timestamp.timestamp)
 
 
+plt.plot(galvo[galvo_value].iloc[3500:3800])
+
 
 galvo['1diff'] = galvo[galvo_value].diff()
 
@@ -87,7 +92,8 @@ galvo.loc[beg_frames[mask].index, 'beg'] = 1
 # len(beg_frames[mask].index) /2
 
 
-# A[(A > 400) & (A < 550)].max()
+A[(A > 400) & (A < 550)]
+.max()
 
 # number_images * 2
 
@@ -95,19 +101,19 @@ galvo.loc[beg_frames[mask].index, 'beg'] = 1
 
 
 
-# plt.plot(galvo[abs_time].iloc[6400:6420], galvo[galvo_value].iloc[6400:6420], 'k.')
+plt.plot(galvo[abs_time].iloc[6000:16420], galvo[galvo_value].iloc[6000:16420], 'k.')
 # plt.plot(galvo[abs_time].iloc[6400:6420], galvo['1diff'].iloc[6400:6420], 'g.')
 # plt.plot(galvo[abs_time].iloc[6400:6420], galvo['2diff'].iloc[6400:6420], 'r.')
 
-# plt.plot(galvo[abs_time].iloc[6400:6420], galvo['beg'].iloc[6400:6420], 'bo')
+plt.plot(galvo[abs_time].iloc[6400:16420], galvo['beg'].iloc[6400:16420], 'bo')
 
 # data.dropna(subset=['GalvoValue', 'ID'])
 
-space = 100
+space = 1000
 
-index=815563
+# index=815563
 
-for i, index in enumerate(galvo[galvo['beg'].notna()].index[100:110]):
+for i, index in enumerate(galvo[galvo['beg'].notna()].index):
 
 	fig = go.Figure()
 	fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space][galvo_value].to_numpy()))
@@ -120,10 +126,9 @@ for i, index in enumerate(galvo[galvo['beg'].notna()].index[100:110]):
 	# fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space]['2diff'].diff().to_numpy()))
 	fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space]['beg'].to_numpy()))
 
-
 	fig.show()
 
-
+	break
 
 	# plt.plot(galvo.loc[index - space : index + space][abs_time], galvo.loc[index - space : index + space][galvo_value], 'k.')
 	# plt.plot(galvo.loc[index - space : index + space][abs_time], galvo.loc[index - space : index + space]['1diff'], 'g.')
@@ -316,22 +321,46 @@ for images_name in images_paths:
 
 
 #* Open the images and take the mean
-images_paths = [*Path(images_path).glob('*tiff')]
+# images_paths = [*Path(images_path).glob('*tiff')]
 
-number_images = len(images_paths)
+# number_images = len(images_paths)
 
-images_mean = [0 for _ in images_paths]
+# images_mean = [0 for _ in images_paths]
 
-for image_i, image in enumerate(images_paths):
+# for image_i, image in enumerate(images_paths):
 	
-	images_mean[image_i] = np.sum(np.array(Image.open(image)))
-	# [240:260, 240:260])
+# 	images_mean[image_i] = np.sum(np.array(Image.open(image)))
+# 	# [240:260, 240:260])
+
+
+# images_mean = np.array(images_mean, dtype='int')
+
+
+images_paths = images_path + r"\test_1green.tif"
+
+im = Image.open(images_paths)
+
+images_mean = []
+
+# ImageSequence.all_frames(im, np.mean)
+
+try:
+	for frame in ImageSequence.Iterator(im):
+		
+		images_mean.append(np.sum(frame))
+except:
+	pass
+
+plt.plot(images_mean)
+
 
 
 images_mean = np.array(images_mean, dtype='int')
 
 
 
+
+len(images_mean)
 
 
 
