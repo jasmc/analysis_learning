@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from pathlib import Path
 from tqdm import tqdm
 import numpy as np
@@ -126,11 +127,11 @@ class Experiment:
 
 		all_fish_raw_data_paths = [*Path(self.path_home).glob('*mp tail tracking.txt')]
 		
-		for fish_raw_path in tqdm(all_fish_raw_data_paths):
+		for fish_raw_data_path in tqdm(all_fish_raw_data_paths):
 
-			# self.fish_name = fish_raw_path.stem.replace('mp tail tracking', '').lower()
+			# self.fish_name = fish_raw_data_path.stem.replace('mp tail tracking', '').lower()
 
-			fish = Fish(self.experiment).preprocess(Overwrite, fish_raw_path)
+			fish = Fish(self.experiment).preprocess(Overwrite, fish_raw_data_path)
 
 #! the rest with Fish class
 			# call Fish methods
@@ -165,51 +166,91 @@ class Experiment:
 
 
 
-
 class Fish:
 
-	def __init__(self, experiment : str, fish_name=None, fish_raw_path=None):
+	def __init__(self, experiment : str, fish_name: str, fish_raw_data_path=None):
 
-		if fish_raw_path is None:
-			#! self.fish_raw_path = self.get_path('Raw')
-			self.experiment = experiment
-			self.name = fish_name.lower()
+		self._experiment = experiment
+		name = fish_name.lower()
 
-		else:
+		info = name.split('_')
+		self._condition = info[2]
+		self._fish_name = fish_name
+		self._day = info[0]
+		self._fish_number = info[1]
+		self._rig_name, self._protocol_number = info[3].split('-')
 
-#! ESCPE STRINGS
-			self.fish_raw_path = Path(fish_raw_path.replace('mp tail tracking', '').replace('cam', '').replace('stim control', '').replace('scape sync reader', '').replace('.txt', ''))
-			self.experiment = exp_var.map_folder_to_experiment[self.fish_raw_path.parts[-3]]
-			self.name = self.fish_raw_path.stem.lower()
-
-#! take this out of a function
-		# [setattr(self, key, value) for key, value in self._fish_info().items()]
-		info = self.name.split('_')
-		self.day = info[0]
-		self.fish_number = info[1]
-		self.condition = info[2]
-		self.rig_name, self.protocol_number = info[3].split('-')
-
-		if self.rig_name in ['orange', 'brown']:
-			self.rig_cs_color = 'white'
-		elif self.rig_name in ['blue', 'black']:
-			self.rig_cs_color = 'red'
+		if self._rig_name in ['orange', 'brown']:
+			self._rig_cs_color = 'white'
+		elif self._rig_name in ['blue', 'black']:
+			self._rig_cs_color = 'red'
 		
-		self.strain = info[4]
-		self.age = info[5].replace('dpf', '')
+		self._strain = info[4]
+		self._age = info[5].replace('dpf', '')
+
+		if fish_raw_data_path is not None:
+			self._fish_raw_data_path = fish_raw_data_path
 
 
-	# @classmethod
-	# def from_path(cls, fish_raw_path_):
+	@classmethod
+	def from_raw_data_path(cls, fish_raw_data_path):
 
-	# 	experiment, fish_name = cls.fish_name_and_experiment_from_path(fish_raw_path_)
-		
-	# 	fish_raw_path_ = Path(fish_raw_path_)
-	# 	parent, stem, extension = fish_raw_path_.parent, fish_raw_path_.stem, fish_raw_path_.suffix 
-	# 	stem = stem.replace('cam', 'mp tail tracking').replace('stim control', 'mp tail tracking').replace('scape sync reader', 'mp tail tracking')
-	# 	fish_raw_path_ = fish_raw_path_.joinpath(parent, stem).with_suffix(extension)
+		fish_raw_data_path = Path(fish_raw_data_path.replace('mp tail tracking', '').replace('cam', '').replace('stim control', '').replace('scape sync reader', '').replace('.txt', ''))
+		experiment = exp_var.map_folder_to_experiment[fish_raw_data_path.parts[-3]]
+		fish_name = fish_raw_data_path.stem.lower()
 
-	# 	return cls(experiment, fish_name, fish_raw_path=fish_raw_path_)
+		return cls(experiment, fish_name, fish_raw_data_path)
+	
+
+#TODO data attr already read from store
+#* Initialize fish...
+	@classmethod
+	def from_store(cls, fish_name: str, AllData: store, AllMetadata: table):
+
+		#TODO know experiment and condition from pandas dataframe with list of all fish from all experiment
+
+		pass
+
+
+	@property
+	def experiment(self): return self._experiment
+
+	@property
+	def condition(self): return self._condition
+
+	@property
+	def fish_name(self): return self._fish_name
+	
+	@property
+	def day(self): return self._day
+	
+	@property
+	def fish_number(self): return self._fish_number
+	
+	@property
+	def rig_name(self): return self._rig_name
+	
+	@property
+	def protocol_number(self): return self._protocol_number
+
+	@property
+	def rig_cs_color(self): return self._rig_cs_color
+
+	@property
+	def strain(self): return self._strain
+
+	@property
+	def age(self): return self._age
+
+	@property
+	def fish_raw_data_path(self): return self._fish_raw_data_path
+
+
+
+
+	def key(self):
+
+		return '//'.join((self.experiment, self.condition, self.name))
 
 
 	# def fish_name_and_experiment_from_path(fish_path):
@@ -233,39 +274,6 @@ class Fish:
 		return metadata
 	
 
-	def key(self):
-
-		return '//'.join((self.experiment, self.condition, self.name))
-
-		
-# #!!! USE PROPERTY STUFF HERE
-# 	def _fish_info(self):
-
-# 		info = self.name.split('_')
-# 		day = info[0]
-
-# 		# strain = info[1]
-# 		# age = info[2].replace('dpf', '')
-# 		# condition = info[3]
-# 		# rig = info[4]
-# 		# fish_number = info[5].replace('fish', '')
-
-# 		fish_number = info[1]
-# 		condition = info[2]	
-# 		rig_name, protocol_number = info[3].split('-')
-
-# 		if rig_name in ['orange', 'brown']:
-# 			rig_cs_color = 'white'
-# 		elif rig_name in ['blue', 'black']:
-# 			rig_cs_color = 'red'
-		
-# 		strain = info[4]
-# 		age = info[5].replace('dpf', '')
-
-# 		return {'strain' : strain, 'day' : day, 'fish no.' : fish_number, 'age (dpf)' : age, 'condition' : condition, 'rig name' : rig_name, 'protocol number' : protocol_number, 'CS color' : rig_cs_color}
-
-# 		# return strain, day, fish_number, age, self.experiment, condition, rig_name, protocol_number, rig_cs_color
-
 
 	def get_path(self, dataset_type):
 		if dataset_type == 'Raw':
@@ -279,16 +287,16 @@ class Fish:
 
 
 	def preprocess(self):
-		#, Repeat_analysis: bool , all_data_path = None
+		# , Repeat_analysis: bool=True, store: AllData = None):
 
-		# if Repeat_analysis or not AllData.is_fish_processed(all_data_path, self):
+		# if Repeat_analysis or not AllData.fish_is_in_store(self):
 
-		if self.fish_raw_path is None:
-			self.fish_raw_path = self.get_path(self, 'Raw')
+		if self.fish_raw_data_path is None:
+			self.fish_raw_data_path = self.get_path(self, 'Raw')
 
-		data_path = str(self.fish_raw_path) + 'mp tail tracking.txt'
-		protocol_path = str(self.fish_raw_path) + 'stim control.txt'
-		camera_path = str(self.fish_raw_path) + 'cam.txt'
+		data_path = str(self.fish_raw_data_path) + 'mp tail tracking.txt'
+		protocol_path = str(self.fish_raw_data_path) + 'stim control.txt'
+		camera_path = str(self.fish_raw_data_path) + 'cam.txt'
 		# sync_reader_path = data_path.replace('mp tail tracking', 'scape sync reader')
 
 		fig_camera_name = Experiment.path_first_analysis(self.experiment, self.name, 'Lost frames', 'png')
@@ -387,8 +395,8 @@ class Fish:
 
 	def preprocess1(self, Overwrite):
 
-		if self.fish_raw_path is None:
-			self.fish_raw_path = self.get_path(self, 'Raw')
+		if self.fish_raw_data_path is None:
+			self.fish_raw_data_path = self.get_path(self, 'Raw')
 
 #TODO change to parquet format
 		pkl_name = str(self.get_path('Whole'))
@@ -404,7 +412,7 @@ class Fish:
 
 
 
-		data_path = str(self.fish_raw_path)
+		data_path = str(self.fish_raw_data_path)
 		protocol_path = data_path.replace('mp tail tracking', 'stim control')
 		camera_path = data_path.replace('mp tail tracking', 'cam')
 		sync_reader_path = data_path.replace('mp tail tracking', 'scape sync reader')
@@ -745,8 +753,8 @@ class Fish:
 
 	def preprocess_2(self, Overwrite):
 
-		if self.fish_raw_path is None:
-			self.fish_raw_path = self.get_path(self, 'Raw')
+		if self.fish_raw_data_path is None:
+			self.fish_raw_data_path = self.get_path(self, 'Raw')
 
 #TODO change to parquet format
 		pkl_name = str(self.get_path('Whole'))
@@ -767,7 +775,7 @@ class Fish:
 		fig_behavior_name = Experiment.path_first_analysis(self.experiment, self.name, 'Summary of behavior', 'png')
 		fig_cropped_exp_with_bout_detection_name = Experiment.path_first_analysis(self.experiment, self.name, 'Summary of experiment/Processed data', 'html')
 		
-		data_path = str(self.fish_raw_path)
+		data_path = str(self.fish_raw_data_path)
 		protocol_path = data_path.replace('mp tail tracking', 'stim control')
 		camera_path = data_path.replace('mp tail tracking', 'cam')
 		sync_reader_path = data_path.replace('mp tail tracking', 'scape sync reader')
@@ -1073,6 +1081,7 @@ class Fish:
 class AllData:
 
 	def __init__(self, hdf_store_path: str):
+	# complevel=4, complib="zlib"
 		
 		self.path = Path(hdf_store_path)
 		# self.store = pd.HDFStore(hdf_store_path, complevel=4, complib="zlib")
