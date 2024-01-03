@@ -23,17 +23,12 @@ store_raw = r"C:\Users\joaqc\Desktop\2000 01_Test\all_data_raw.h5"
 test_fish = r"C:\Users\joaqc\Desktop\2000 01_Test\Raw data\20221125_12_delay_black-8_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_9dpfcam.txt"
 
 
-
-fish = Fish('Test', fish_raw_path=test_fish)
-
-
-print(fish.__dict__)
+# fish = Fish(r'test_delay_9_mitfaminusminus,elavl3gff,10uasgcamp6fef05_20221125_12_black_red_8')
 
 
+fish = Fish.from_raw_data_txt(test_fish)
 
-
-
-all_data_raw = AllData(store_raw)
+all_data_raw = AllRawData(store_raw)
 
 
 if not all_data_raw.fish_is_in_store(fish):
@@ -42,23 +37,16 @@ if not all_data_raw.fish_is_in_store(fish):
 	
 	all_data_raw.add_fish_raw_data(fish)
 
-		#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-				#! ADD TO EXCEL AS WELL
-				use Pandas DataFrame
-
 else:
 
-	##!!!! get fish data from the store
-	fish.get_data()
+	fish.data_raw = all_data_raw.get_fish_raw_data(fish)
 
 
-#! test retrieval of fish data from store
-	
-#! test querying cols in fish data
+#! Do the same but for all fish from an exp. or condition
+
 
 
 print('done')
-
 
 
 

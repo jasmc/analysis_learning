@@ -1,3 +1,4 @@
+from collections import namedtuple
 from dataclasses import dataclass
 from pathlib import Path
 from tqdm import tqdm
@@ -166,130 +167,86 @@ class Experiment:
 
 
 
+
+
+
 class Fish:
 
-	def __init__(self, experiment : str, fish_name: str, fish_raw_data_path=None):
+	def __init__(self, fish_metadata: str, fish_raw_data_path=None):
 
-		self._experiment = experiment
-		name = fish_name.lower()
+		fish_metadata = fish_metadata.split('_')[:9]
 
-		info = name.split('_')
-		self._condition = info[2]
-		self._fish_name = fish_name
-		self._day = info[0]
-		self._fish_number = info[1]
-		self._rig_name, self._protocol_number = info[3].split('-')
-
-		if self._rig_name in ['orange', 'brown']:
-			self._rig_cs_color = 'white'
-		elif self._rig_name in ['blue', 'black']:
-			self._rig_cs_color = 'red'
+		Metadata = namedtuple('metadata', ['experiment', 'condition', 'strain', 'age', 'day', 'fish_number', 'rig_name', 'rig_cs_color', 'protocol_number'])
 		
-		self._strain = info[4]
-		self._age = info[5].replace('dpf', '')
+		self.metadata = Metadata._make(fish_metadata)
 
 		if fish_raw_data_path is not None:
-			self._fish_raw_data_path = fish_raw_data_path
+			self.fish_raw_data_path = fish_raw_data_path
 
 
 	@classmethod
-	def from_raw_data_path(cls, fish_raw_data_path):
+	def from_raw_data_txt(cls, fish_raw_data_path):
 
 		fish_raw_data_path = Path(fish_raw_data_path.replace('mp tail tracking', '').replace('cam', '').replace('stim control', '').replace('scape sync reader', '').replace('.txt', ''))
-		experiment = exp_var.map_folder_to_experiment[fish_raw_data_path.parts[-3]]
-		fish_name = fish_raw_data_path.stem.lower()
-
-		return cls(experiment, fish_name, fish_raw_data_path)
-	
-
-#TODO data attr already read from store
-#* Initialize fish...
-	@classmethod
-	def from_store(cls, fish_name: str, AllData: store, AllMetadata: table):
-
-		#TODO know experiment and condition from pandas dataframe with list of all fish from all experiment
-
-		pass
-
-
-	@property
-	def experiment(self): return self._experiment
-
-	@property
-	def condition(self): return self._condition
-
-	@property
-	def fish_name(self): return self._fish_name
-	
-	@property
-	def day(self): return self._day
-	
-	@property
-	def fish_number(self): return self._fish_number
-	
-	@property
-	def rig_name(self): return self._rig_name
-	
-	@property
-	def protocol_number(self): return self._protocol_number
-
-	@property
-	def rig_cs_color(self): return self._rig_cs_color
-
-	@property
-	def strain(self): return self._strain
-
-	@property
-	def age(self): return self._age
-
-	@property
-	def fish_raw_data_path(self): return self._fish_raw_data_path
-
-
-
-
-	def key(self):
-
-		return '//'.join((self.experiment, self.condition, self.name))
-
-
-	# def fish_name_and_experiment_from_path(fish_path):
-
-	# 	fish_path = Path(fish_path)
-	# 	fish_name = fish_path.stem.replace('mp tail tracking', '').replace('cam', '').replace('stim control', '').replace('scape sync reader', '').lower()
-	# 	experiment = exp_var.map_folder_to_experiment[fish_path.parts[-3]]
-	
-	# 	return experiment, fish_name
-	
-	def metadata(self):
 		
-		metadata = {}
+		experiment = exp_var.map_folder_to_experiment[fish_raw_data_path.parts[-3]]
 
-		for key, value in fish.__dict__.items():
-			
-			if 'data' not in key and key != 'name':
-			
-				metadata[key] = value
+		fish_metadata = str(fish_raw_data_path.stem).lower().split('_')
 
-		return metadata
-	
+		condition = fish_metadata[2]
+		day = fish_metadata[0]
+		fish_number = fish_metadata[1]
+
+		rig_name, protocol_number = fish_metadata[3].split('-')
+
+		# print(rig_name, protocol_number)
+
+		if rig_name in ['orange', 'brown']:
+			rig_cs_color = 'white'
+		elif rig_name in ['blue', 'black']:
+			rig_cs_color = 'red'
+		
+		strain = fish_metadata[4]
+		age = fish_metadata[5].replace('dpf', '')
+
+		fish_metadata = ('_').join([experiment, condition, age, strain, day, fish_number, rig_name, rig_cs_color, protocol_number])
+
+		return cls(fish_metadata, str(fish_raw_data_path))
 
 
-	def get_path(self, dataset_type):
-		if dataset_type == 'Raw':
-			return Experiment.get_experiment_info(self.experiment, 'path_home') / self.name
+	def fish_name(self):
+
+		return '_'.join(self.metadata)
 
 
-#! MISSES ARGUMENT FOR LOCATION OF HDF
-#! AND CONDITION NEEDS TO COME FROM SOMEWHERE ELSE...
-		elif dataset_type == 'HDF':
-			return Experiment.get_experiment_info(self.experiment) / self.condition / self.name / 'h5'
+	def dataset_key(self):
+
+		# return '//'.join([self.metadata.experiment, self.metadata.condition, '_'.join(self.metadata[2:])])
+		return '//'.join([self.metadata.experiment, self.metadata.condition, self.fish_name()])
+
+
+	def get_path(self, dataset_type, store=None):
+		
+		if dataset_type == 'txt raw data' and store is None:
+		
+			return Experiment.get_experiment_info(self.metadata.experiment, 
+			'path_home') / '_'.join([fish.metadata.day, fish.metadata.fish_number, fish.metadata.condition, fish.metadata.rig_name, fish.metadata.strain, fish.metadata.age])
+
+		elif store is not None:
+		
+			if dataset_type == 'HDF raw data':
+
+				return self.dataset_key() + '.h5'
+
+			elif dataset_type == 'HDF processed data':
+
+				return Experiment.get_experiment_info(self.metadata.experiment) / self.	metadata.condition / self.fish_name() + '.h5'
 
 
 	def preprocess(self):
-		# , Repeat_analysis: bool=True, store: AllData = None):
+		# , Repeat_analysis: bool=True, store: AllRawData = None):
 
-		# if Repeat_analysis or not AllData.fish_is_in_store(self):
+		# if Repeat_analysis or not AllRawData.fish_is_in_store(self):
 
 		if self.fish_raw_data_path is None:
 			self.fish_raw_data_path = self.get_path(self, 'Raw')
@@ -299,8 +256,8 @@ class Fish:
 		camera_path = str(self.fish_raw_data_path) + 'cam.txt'
 		# sync_reader_path = data_path.replace('mp tail tracking', 'scape sync reader')
 
-		fig_camera_name = Experiment.path_first_analysis(self.experiment, self.name, 'Lost frames', 'png')
-		fig_protocol_name = Experiment.path_first_analysis(self.experiment, self.name, 'Summary of protocol actually run', 'png')
+		fig_camera_name = Experiment.path_first_analysis(self.metadata.experiment, '_'.join(self.metadata), 'Lost frames', 'png')
+		fig_protocol_name = Experiment.path_first_analysis(self.metadata.experiment, '_'.join(self.metadata), 'Summary of protocol actually run', 'png')
 
 		#* Open the file with information about the time of each frame.
 		camera = f.read_camera(camera_path)
@@ -329,7 +286,7 @@ class Fish:
 	#TODO
 		# if (data := f.read_tail_tracking_data(data_path, reference_frame_id)) is None:
 
-		# 	f.save_info(protocol_info_path, self.name, 'Tail tracking might be corrupted!')
+		# 	f.save_info(protocol_info_path, self.metadata.name, 'Tail tracking might be corrupted!')
 		# 	return None
 
 		# #* Look for possible tail tracking errors.
@@ -377,751 +334,79 @@ class Fish:
 			# return data
 
 
+	def get_data(self, store: 'AllRawData', cols):
 
-		
-#! method to read fish data from HDF5. has to call the All_Fish class in principle
-	def get_data(self, store: AllData, cols):
 		#! cols are the columns to read from the dataframe
+
+		store.get_fish_raw_data()
+
 		pass
 
-#TODO
-	# def get_path(self, alignment):
-		
-	# 	if alignment == 'Raw':
-	# 		return Experiment.get_experiment_info(self.experiment).path_home / 'Raw data' / self.name
-		
-	# 	elif alignment in [cs, us, 'Whole processed']:
-	# 		return Experiment.get_experiment_info(self.experiment).path_save / 'Processed data' / 'parquet files' / '1. Original' / alignment / self.name / 'pkl'
+class AllRawData:
 
-	def preprocess1(self, Overwrite):
+	def __init__(self, hdf_store_path: str, compression_level=4, compression_library: str="zlib"):
 
-		if self.fish_raw_data_path is None:
-			self.fish_raw_data_path = self.get_path(self, 'Raw')
+		self._path = Path(hdf_store_path)
+		self._compression_level = compression_level
+		self._compression_library = compression_library
+		# self.store = pd.HDFStore(hdf_store_path, complevel=compression_level, complib="zlib")
 
-#TODO change to parquet format
-		pkl_name = str(self.get_path('Whole'))
+	@property
+	def compression_level(self): return self._compression_level
 
+	@property
+	def compression_library(self): return self._compression_library
 
-		#* Do nothing if pkl file already exists.
-		if not Overwrite and Path(pkl_name).exists():
-			print('Pkl with data already exists.')
-			return None
-
-
-		print(self.name + '\n\n')
-
-
-
-		data_path = str(self.fish_raw_data_path)
-		protocol_path = data_path.replace('mp tail tracking', 'stim control')
-		camera_path = data_path.replace('mp tail tracking', 'cam')
-		sync_reader_path = data_path.replace('mp tail tracking', 'scape sync reader')
-
-
-
-		camera = f.read_camera(camera_path)
-
-
-		if (protocol := f.read_protocol(protocol_path)) is None:
-
-			print('Fix protocol.')
-
-			return None
-
-
-
-
-		protocol = f.map_abs_time_to_elapsed_time(camera, protocol)
-
-
-
-
-
-
-#! At some point, make summary of the protocol
-
-
-
-#TODO at some point, I might want to change the format in a smart way, without running the whole thing again
-		fig_camera_name = Experiment.path_first_analysis(self.experiment, self.name, 'Lost frames', 'png')
-		fig_protocol_name = Experiment.path_first_analysis(self.experiment, self.name, 'Summary of protocol actually run', 'png')
-		fig_behavior_name = Experiment.path_first_analysis(self.experiment, self.name, 'Summary of behavior', 'png')
-		fig_cropped_exp_with_bout_detection_name = Experiment.path_first_analysis(self.experiment, self.name, 'Summary of experiment/Processed data', 'html')
-		
-
-		protocol_info_path = str(Experiment.get_experiment_info(self.experiment, 'path_save') / 'Protocol summary.txt')
-
-
-		# strain, day, fish_number, age, self.experiment, condition, rig, rig_color = self.fish_info()
-
-		#* For data from SCAPE.
-		if ((camera := f.read_sync_reader(sync_reader_path)) is not None):
-
-			#* Normalize 'CameraValue', 'GalvoValue', 'PhotodiodeValue' columns.
-			camera[[camera_value, galvo_value, photodiode_value]] /= camera[[camera_value, galvo_value, photodiode_value]].max()
-			camera[[camera_value, galvo_value]] -= camera[[camera_value, galvo_value]].min()
-			#TODO binarize CameraValue
-
-			#TODO #! Need to do this because we sampled the DAQ every FEW readings.
-			camera = pd.merge_ordered(camera.drop(columns=[ela_time, abs_time]), f.read_camera(camera_path), on = [frame_id]).dropna(subset=[ela_time, abs_time])
-
-		else:
-			camera = f.read_camera(camera_path)
-
-
-
-
-
-		first_frame_absolute_time = camera[abs_time].iloc[0]
-
-		camera.loc[:,[ela_time, abs_time]] -= camera.loc[:,[ela_time, abs_time]].iloc[0]
-
-
-		#* Look into the elapsed time column.
-		print('Looking into the ElapsedTime column:')
-		predicted_framerate, reference_frame_id, reference_frame_time, Lost_frames = f.framerate_and_reference_frame(camera.drop(columns=abs_time, errors='ignore'), first_frame_absolute_time, protocol_info_path, self.name, fig_camera_name)
-
-
-		if Lost_frames:
-			return None
-
-
-		#* Discard frames that will not be used in camera.
-		camera[frame_id] -= reference_frame_id
-		camera = camera[camera[frame_id] >= 0]
-
-
-		if (protocol := f.read_protocol(protocol_path, reference_frame_time if reference_frame_time is not None else reference_frame_id, protocol_info_path, self.name)) is None:
-
-			print('FIX PROTOCOL')
-
-			return None
-
-		
-		#* For most experiments: Discard the first stimulus. (The first stimulus is an optovin stimulus which is not relevant.)
-		# Need to do this because of the number of frames discarded at the beginning of the experiment and the first stimulus happening 1 min after the start (in most experiments). If I do not do this, then the the first stimulus appears to start at negative frame number...
-		mask = ((protocol[beg] < 0) | (protocol[end] < 0))
-		protocol = protocol[~mask]
-
-
-		#* Map stimuli timings of protocol (in unixtime) to ElapsedTime in camera. (Sometimes, the unixtime of the PC where the experiments are run gets updated during the experiment, creating a shift in the two ways of measuring time.)
-		if camera.iloc[1:,2].notna().any():
-			protocol = f.map_abs_time_to_elapsed_time(camera, protocol)
-
-		elif (camera[abs_time].diff() - 1000 / predicted_framerate).max() >= (buffer_size * 1000 / predicted_framerate):
-
-			print('Cannot use these data because unixtime was updated during the experiment and only the absolute time of the first frame was saved.')
-			return None
-
-		number_cycles, number_reinforcers, _, _, _, habituation_duration, cs_dur, cs_isi, us_dur, us_isi = f.protocol_info(protocol)
-		
-		if f.lost_stim(number_cycles, number_reinforcers, Experiment.Parts.get_number_elements(self.experiment, trials, cs), Experiment.Parts.get_number_elements(self.experiment, trials, us), protocol_info_path, self.name, 1):
-			return None
-
-		f.save_info(protocol_info_path, self.name, ['', habituation_duration, np.min(cs_isi), np.min(cs_dur), np.max(cs_dur), np.min(us_isi), np.min(us_dur), np.max(us_dur), number_cycles, number_reinforcers])
-
-
-		#* Plot overview of the experimental protocol actually run.
-		f.plot_protocol(cs_dur, cs_isi, us_dur, us_isi, self.name, fig_protocol_name)
-
-
-
-
-#! Read also the coordinates of the tail points
-
-#TODO try engine='pyarrow'
-#! Try different engines
-		if (data := f.read_tail_tracking_data(data_path, reference_frame_id)) is None:
-
-			f.save_info(protocol_info_path, self.name, 'Tail tracking might be corrupted!')
-			return None
-
-		#* Look for possible tail tracking errors.
-		if f.tracking_errors(data, single_point_tracking_error_thr):
-			return None
-
-
-		#* Merge data with camera. #! last part due to bug in Pandas (?)
-		data = pd.merge_ordered(data, camera).astype('float64')
-
-
-		#* For data from SCAPE.
-		if all(x in data.columns for x in [camera_value, galvo_value, photodiode_value]):
-			data[[camera_value, galvo_value, photodiode_value]] = data[[camera_value, galvo_value, photodiode_value]].interpolate(method='slinear', axis=0)
-
-		data = data.dropna()
-
-
-
-
-
-
-
-		#* Interpolate data to expeted_framerate (700 FPS).
-		data = f.interpolate_data(data, expected_framerate, predicted_framerate)
-
-
-		#* Filter tail tracking data.
-		data = f.filter_data(data, space_bcf_window, time_bcf_window)
-
-
-
-
-
-
-		print('Max tail angle at the chosen point: {} deg'.format(round(data.loc[:,tail_angle].max())))
-		f.save_info(protocol_info_path, self.name, 'Max tail angle at the chosen point: {} deg'.format(round(data.loc[:,tail_angle].max())))
-
-
-
-
-
-#! MERGE stim_in_data, crop_exp, identify_trials, ...
-
-
-
-		#* Segment bouts.
-		data = f.vigor_for_bout_detection(data, chosen_tail_point, time_min_window, time_max_window)
-		data = f.identify_bouts(data, bout_detection_thr_1, min_bout_duration, min_interbout_time, bout_detection_thr_2)
-
-
-
-
-		#* Convert protocol from ms to number of frames.
-		#* This is not the real time at which the stimuli happened, but the time of the stimuli if the framerate had been the expected_framerate.
-		protocol = (protocol * expected_framerate/1000).astype('int')
-
-
-		#* Add the information when the stimuli happened to the dataframe with the data.
-		data = f.stim_in_data(data, protocol)
-
-
-		f.plot_behavior_overview(data, self.name, fig_behavior_name)
-
-
-		if f.lost_stim(len(data[data[cs_beg]!=0]), len(data[data[us_beg]!=0]), Experiment.get_experiment_info(self.experiment).expected_number_cs, Experiment.get_experiment_info(self.experiment).expected_number_us, protocol_info_path, self.name, 2):
-			
-			print(data[data[cs_beg]!=0])
-			print(data[data[us_beg]!=0])
-			
-			return None
-
-
-		#* Save to a parquet file.
-		data.to_pickle(pkl_name)
-#! try gzip
-
-#! SAVE ONLY ONCE THE ENTIRE EXPERIMENT
-#! EVERYTHING THERE: STIM IDENTIFIED, BOUTS, ...
-#! THEN USE MASKS TO GET CS DATA, US DATA. THESE CAN BE SAVED AS NUMPY ARRAYS OR RETRIEVED FROM THE DATAFRAME DIRECTLY
-		data.to_parquet(pkl_name, engine='auto', compression=None, index=None, partition_cols=None)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-		#* time_bef_frame and time_aft_frame are for expected_framerate (700 FPS).
-		data = f.extract_data_around_stimuli(data, protocol, time_bef_frame, time_aft_frame, time_bcf_window, time_max_window, time_min_window)
-
-
-		data.iloc[:,0] = data.iloc[:,0] - data.iat[0,0]
-
-
-		f.plot_cropped_experiment(data, expected_framerate, bout_detection_thr_1, bout_detection_thr_2, downsampling_step, self.name, fig_cropped_exp_with_bout_detection_name)
-
-
-		data.drop(columns=vigor_bout_detection, inplace=True)
-
-
-
-	#! Do not nned to do this
-		#* Calculate tail vigor.
-		data[vigor_raw] = data.iloc[:,1:2+chosen_tail_point].diff().abs().sum(axis=1) * (expected_framerate / 1000) # deg/ms
-		# data[vigor_raw] = (data.iloc[:,1:2+chosen_tail_point].diff(axis=1).diff() * expected_framerate / 1000).diff().abs().sum(axis=1) # deg/ms^2
-
-
-
-		data = f.identify_trials(data, time_bef_frame, time_aft_frame)
-
-#!!!!!! todo
-		#* Identify blocks of trials.
-		# data = f.identify_blocks_trials(data, blocks_dict)
-
-
-		#* Calculate scaled vigor.
-		# data = f.calculate_digested_vigor(data)
-
-
-	#! Remove from cols_ordered some of the things
-		#* Order the columns.
-		# data = data[cols_ordered]
-
-
-		#* Set the columns' dtypes.
-		# data[cols[1:]] = data[cols[1:]].astype('float32')
-		data[vigor_raw] = data[vigor_raw].astype('float32')
-		# data[vigor_digested] = data[vigor_digested].astype('float32')
-		data[time_trial_f] = data[time_trial_f].astype('int')
-		data[cols_bout] = data[cols_bout].astype(pd.SparseDtype('bool'))
-
-
-
-		for col_s in [cs_beg, cs_end, us_beg, us_end, number_trial]:
-			
-			data[col_s] = data[col_s].astype('int')
-			data[col_s] = data[col_s].astype(pd.api.types.CategoricalDtype(categories=np.sort(data[col_s].unique()), ordered=True))
-
-
-
-		strain, day, fish_number, age, experiment, condition, rig_name, protocol_number, rig_cs_color = self.fish_info()
-
-
-#! check if this works with parquet
-		data.attrs = {'Strain' : strain,
-					'Day' : day,
-					'Fish no.' : fish_number,
-					'Age (dpf)' : age,
-					'Experiment' : experiment,
-					'Condition' : condition,
-					'Rig name' : rig_name,
-					'Protocol number' : protocol_number,
-					'CS color' : rig_cs_color}
-
-
-		# #* Set the index.
-		# data['Strain'] = strain
-		# data['Day'] = day
-		# data['Fish no.'] = fish_number
-		# data['Age (dpf)'] = age
-		# data['Experiment'] = experiment
-		# data['Condition'] = condition
-		# data['Rig name'] = rig_name
-		# data['Protocol number'] = protocol_number
-		# data['CS color'] = rig_cs_color
-
-
-		# #* Change to a categorical index.
-		# data[['Exp.', 'ProtocolRig', 'Rig color', 'Age (dpf)', 'Day', 'Fish no.', 'Strain', type_trial_csus]] = data[['Exp.', 'ProtocolRig', 'Rig color', 'Age (dpf)', 'Day', 'Fish no.', 'Strain', type_trial_csus]].astype('category')
-
-
-		# data.set_index(keys=['Strain', 'Age (dpf)', 'Exp.', 'ProtocolRig', 'Day', 'Fish no.', type_trial_csus], inplace=True)
-
-		data_cs = data.xs
-
-
-
-	#! Split the dataframe into 2: CS-alinged and US-aligned data
-
-
-	#! Add 
-	# 'Alignment'
-		# data_cs = data[data[type_trial_csus] == cs]
-		# data_us = data[data[type_trial_csus] == us]
-
-
-
-
-		# data.set_index(keys=['Strain', 'Age (dpf)', 'Exp.', 'ProtocolRig', 'Day', 'Fish no.'], inplace=True)
-
-
-#!!!!!!! append to hdf5
-	#! Use parquet instead
-		#* Save as a pickle file.
-		data.to_pickle(pkl_name)
-		#! HDF5   !!!!!!!!!
-		#!  organize hierarchically in experiment/condition and then all the corresponding fish
-		#! save all fish in the same HDF5
-
-
-	def preprocess_2(self, Overwrite):
-
-		if self.fish_raw_data_path is None:
-			self.fish_raw_data_path = self.get_path(self, 'Raw')
-
-#TODO change to parquet format
-		pkl_name = str(self.get_path('Whole'))
-
-
-		#* Do nothing if pkl file already exists.
-		if not Overwrite and Path(pkl_name).exists():
-			print('Pkl with data already exists.')
-			return None
-
-
-		print(self.name + '\n\n')
-
-
-#TODO at some point, I might want to change the format in a smart way, without running the whole thing again
-		fig_camera_name = Experiment.path_first_analysis(self.experiment, self.name, 'Lost frames', 'png')
-		fig_protocol_name = Experiment.path_first_analysis(self.experiment, self.name, 'Summary of protocol actually run', 'png')
-		fig_behavior_name = Experiment.path_first_analysis(self.experiment, self.name, 'Summary of behavior', 'png')
-		fig_cropped_exp_with_bout_detection_name = Experiment.path_first_analysis(self.experiment, self.name, 'Summary of experiment/Processed data', 'html')
-		
-		data_path = str(self.fish_raw_data_path)
-		protocol_path = data_path.replace('mp tail tracking', 'stim control')
-		camera_path = data_path.replace('mp tail tracking', 'cam')
-		sync_reader_path = data_path.replace('mp tail tracking', 'scape sync reader')
-
-		protocol_info_path = str(Experiment.get_experiment_info(self.experiment, 'path_save') / 'Protocol summary.txt')
-
-
-		# strain, day, fish_number, age, self.experiment, condition, rig, rig_color = self.fish_info()
-
-		print(camera_path)
-
-
-		#* For data from SCAPE.
-		if ((camera := f.read_sync_reader(sync_reader_path)) is not None):
-
-			#* Normalize 'CameraValue', 'GalvoValue', 'PhotodiodeValue' columns.
-			camera[[camera_value, galvo_value, photodiode_value]] /= camera[[camera_value, galvo_value, photodiode_value]].max()
-			camera[[camera_value, galvo_value]] -= camera[[camera_value, galvo_value]].min()
-			#TODO binarize CameraValue
-
-			#TODO #! Need to do this because we sampled the DAQ every FEW readings.
-			camera = pd.merge_ordered(camera.drop(columns=[ela_time, abs_time]), f.read_camera(camera_path), on = [frame_id]).dropna(subset=[ela_time, abs_time])
-
-		else:
-			camera = f.read_camera(camera_path)
-
-		first_frame_absolute_time = camera[abs_time].iloc[0]
-
-		camera.loc[:,[ela_time, abs_time]] -= camera.loc[:,[ela_time, abs_time]].iloc[0]
-
-
-		#* Look into the elapsed time column.
-		print('Looking into the ElapsedTime column:')
-		predicted_framerate, reference_frame_id, reference_frame_time, Lost_frames = f.framerate_and_reference_frame(camera.drop(columns=abs_time, errors='ignore'), first_frame_absolute_time, protocol_info_path, self.name, fig_camera_name)
-
-
-		if Lost_frames:
-			return None
-
-
-		#* Discard frames that will not be used in camera.
-		camera[frame_id] -= reference_frame_id
-		camera = camera[camera[frame_id] >= 0]
-
-
-		if (protocol := f.read_protocol(protocol_path, reference_frame_time if reference_frame_time is not None else reference_frame_id, protocol_info_path, self.name)) is None:
-
-			print('FIX PROTOCOL')
-
-			return None
-
-		
-		#* For most experiments: Discard the first stimulus. (The first stimulus is an optovin stimulus which is not relevant.)
-		# Need to do this because of the number of frames discarded at the beginning of the experiment and the first stimulus happening 1 min after the start (in most experiments). If I do not do this, then the the first stimulus appears to start at negative frame number...
-		mask = ((protocol[beg] < 0) | (protocol[end] < 0))
-		protocol = protocol[~mask]
-
-
-		#* Map stimuli timings of protocol (in unixtime) to ElapsedTime in camera. (Sometimes, the unixtime of the PC where the experiments are run gets updated during the experiment, creating a shift in the two ways of measuring time.)
-		if camera.iloc[1:,2].notna().any():
-			protocol = f.map_abs_time_to_elapsed_time(camera, protocol)
-
-		elif (camera[abs_time].diff() - 1000 / predicted_framerate).max() >= (buffer_size * 1000 / predicted_framerate):
-
-			print('Cannot use these data because unixtime was updated during the experiment and only the absolute time of the first frame was saved.')
-			return None
-
-		number_cycles, number_reinforcers, _, _, _, habituation_duration, cs_dur, cs_isi, us_dur, us_isi = f.protocol_info(protocol)
-		
-		if f.lost_stim(number_cycles, number_reinforcers, Experiment.Parts.get_number_elements(self.experiment, trials, cs), Experiment.Parts.get_number_elements(self.experiment, trials, us), protocol_info_path, self.name, 1):
-			return None
-
-		f.save_info(protocol_info_path, self.name, ['', habituation_duration, np.min(cs_isi), np.min(cs_dur), np.max(cs_dur), np.min(us_isi), np.min(us_dur), np.max(us_dur), number_cycles, number_reinforcers])
-
-
-		#* Plot overview of the experimental protocol actually run.
-		f.plot_protocol(cs_dur, cs_isi, us_dur, us_isi, self.name, fig_protocol_name)
-
-
-
-
-#! Read also the coordinates of the tail points
-
-#TODO try engine='pyarrow'
-#! Try different engines
-		if (data := f.read_tail_tracking_data(data_path, reference_frame_id)) is None:
-
-			f.save_info(protocol_info_path, self.name, 'Tail tracking might be corrupted!')
-			return None
-
-
-
-
-
-
-		#* Look for possible tail tracking errors.
-		if f.tracking_errors(data, single_point_tracking_error_thr):
-			return None
-
-
-		#* Merge data with camera. #! last part due to bug in Pandas (?)
-		data = pd.merge_ordered(data, camera).astype('float64')
-
-
-		#* For data from SCAPE.
-		if all(x in data.columns for x in [camera_value, galvo_value, photodiode_value]):
-			data[[camera_value, galvo_value, photodiode_value]] = data[[camera_value, galvo_value, photodiode_value]].interpolate(method='slinear', axis=0)
-
-		data = data.dropna()
-
-
-		#* Interpolate data to expeted_framerate (700 FPS).
-		data = f.interpolate_data(data, expected_framerate, predicted_framerate)
-
-
-		#* Filter tail tracking data.
-		data = f.filter_data(data, space_bcf_window, time_bcf_window)
-
-
-		print('Max tail angle at the chosen point: {} deg'.format(round(data.loc[:,tail_angle].max())))
-		f.save_info(protocol_info_path, self.name, 'Max tail angle at the chosen point: {} deg'.format(round(data.loc[:,tail_angle].max())))
-
-
-
-
-
-#! MERGE stim_in_data, crop_exp, identify_trials, ...
-
-
-
-		#* Segment bouts.
-		data = f.vigor_for_bout_detection(data, chosen_tail_point, time_min_window, time_max_window)
-		data = f.identify_bouts(data, bout_detection_thr_1, min_bout_duration, min_interbout_time, bout_detection_thr_2)
-
-
-
-
-		#* Convert protocol from ms to number of frames.
-		#* This is not the real time at which the stimuli happened, but the time of the stimuli if the framerate had been the expected_framerate.
-		protocol = (protocol * expected_framerate/1000).astype('int')
-
-
-		#* Add the information when the stimuli happened to the dataframe with the data.
-		data = f.stim_in_data(data, protocol)
-
-
-		f.plot_behavior_overview(data, self.name, fig_behavior_name)
-
-
-		if f.lost_stim(len(data[data[cs_beg]!=0]), len(data[data[us_beg]!=0]), Experiment.get_experiment_info(self.experiment).expected_number_cs, Experiment.get_experiment_info(self.experiment).expected_number_us, protocol_info_path, self.name, 2):
-			
-			print(data[data[cs_beg]!=0])
-			print(data[data[us_beg]!=0])
-			
-			return None
-
-
-		#* Save to a parquet file.
-		data.to_pickle(pkl_name)
-#! try gzip
-
-#! SAVE ONLY ONCE THE ENTIRE EXPERIMENT
-#! EVERYTHING THERE: STIM IDENTIFIED, BOUTS, ...
-#! THEN USE MASKS TO GET CS DATA, US DATA. THESE CAN BE SAVED AS NUMPY ARRAYS OR RETRIEVED FROM THE DATAFRAME DIRECTLY
-		data.to_parquet(pkl_name, engine='auto', compression=None, index=None, partition_cols=None)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-		#* time_bef_frame and time_aft_frame are for expected_framerate (700 FPS).
-		data = f.extract_data_around_stimuli(data, protocol, time_bef_frame, time_aft_frame, time_bcf_window, time_max_window, time_min_window)
-
-
-		data.iloc[:,0] = data.iloc[:,0] - data.iat[0,0]
-
-
-		f.plot_cropped_experiment(data, expected_framerate, bout_detection_thr_1, bout_detection_thr_2, downsampling_step, self.name, fig_cropped_exp_with_bout_detection_name)
-
-
-		data.drop(columns=vigor_bout_detection, inplace=True)
-
-
-
-	#! Do not nned to do this
-		#* Calculate tail vigor.
-		data[vigor_raw] = data.iloc[:,1:2+chosen_tail_point].diff().abs().sum(axis=1) * (expected_framerate / 1000) # deg/ms
-		# data[vigor_raw] = (data.iloc[:,1:2+chosen_tail_point].diff(axis=1).diff() * expected_framerate / 1000).diff().abs().sum(axis=1) # deg/ms^2
-
-
-
-		data = f.identify_trials(data, time_bef_frame, time_aft_frame)
-
-#!!!!!! todo
-		#* Identify blocks of trials.
-		# data = f.identify_blocks_trials(data, blocks_dict)
-
-
-		#* Calculate scaled vigor.
-		# data = f.calculate_digested_vigor(data)
-
-
-	#! Remove from cols_ordered some of the things
-		#* Order the columns.
-		# data = data[cols_ordered]
-
-
-		#* Set the columns' dtypes.
-		# data[cols[1:]] = data[cols[1:]].astype('float32')
-		data[vigor_raw] = data[vigor_raw].astype('float32')
-		# data[vigor_digested] = data[vigor_digested].astype('float32')
-		data[time_trial_f] = data[time_trial_f].astype('int')
-		data[cols_bout] = data[cols_bout].astype(pd.SparseDtype('bool'))
-
-
-
-		for col_s in [cs_beg, cs_end, us_beg, us_end, number_trial]:
-			
-			data[col_s] = data[col_s].astype('int')
-			data[col_s] = data[col_s].astype(pd.api.types.CategoricalDtype(categories=np.sort(data[col_s].unique()), ordered=True))
-
-
-
-		strain, day, fish_number, age, experiment, condition, rig_name, protocol_number, rig_cs_color = self.fish_info()
-
-
-#! check if this works with parquet
-		data.attrs = {'Strain' : strain,
-					'Day' : day,
-					'Fish no.' : fish_number,
-					'Age (dpf)' : age,
-					'Experiment' : experiment,
-					'Condition' : condition,
-					'Rig name' : rig_name,
-					'Protocol number' : protocol_number,
-					'CS color' : rig_cs_color}
-
-
-		# #* Set the index.
-		# data['Strain'] = strain
-		# data['Day'] = day
-		# data['Fish no.'] = fish_number
-		# data['Age (dpf)'] = age
-		# data['Experiment'] = experiment
-		# data['Condition'] = condition
-		# data['Rig name'] = rig_name
-		# data['Protocol number'] = protocol_number
-		# data['CS color'] = rig_cs_color
-
-
-		# #* Change to a categorical index.
-		# data[['Exp.', 'ProtocolRig', 'Rig color', 'Age (dpf)', 'Day', 'Fish no.', 'Strain', type_trial_csus]] = data[['Exp.', 'ProtocolRig', 'Rig color', 'Age (dpf)', 'Day', 'Fish no.', 'Strain', type_trial_csus]].astype('category')
-
-
-		# data.set_index(keys=['Strain', 'Age (dpf)', 'Exp.', 'ProtocolRig', 'Day', 'Fish no.', type_trial_csus], inplace=True)
-
-		data_cs = data.xs
-
-
-
-	#! Split the dataframe into 2: CS-alinged and US-aligned data
-
-
-	#! Add 
-	# 'Alignment'
-		# data_cs = data[data[type_trial_csus] == cs]
-		# data_us = data[data[type_trial_csus] == us]
-
-
-
-
-		# data.set_index(keys=['Strain', 'Age (dpf)', 'Exp.', 'ProtocolRig', 'Day', 'Fish no.'], inplace=True)
-
-
-#!!!!!!! append to hdf5
-	#! Use parquet instead
-		#* Save as a pickle file.
-		data.to_pickle(pkl_name)
-		#! HDF5   !!!!!!!!!
-		#!  organize hierarchically in experiment/condition and then all the corresponding fish
-		#! save all fish in the same HDF5
-
-
-
-class AllData:
-
-	def __init__(self, hdf_store_path: str):
-	# complevel=4, complib="zlib"
-		
-		self.path = Path(hdf_store_path)
-		# self.store = pd.HDFStore(hdf_store_path, complevel=4, complib="zlib")
+	@property
+	def path(self): return self._path
 
 
 	def add_fish_raw_data(self, fish: Fish):
-	# , HDF_format='table'
-		with pd.HDFStore(self.path, complevel=4, complib="zlib") as store:
+
+		with pd.HDFStore(self._path, complevel=self._compression_level, complib=self._compression_library) as store:
 			
-			# if HDF_format == 'fixed':
-				
-			# 	store.put(fish.name, fish.data, format=HDF_format, data_columns=[cs, us], append=False)
-			# elif HDF_format == 'table':
-
 	#! CONFIRM THE DATA_COLS
-			store.append(fish.key(), fish.data_raw, data_columns=[cs, us], expectedrows=len(fish.data_raw), append=False)
+			store.append(fish.dataset_key(), fish.data_raw, data_columns=[cs, us], expectedrows=len(fish.data_raw), append=False)
 
-
-			store.get_storer(fish.key()).attrs['Fish info'] = fish.metadata()
-
-
+			store.get_storer(fish.dataset_key()).attrs['metadata'] = fish.metadata._asdict()
+			
+		# fish.data_raw.to_hdf(self._path, fish.dataset_key(), data_columns=[cs, us], expectedrows=len(fish.data_raw), mode='w', complevel=self._compression_level, complib=self._compression_library)
 
 
 
 #!!!!!!!!!!!!!!!!     overload: Experiment=...    , Condition=...,    cols to query
-	def get_fish_data(self, fish: Fish, fish_name=None):
+	def get_fish_raw_data(self, fish: Fish):
 
-		with pd.HDFStore(self.path, complevel=4, complib="zlib") as store:
+		with pd.HDFStore(self._path, complevel=self._compression_level, complib=self._compression_library) as store:
 
-			if fish == None:
+			return store.select(fish.dataset_key())
+		# pd.read_hdf(self._path, key=fish.dataset_key(), mode='r', complevel=self._compression_level, complib=self._compression_library)
 
-				for dataset_path_in_store in store.keys():
+#?			
+			# Metadata = namedtuple('metadata', ['experiment', 'condition', 'strain', 'age', 'day', 'fish_number', 'rig_name', 'rig_cs_color', 'protocol_number'])
+			# fish.metadata = Metadata(**store.get_storer(fish.dataset_key()).attrs['metadata'])
 
-					if 'meta' not in dataset_path_in_store and fish_name == dataset_path_in_store.split("/")[3]:
 
-						return store.select(dataset_path_in_store)		
+	def get_fish_metadata(self, fish: Fish):
+		
+		with pd.HDFStore(self._path, complevel=self._compression_level, complib=self._compression_library) as store:
+			
+			return store.get_storer(fish.dataset_key()).attrs['metadata']
 
-			else:
-				
-				return store.select(fish.key())
+
+	def remove_fish(self, fish: Fish):
+		
+		with pd.HDFStore(self._path, complevel=self._compression_level, complib=self._compression_library) as store:
+			
+			store.remove(fish.dataset_key())
+
+
+	def fish_is_in_store(self, fish: Fish):
+
+		with pd.HDFStore(self._path, complevel=self._compression_level, complib=self._compression_library) as store:
+		
+			return fish.dataset_key() in store
+
 
 #! def get_experiment_data and so on
 
@@ -1130,74 +415,19 @@ class AllData:
 	# def 
 		#! should call Fish(fish).get_data()
 
-
-
-	def get_fish_metadata(self, fish: Fish):
-		
-		with pd.HDFStore(self.path, complevel=4, complib="zlib") as store:
-			
-			return store.get_storer(fish.key()).attrs['Fish info']
-
-
-
-
 # 	def add_fish_processed_data(self, fish: Fish):
 		
-# 		# store = pd.HDFStore(r"C:\Users\joaqc\Desktop\2000 01_Test\all_data.h5", complevel=4, complib="zlib")
+# 		# store = pd.HDFStore(r"C:\Users\joaqc\Desktop\2000 01_Test\all_data.h5", complevel=compression_level, complib="zlib")
 # 		# try:
 # #TODO use put to save raw data in fixed format
 
 
-# 		self.store.get_storer(self.name).attrs['Fish info'] = fish.fish_info()
+# 		self.store.get_storer(self.name).attrs['metadata'] = fish.fish_info()
 # 		self.store.close()
 # 		# except:
 # 		# 	print('Need to preprocess fish data!')
 
 #! SORT TABLE
 	
-	def remove_fish(self, fish):
-		pass
-
-
-
-	# @staticmethod
-	def fish_is_in_store(self, fish: Fish):
-
-		with pd.HDFStore(self.path, complevel=4, complib="zlib") as store:
-		
-			return fish.key() in store
-
-
-
 	#! read HDF files from single fish, seleting the required cols and concat
 		# get all fish in AllFishInfo
-
-
-
-class AllMetadata:
-
-	def __init__(self, excel_path: str):
-
-		self.path = Path(excel_path)
-
-
-	def get_table_metadata(self):
-
-		if Path(self.path).exists():
-			
-			self.table = pd.read_csv(self.path)
-
-		else:
-
-			self.table = pd.DataFrame()
-
-
-
-#!!!!!!!!!!!!!
-	def sort_table(self):
-		pass
-
-	def update_from_data_store(self, store: AllData):
-
-		#! update table with all fish data in the HDF store
-		pass

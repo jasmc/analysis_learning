@@ -3,14 +3,14 @@ from pathlib import Path
 
 
 map_folder_to_experiment = {
-	r'2000 01_Test' : 'Test'
+	r'2000 01_Test' : 'test'
 	# r'2022 11_Basic delay and (increasing) trace CC paradigm' : 'Delay_increasingTrace',
 							
 }
 
 experiments_info = {
 	# 'Delay_increasingTrace':
-	'Test' : 
+	'test' : 
 					
 										{'path_home' : Path(r'D:\2022 11_Basic delay and (increasing) trace CC paradigm\Raw data'),
 										'path_save' : Path(r'E:\Results (paper)\2022 11_Basic delay and (increasing) trace CC paradigm'),
