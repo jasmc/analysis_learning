@@ -138,7 +138,6 @@ class Experiment:
 			# call Fish methods
 			# return None, then return None
 
-
 	#! def
 	# have access to all fish from the experiment
 		# get all fish in AllFishInfo
@@ -172,9 +171,9 @@ class Experiment:
 
 class Fish:
 
-	def __init__(self, fish_metadata: str, fish_raw_data_path=None):
+	def __init__(self, fish_metadata_arg: str, fish_raw_data_path=None):
 
-		fish_metadata = fish_metadata.split('_')[:9]
+		fish_metadata = fish_metadata_arg.split('_')[:9]
 
 		Metadata = namedtuple('metadata', ['experiment', 'condition', 'strain', 'age', 'day', 'fish_number', 'rig_name', 'rig_cs_color', 'protocol_number'])
 		
@@ -243,84 +242,91 @@ class Fish:
 				return Experiment.get_experiment_info(self.metadata.experiment) / self.	metadata.condition / self.fish_name() + '.h5'
 
 
-	def preprocess(self):
-		# , Repeat_analysis: bool=True, store: AllRawData = None):
+	def preprocess(self, store: 'AllRawData', Overwrite: bool=True):
 
-		# if Repeat_analysis or not AllRawData.fish_is_in_store(self):
+		if not Overwrite or store.fish_is_in_store(self):
 
-		if self.fish_raw_data_path is None:
-			self.fish_raw_data_path = self.get_path(self, 'Raw')
+			self.data_raw = store.get_fish_raw_data(self)
+			# return None
 
-		data_path = str(self.fish_raw_data_path) + 'mp tail tracking.txt'
-		protocol_path = str(self.fish_raw_data_path) + 'stim control.txt'
-		camera_path = str(self.fish_raw_data_path) + 'cam.txt'
-		# sync_reader_path = data_path.replace('mp tail tracking', 'scape sync reader')
+		else:
 
-		fig_camera_name = Experiment.path_first_analysis(self.metadata.experiment, '_'.join(self.metadata), 'Lost frames', 'png')
-		fig_protocol_name = Experiment.path_first_analysis(self.metadata.experiment, '_'.join(self.metadata), 'Summary of protocol actually run', 'png')
+			if self.fish_raw_data_path is None:
+				self.fish_raw_data_path = self.get_path(self, 'Raw')
 
-		#* Open the file with information about the time of each frame.
-		camera = f.read_camera(camera_path)
+			data_path = str(self.fish_raw_data_path) + 'mp tail tracking.txt'
+			protocol_path = str(self.fish_raw_data_path) + 'stim control.txt'
+			camera_path = str(self.fish_raw_data_path) + 'cam.txt'
+			# sync_reader_path = data_path.replace('mp tail tracking', 'scape sync reader')
 
-		#* Estimate the true framerate.
-		predicted_framerate, reference_frame_id, Lost_frames = f.framerate_and_reference_frame(camera, name, fig_camera_name)
-		
+			fig_camera_name = Experiment.path_first_analysis(self.metadata.experiment, '_'.join(self.metadata), 'Lost frames', 'png')
+			fig_protocol_name = Experiment.path_first_analysis(self.metadata.experiment, '_'.join(self.metadata), 'Summary of protocol actually run', 'png')
 
-	#TODO
-		if Lost_frames:
-			return None
+			#* Open the file with information about the time of each frame.
+			camera = f.read_camera(camera_path)
 
-		camera = camera.drop(columns=ela_time)
+			#* Estimate the true framerate.
+			predicted_framerate, reference_frame_id, Lost_frames = f.framerate_and_reference_frame(camera, name, fig_camera_name)
+			
 
+		#TODO
+			if Lost_frames:
+				return None
 
-		
-		#* Discard frames that will not be used (in camera and hence further down).
-		# The calculated interframe interval before the reference frame is variable. Discard what happens up to then (also achieved by using how='inner' in merge_camera_with_data).
-		camera = camera[camera[frame_id] >= reference_frame_id]
+			camera = camera.drop(columns=ela_time)
 
 
-		#* Open tail tracking data.
-		data = f.read_tail_tracking_data(data_path)
+			
+			#* Discard frames that will not be used (in camera and hence further down).
+			# The calculated interframe interval before the reference frame is variable. Discard what happens up to then (also achieved by using how='inner' in merge_camera_with_data).
+			camera = camera[camera[frame_id] >= reference_frame_id]
 
 
-	#TODO
-		# if (data := f.read_tail_tracking_data(data_path, reference_frame_id)) is None:
-
-		# 	f.save_info(protocol_info_path, self.metadata.name, 'Tail tracking might be corrupted!')
-		# 	return None
-
-		# #* Look for possible tail tracking errors.
-		# if f.tracking_errors(data, single_point_tracking_error_thr):
-		# 	return None
-
-		#* Add information about the time of each frame to data.
-		data = f.merge_camera_with_data(data, camera)
-
-		#* Fix abs_time so that the time of each frame becomes closer to the time at which the frames were acquired by the camera and not when they were caught by the computer.
-		# The delay between acquiring and catching the frame is unknown and therefore disregarded.
-		data[abs_time] = np.linspace(data[abs_time].iat[0], data[abs_time].iat[0] + len(data) * (1000 / predicted_framerate), len(data))
-
-		#* Interpolate data to the expected framerate.
-		data = f.interpolate_data(data, predicted_framerate)
-
-		#* Open the stim log.
-		protocol = f.read_protocol(protocol_path)
+			#* Open tail tracking data.
+			data = f.read_tail_tracking_data(data_path)
 
 
-		#* Identify the stimuli, trials and blocks of the experiment.
-	#TODO replace by exp_var.experiments_info[Experiment.name]
-		data = f.identify_trials(data, protocol)
+		#TODO
+			# if (data := f.read_tail_tracking_data(data_path, reference_frame_id)) is None:
+
+			# 	f.save_info(protocol_info_path, self.metadata.name, 'Tail tracking might be corrupted!')
+			# 	return None
+
+			# #* Look for possible tail tracking errors.
+			# if f.tracking_errors(data, single_point_tracking_error_thr):
+			# 	return None
+
+			#* Add information about the time of each frame to data.
+			data = f.merge_camera_with_data(data, camera)
+
+			#* Fix abs_time so that the time of each frame becomes closer to the time at which the frames were acquired by the camera and not when they were caught by the computer.
+			# The delay between acquiring and catching the frame is unknown and therefore disregarded.
+			data[abs_time] = np.linspace(data[abs_time].iat[0], data[abs_time].iat[0] + len(data) * (1000 / predicted_framerate), len(data))
+
+			#* Interpolate data to the expected framerate.
+			data = f.interpolate_data(data, predicted_framerate)
+
+			#* Open the stim log.
+			protocol = f.read_protocol(protocol_path)
 
 
-	#TODO
-			# if f.lost_stim(len(data[data[cs_beg]!=0]), len(data[data[us_beg]!=0]), experiment.expected_number_cs, experiment.expected_number_us, experiment.protocol_info_path, stem_fish_path_orig, 2):
-
-			# 	print(data[data[cs_beg]!=0])
-			# 	print(data[data[us_beg]!=0])
-			# 	continue
+			#* Identify the stimuli, trials and blocks of the experiment.
+		#TODO replace by exp_var.experiments_info[Experiment.name]
+			data = f.identify_trials(data, protocol)
 
 
-		self.data_raw = data
+		#TODO
+				# if f.lost_stim(len(data[data[cs_beg]!=0]), len(data[data[us_beg]!=0]), experiment.expected_number_cs, experiment.expected_number_us, experiment.protocol_info_path, stem_fish_path_orig, 2):
+
+				# 	print(data[data[cs_beg]!=0])
+				# 	print(data[data[us_beg]!=0])
+				# 	continue
+
+
+			self.data_raw = data
+			
+			store.add_fish_raw_data(self)
+
 
 	def filter_data(self):
 

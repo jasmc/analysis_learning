@@ -1,3 +1,5 @@
+from imagecodecs import imread
+from tifffile import TiffFile
 from my_general_variables import *
 import my_functions as f
 
@@ -30,16 +32,13 @@ pmt_off_end = 'PMT_OFF end'
 
 
 
+protocol_path = r"F:\Pilot studies\2023_11_2-P\fish delay\20240104_01_delay_2p-test1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05f_7dpf_stim control.txt"
 
+data_path = r"F:\Pilot studies\2023_11_2-P\fish delay\20240104_01_delay_2p-test1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05f_7dpf_cam.txt"
 
-protocol_path = r"C:\Users\joaqc\Desktop\test_1\test_1_stim control.txt"
+galvo_path = r"F:\Pilot studies\2023_11_2-P\fish_5_delay\experiment\signalsfeedback.xls"
 
-data_path = r"C:\Users\joaqc\Desktop\test_1\test_1_cam.txt"
-
-# galvo_path = r"C:\Users\joaqc\Desktop\test fish 05122023\behavior exp_1\test_1_exp_two photon sync reader.txt"
-galvo_path = r"C:\Users\joaqc\Desktop\test_1\signalsfeedback.xls"
-
-images_path = r"C:\Users\joaqc\Desktop\test_1"
+images_path = r"F:\Pilot studies\2023_11_2-P\fish_5_delay\experiment\fish_5_delay_green.tif"
 
 
 
@@ -318,7 +317,24 @@ for images_name in images_paths:
 	images_name.rename(Path(images_path).joinpath(new_image_name + '.tiff'))
 
 
+import multipagetiff as mtif
+s = mtif.read_stack(images_path, units='um')
+mtif.plot_flatten(s)
+pages = s.pages
+pages.shape
+mtif.Stack(pages)
 
+
+
+tif = TiffFile(images_path)
+len(tif.pages)  # number of pages in the file
+
+np.mean(tif.pages[1000])
+
+
+imread(images_path, key=0)
+
+imread()
 
 #* Open the images and take the mean
 # images_paths = [*Path(images_path).glob('*tiff')]
@@ -336,13 +352,13 @@ for images_name in images_paths:
 # images_mean = np.array(images_mean, dtype='int')
 
 
-images_paths = images_path + r"\test_1green.tif"
+#! images_paths = images_path + r"\test_1green.tif"
 
-im = Image.open(images_paths)
+im = Image.open(images_path)
 
 images_mean = []
 
-# ImageSequence.all_frames(im, np.mean)
+ImageSequence.all_frames(im, np.mean)
 
 try:
 	for frame in ImageSequence.Iterator(im):

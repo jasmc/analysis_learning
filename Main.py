@@ -20,26 +20,33 @@ store_raw = r"C:\Users\joaqc\Desktop\2000 01_Test\all_data_raw.h5"
 
 # test_fish = r"C:\Users\joaqc\Desktop\2000 01_Test\Raw data\20000101_01_delay_orange-1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_6dpfmp tail tracking.txt"
 
+#!
 test_fish = r"C:\Users\joaqc\Desktop\2000 01_Test\Raw data\20221125_12_delay_black-8_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_9dpfcam.txt"
 
+#! test_experiment = r"C:\Users\joaqc\Desktop\2000 01_Test\Raw data\20221125_12_delay_black-8_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_9dpfcam.txt"
 
 # fish = Fish(r'test_delay_9_mitfaminusminus,elavl3gff,10uasgcamp6fef05_20221125_12_black_red_8')
 
 
+#! 
 fish = Fish.from_raw_data_txt(test_fish)
 
 all_data_raw = AllRawData(store_raw)
 
 
-if not all_data_raw.fish_is_in_store(fish):
-	
-	fish.preprocess()
-	
-	all_data_raw.add_fish_raw_data(fish)
+fish.preprocess(all_data_raw, False)
 
-else:
+fish.__dict__
 
-	fish.data_raw = all_data_raw.get_fish_raw_data(fish)
+# if not all_data_raw.fish_is_in_store(fish):
+	# 	#TODO Overwrite and store as inputs
+# 	fish.preprocess()
+	
+# 	all_data_raw.add_fish_raw_data(fish)
+
+# else:
+
+# 	fish.data_raw = all_data_raw.get_fish_raw_data(fish)
 
 
 #! Do the same but for all fish from an exp. or condition
