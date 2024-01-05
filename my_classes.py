@@ -1,6 +1,9 @@
+from timeit import default_timer as timer
 from collections import namedtuple
 from dataclasses import dataclass
+from scipy import interpolate
 from pathlib import Path
+from typing import Optional
 from tqdm import tqdm
 import numpy as np
 import pandas as pd
@@ -20,7 +23,7 @@ import my_functions as f
 # Experiment('Delay_increasingTrace').path_home
 # __dict__
 
-class Experiment:
+class  Experiment:
 
 	def __init__(self, experiment):
 
@@ -213,7 +216,7 @@ class Fish:
 		return cls(fish_metadata, str(fish_raw_data_path))
 
 
-	def fish_name(self):
+	def name(self):
 
 		return '_'.join(self.metadata)
 
@@ -221,7 +224,7 @@ class Fish:
 	def dataset_key(self):
 
 		# return '//'.join([self.metadata.experiment, self.metadata.condition, '_'.join(self.metadata[2:])])
-		return '//'.join([self.metadata.experiment, self.metadata.condition, self.fish_name()])
+		return '//'.join([self.metadata.experiment, self.metadata.condition, self.name()])
 
 
 	def get_path(self, dataset_type, store=None):
@@ -239,89 +242,479 @@ class Fish:
 
 			elif dataset_type == 'HDF processed data':
 
-				return Experiment.get_experiment_info(self.metadata.experiment) / self.	metadata.condition / self.fish_name() + '.h5'
+				return Experiment.get_experiment_info(self.metadata.experiment) / self.	metadata.condition / fish_name + '.h5'
 
 
 	def preprocess(self, store: 'AllRawData', Overwrite: bool=True):
+		"""
+		gives all raw data
+		not possible to select cols
+		if you want to select cols, use Fish.get_raw_data()
+		"""
 
-		if not Overwrite or store.fish_is_in_store(self):
+		#* Functions used in this method.
 
-			self.data_raw = store.get_fish_raw_data(self)
-			# return None
+		def read_camera(camera_path):
+
+			try:
+				start = timer()
+				
+				# camera = pd.read_csv(str(camera_path), sep='\t', header=0, decimal='.', skiprows=[*range(1,number_frames_discard_beg)])
+				camera = pd.read_csv(camera_path, engine='pyarrow', sep=' ', header=0, decimal='.')
+				# , na_filter=False
+				# dtype={time_experiment_f : 'int64', abs_time : 'int64', ela_time : 'float64'})
+				# skipfooter=1
+				camera = camera.iloc[:-1,:]
+
+				camera.rename(columns={'FrameID' : frame_id}, inplace=True)
+				
+				print('Time to read cam.txt: {} (s)'.format(timer()-start))
+				
+				return camera
+
+			except:
+
+				print('Issues in the camera log file')
+				
+				return None
+
+		def framerate_and_reference_frame(camera, fish_name, fig_camera_name):
+
+			# first_frame_absolute_time = camera[abs_time].iloc[0]
+
+			camera = camera.drop(columns=abs_time, errors='ignore')
+
+			camera_diff = camera[ela_time].diff()
+
+			print('Max IFI: {} ms'.format(camera_diff.max()))
+			
+			# First estimate of the interframe interval, using the median
+			ifi = camera_diff.median()
+			# camera_diff.iloc[number_frames_discard_beg : ].median()
+			print('First estimate of IFI: {} ms'.format(ifi))
+
+
+			camera_diff_index_correct_IFI = np.where(abs(camera_diff - ifi) <= max_interval_between_frames)[0]
+
+			camera_diff_index_correct_IFI_diff = np.diff(camera_diff_index_correct_IFI)
+
+			reference_frame_id = 0
+			last_frame_id = 0
+
+			#* Find a region at the beginning where the IFI from frame to frame does not vary significantly and is similar to the first estimate of the true IFI (ifi).
+			for i in range(1, len(camera_diff_index_correct_IFI_diff)):
+
+				if camera_diff_index_correct_IFI_diff[i-1] == 1 and camera_diff_index_correct_IFI_diff[i] == 1:
+
+					reference_frame_id = camera[frame_id].iloc[camera_diff_index_correct_IFI[i] - 1]
+
+
+					# # first_frame_absolute_time is not None when there is absolute time in the cam file.
+					# if first_frame_absolute_time is not None:
+					# 	reference_frame_time = first_frame_absolute_time + camera[ela_time].iloc[camera_diff_index_correct_IFI[i] - 1] - camera[ela_time].iloc[0]
+					# else:
+					# 	reference_frame_time = None
+
+					break
+
+			#* Find a similar region but at the end of the experiment.
+			for i in range(len(camera_diff_index_correct_IFI_diff)-1, 0, -1):
+
+				if camera_diff_index_correct_IFI_diff[i-1] == 1 and camera_diff_index_correct_IFI_diff[i] == 1:
+					
+					last_frame_id = camera[frame_id].iloc[camera_diff_index_correct_IFI[i] - 1]
+					#last_frame_time = first_frame_absolute_time + camera[time].iloc[camera_diff_index_right_IFI[i] - 1] - camera[time].iloc[0]
+
+					break
+
+
+			#* Second estimate of the interframe interval, using the mean, and assuming there is no increasing accumulation of frames in the buffer during the experiment; Only the region between the two frames identified in the previous two for loops is considered.
+			ifi = camera_diff.iloc[reference_frame_id - camera[frame_id].iloc[0] : last_frame_id - camera[frame_id].iloc[0]].mean()
+
+			print('Second estimate of IFI: {} ms'.format(ifi))
+			predicted_framerate = 1000 / ifi
+			print('Estimated framerate: {} FPS'.format(predicted_framerate))
+
+
+			def lost_frames(camera, camera_diff, ifi, fish_name, fig_camera_name):
+
+
+				# Delay to capture frames by the computer
+				delay = (camera_diff - ifi).cumsum().to_numpy()
+
+
+				# Number of lost frames
+				# More than one frame might be lost and number_frames_lost sometimes is not monotonically crescent (can go down when some ms are 'recovered').
+				number_frames_lost = np.floor(delay / (ifi * buffer_size))
+				#TODO use this to speed up
+				# number_frames_lost = np.max(number_frames_lost, 0, axis)
+				number_frames_lost = np.where(number_frames_lost>=0, number_frames_lost, 0)
+
+				number_frames_lost_diff = np.floor(np.diff(number_frames_lost))
+				number_frames_lost_diff = np.where(number_frames_lost_diff>=0,number_frames_lost_diff,0)
+
+
+				# Indices where frames were potentially lost
+				where_frames_lost = np.where(number_frames_lost_diff > 0)[0]
+
+
+				# Total number of missed frames
+				if (Lost_frames := len(where_frames_lost) > 0):
+					print('Total number of lost frames: ', len(where_frames_lost))
+					print('Where: ', where_frames_lost)
+					# save_info(protocol_info_path, fish_name, 'Lost frames.')
+				else:
+					print('No frames were lost')
+
+				fig, axs = plt.subplots(5, 1, sharex=True, facecolor='white', figsize=(20, 40), constrained_layout=True)
+
+				axs[0].plot(camera.iloc[:,1],'k')
+				axs[0].set_ylabel('Elapsed time (ms)')
+				axs[0].set_title('Estimated IFI: {} ms.    Estimated framerate: {} FPS'.format(round(ifi, 3), round(predicted_framerate, 3)))
+
+				axs[1].plot(camera_diff,'k')
+				axs[1].set_ylabel('IFI (ms)')
+
+				axs[2].plot(delay,'k')
+				axs[2].set_ylabel('Delay (ms)')
+
+				axs[3].plot(number_frames_lost_diff.cumsum(),'k')
+				axs[3].set_ylabel('Cumulative number of lost frames')
+
+				axs[4].plot(number_frames_lost_diff,'black')
+				# axs[4].set_xlabel('frame number')
+				axs[4].set_ylabel('Lost frames')
+
+				fig.supxlabel('Frame number')
+				plt.suptitle('Analysis of lost frames\n' + fish_name)
+
+				fig.savefig(fig_camera_name, dpi=100, facecolor='white')
+				plt.close(fig)
+
+
+				# Correct frame IDs in camera dataframe.
+				# correctedID = np.zeros(len(camera))
+
+				# for i in tqdm(where_frames_lost):
+				# 	correctedID[i:number_frames_diff] += 1 # And not correctedID[i:] += 1 because, when the buffer is full, the Mako U29-B camera keeps what is already in the buffer and does not receive any new frames while the buffer is full.
+
+				# del where_frames_lost, number_frames_lost_diff
+
+				# camera['Corrected ID'] = camera['ID'] + correctedID
+				# camera['Corrected ID'] = camera['Corrected ID'].astype('int')
+
+				# # Second estimate of the interframe interval, using the median, and after estimating where there are missing frames 
+				# camera_diff = camera.loc[:,'ElapsedTime'].diff()
+				# ifi = camera_diff.iloc[number_frames_discard_beg : -number_frames_discard_beg].median()
+				# print('\nFirst estimate of IFI: {} ms'.format(ifi))
+
+				return Lost_frames
+
+
+			Lost_frames = lost_frames(camera, camera_diff, ifi, fish_name, fig_camera_name)
+
+			return predicted_framerate, reference_frame_id, Lost_frames
+
+		def read_tail_tracking_data(data_path):
+
+			# Angles in data come in radians.
+
+			try:
+				
+				start = timer()
+				
+				data = pd.read_csv(data_path, engine='pyarrow', sep=' ', usecols=cols_to_use_orig, header=0, decimal='.', na_filter=False, names=[frame_id]+data_cols)
+				# dtype=dict(zip(cols_to_use_orig, ['int64'] + ['float32']*len(cols_to_use_orig))))
+				# skipfooter=1
+				data = data.iloc[:-1,:]
+				
+				#* Right now, pyarrow engine ignores renaming when opening the csv.
+				data.rename(columns=dict(zip(cols_to_use_orig, [frame_id] + data_cols)), inplace=True)
+
+				print('Time to read tail tracking .txt: {} (s)'.format(timer()-start))
+
+
+				#? maybe before this was necessary because "decimal" in pd.read_csv was set to ",".
+				#* Even if decimal separator is wrong, this will correct it.
+				# data.iloc[:,1:] = data.iloc[:,1:].astype('float32')
+
+				#* Convert tail tracking data from radian to degree
+				data.loc[:,angle_cols] *= (180/np.pi)
+				
+				return data
+
+			except:
+		#TODO
+				# f.save_info(protocol_info_path, self.metadata.name, 'Tail tracking might be corrupted!')
+				print('Issues in tail tracking data')
+				return None
+
+		def plot_behavior_overview(data, fish_name, fig_behavior_name):
+			# data containing tail_angle.
+
+			# mask_frames = np.ones(number_frames + round(60*framerate), dtype=bool)
+			# mask_frames[:: round(framerate * 0.5)] = False
+			# mask_frames[0] = False
+			
+			# rows_to_skip = np.arange(number_frames + round(60*framerate))
+			# rows_to_skip = rows_to_skip[mask_frames]
+
+			# start = timer()
+
+			# overall_data = pd.read_csv(data, sep=' ', header=0, usecols=cols, skiprows=rows_to_skip, decimal=',')
+			# overall_data = overall_data.astype('float32')
+
+			# print(timer() - start)
+			plt.figure(figsize=(30, 15))
+			plt.plot(data[frame_id]/expected_framerate/60/60, data[tail_angle], 'black')
+			plt.xlabel('Time (h)')
+			plt.ylabel('Tail end angle (deg)')
+			plt.suptitle('Behavior overview\n' + fish_name)
+			# plt.show()
+			# plt.legend(frameon=False, loc='upper center', ncol=2)
+			plt.savefig(fig_behavior_name, dpi=100, bbox_inches='tight')
+			plt.close()
+
+		def tracking_errors(data, single_point_tracking_error_thr = single_point_tracking_error_thr):
+
+			if ((a := data.loc[:, angle_cols].abs().max()) > single_point_tracking_error_thr).any():
+				print('Possible tracking error; max(abs(angle of individual point)): ')
+				print(a)
+
+				return True
+
+			elif data.iloc[:,1:].isna().to_numpy().any():
+				print('Possible tracking failures; there are NAs in data')
+
+				return True
+
+			else:
+				return False
+
+		def merge_camera_with_data(data, camera):
+
+			data = pd.merge_ordered(data, camera, on=frame_id, how='inner')
+
+			data[frame_id] -= data[frame_id].iat[0]
+
+			return data
+
+		def interpolate_data(data, predicted_framerate, expected_framerate=expected_framerate):
+			# expected_framerate is the framerate to which data is interpolated. So, output data is as if it had been acquired at the expected_framerate (700 FPS when I wrote this).
+
+			data_ = data.copy()
+
+			#* Interpolate tail tracking data to the expected framerate.
+
+			data_[frame_id] *= expected_framerate/predicted_framerate
+
+			data_.rename(columns={frame_id : time_experiment_f}, inplace=True)
+
+			interp_function = interpolate.interp1d(data_[time_experiment_f], data_.drop(columns=time_experiment_f), kind='slinear', axis=0, assume_sorted=True, bounds_error=False, fill_value="extrapolate")
+
+			data = pd.DataFrame(np.arange(data_[time_experiment_f].iat[0], data_[time_experiment_f].iat[-1]), columns=[time_experiment_f])
+
+			data[data_.drop(columns=time_experiment_f).columns] = interp_function(data[time_experiment_f])
+
+			return data
+
+		def read_protocol(protocol_path):
+
+			#* Read protocol file.
+			if Path(protocol_path).exists():
+				# protocol = pd.read_csv(str(protocol_path), sep=' ', header=0, names=['Type', beg, end], usecols=[0, 1, 2], index_col=0)
+				protocol = pd.read_csv(protocol_path, engine='pyarrow', sep=' ', header=0, decimal='.', names=['Type', beg, end])
+				# dtype={'Type' : 'str', beg : 'int', end : 'int'})
+
+			else:
+				print('The stim log file does not exist')
+				return None
+
+			#* Were the stimuli timings not saved?
+			if protocol.empty:
+				print('The stim log file is empty')
+				return None
+
+			if protocol.iloc[0,0] == 0:
+				print('The stim log file is currupted')
+				return None
+
+			#* Right now, pyarrow engine ignores renaming when opening the csv.
+			protocol.rename(columns={'Beg' : beg, 'End' : end}, inplace=True)
+			protocol['Type'] = protocol['Type'].replace({'Cycle' : cs, 'Reinforcer' : us})
+			protocol.sort_values(by=beg, inplace=True)
+			protocol = protocol.set_index('Type')
+
+			return protocol
+
+		def lost_stim(number_cycles, number_reinforcers, expected_number_cs_trials, expected_number_us_trials):
+
+			if number_cycles < expected_number_cs_trials:
+
+				# save_info(protocol_info_path, fish_name, 'Not all CS! Stopped at CS {} ({}).'.
+				# format(number_cycles, id_debug))
+				print('Not all CS!')
+			
+				return True
+
+			elif number_reinforcers < expected_number_us_trials:
+				
+				# save_info(protocol_info_path, fish_name, 'Not all US! Stopped at US {} ({}).'.format(number_reinforcers, id_debug))
+				print('Not all US!')
+				 
+				return True
+			
+			else:
+				return False
+
+		def protocol_info(protocol):
+
+			#* Count the number of cycles, trials, blocks and bouts.
+			# Using len() just in case these is a single element.
+			# number_cs = len(protocol.loc['Cycle', beg])
+		
+			if protocol.index.isin([us]).any():
+				# number_us = len(protocol.loc[us, beg])
+
+				us_beg = protocol.loc[us, beg]
+				us_end = protocol.loc[us, end]
+				us_dur = (us_end - us_beg).to_numpy() # in ms
+				us_isi = (us_beg[1:] - us_end[:-1]).to_numpy() / 1000 / 60 # min
+			else:
+				# number_us = 0
+
+				us_dur = None
+				us_isi = None
+
+			# habituation_duration = protocol.iloc[0,0] / 1000 / 60 # min
+
+			cs_beg = protocol.loc[cs, beg]
+			cs_end = protocol.loc[cs, end]
+			cs_dur = (cs_end - cs_beg).to_numpy() # in ms
+			cs_isi = (cs_beg[1:] - cs_end[:-1]).to_numpy() / 1000 / 60 # min
+
+
+			return cs_dur, cs_isi, us_dur, us_isi
+
+		def plot_protocol(cs_dur, cs_isi, us_dur, us_isi, fish_name, fig_protocol_name):
+
+			plt.figure(figsize=(14,14))
+			plt.plot(np.arange(1, len(cs_isi) + 1), cs_isi, label='inter-cs interval\nmin int.=' + str(round(np.amin(cs_isi)*60,1)) + ' s\n' + 'cs min dur=' + str(round(np.amin(cs_dur)/1000,3)) + ' s\n' + 'cs max dur=' + str(round(np.amax(cs_dur)/1000,3)) + ' s')
+			
+			plt.plot(np.arange(5, 4+len(us_isi)+1), us_isi, label='inter-us interval\nmin int.=' + str(round(np.amin(us_isi)*60,1)) + ' s\n' + 'us min dur=' + str(round(np.amin(us_dur)/1000,3)) + 's\n' + 'us max dur='+ str(round(np.amax(us_dur)/1000,3)) + ' s')
+			plt.xlabel('Trial number')
+			plt.ylabel('ISI (min)')
+			plt.ylim(0, 10)
+			plt.legend(frameon=False, loc='upper center', ncol=2)
+			plt.suptitle('Summary of protocol\n' + fish_name)
+			plt.savefig(fig_protocol_name, dpi=100, bbox_inches='tight')
+			plt.close()
+
+		def identify_trials(data, protocol):
+
+			data[[cs, us]] = [0, 0]
+
+			for cs_us in [cs, us]:
+
+				protocol_sub = protocol.loc[cs_us, [beg, end]].to_numpy()
+
+				for i, p in enumerate(protocol_sub):
+					
+					data.loc[data[abs_time].between(p[0], p[1]), cs_us] = i + 1
+
+			data = data.set_index(abs_time)
+
+			data.loc[:, data_cols] = data.loc[:, data_cols].interpolate(kind='slinear')
+
+			data = data.reset_index(drop=True).dropna()
+
+			data[time_experiment_f] = data[time_experiment_f].astype('int64')
+
+			data[[cs, us]] = data[[cs, us]].astype('Sparse[int16]')
+
+			#* Fix dtypes.
+			for cs_us in [cs, us]:
+
+				data[cs_us] = data.loc[:, cs_us].astype(pd.api.types.CategoricalDtype(categories=data[cs_us].unique(), ordered=True))
+
+			return data
+		
+
+
+		if not Overwrite and store.fish_is_in_store(self):
+
+			self.data_raw = store.get_raw_data(self)
 
 		else:
 
 			if self.fish_raw_data_path is None:
 				self.fish_raw_data_path = self.get_path(self, 'Raw')
 
+			fish_name = self.name()
+
+			print('Preprocessing fish ', fish_name)
+
 			data_path = str(self.fish_raw_data_path) + 'mp tail tracking.txt'
 			protocol_path = str(self.fish_raw_data_path) + 'stim control.txt'
 			camera_path = str(self.fish_raw_data_path) + 'cam.txt'
-			# sync_reader_path = data_path.replace('mp tail tracking', 'scape sync reader')
 
-			fig_camera_name = Experiment.path_first_analysis(self.metadata.experiment, '_'.join(self.metadata), 'Lost frames', 'png')
-			fig_protocol_name = Experiment.path_first_analysis(self.metadata.experiment, '_'.join(self.metadata), 'Summary of protocol actually run', 'png')
+			fig_camera_name = Experiment.path_first_analysis(self.metadata.experiment, fish_name, 'Camera log', 'png')
+			fig_behavior_name = Experiment.path_first_analysis(self.metadata.experiment, fish_name, 'Behavior overview', 'png')
+			fig_protocol_name = Experiment.path_first_analysis(self.metadata.experiment, fish_name, 'Stim log', 'png')
 
 			#* Open the file with information about the time of each frame.
-			camera = f.read_camera(camera_path)
+			if (camera := read_camera(camera_path)) is None:
+				return None
 
 			#* Estimate the true framerate.
-			predicted_framerate, reference_frame_id, Lost_frames = f.framerate_and_reference_frame(camera, name, fig_camera_name)
-			
+			predicted_framerate, reference_frame_id, Lost_frames = framerate_and_reference_frame(camera, name, fig_camera_name)
 
-		#TODO
 			if Lost_frames:
 				return None
 
 			camera = camera.drop(columns=ela_time)
 
-
-			
 			#* Discard frames that will not be used (in camera and hence further down).
 			# The calculated interframe interval before the reference frame is variable. Discard what happens up to then (also achieved by using how='inner' in merge_camera_with_data).
 			camera = camera[camera[frame_id] >= reference_frame_id]
 
-
 			#* Open tail tracking data.
-			data = f.read_tail_tracking_data(data_path)
+			if (data := read_tail_tracking_data(data_path)) is None: # type: ignore
+				return None
 
+			plot_behavior_overview(data, fish_name, fig_behavior_name)
 
-		#TODO
-			# if (data := f.read_tail_tracking_data(data_path, reference_frame_id)) is None:
-
-			# 	f.save_info(protocol_info_path, self.metadata.name, 'Tail tracking might be corrupted!')
-			# 	return None
-
-			# #* Look for possible tail tracking errors.
-			# if f.tracking_errors(data, single_point_tracking_error_thr):
-			# 	return None
+			#* Look for possible tail tracking errors.
+			if tracking_errors(data, single_point_tracking_error_thr):
+				return None
 
 			#* Add information about the time of each frame to data.
-			data = f.merge_camera_with_data(data, camera)
+			data = merge_camera_with_data(data, camera)
 
 			#* Fix abs_time so that the time of each frame becomes closer to the time at which the frames were acquired by the camera and not when they were caught by the computer.
 			# The delay between acquiring and catching the frame is unknown and therefore disregarded.
 			data[abs_time] = np.linspace(data[abs_time].iat[0], data[abs_time].iat[0] + len(data) * (1000 / predicted_framerate), len(data))
 
 			#* Interpolate data to the expected framerate.
-			data = f.interpolate_data(data, predicted_framerate)
+			data = interpolate_data(data, predicted_framerate)
 
 			#* Open the stim log.
-			protocol = f.read_protocol(protocol_path)
+			if (protocol := read_protocol(protocol_path)) is None:
+				return None
 
+#TODO replace by exp_var.experiments_info[Experiment.name]
+			if lost_stim(len(protocol.loc[cs,:]), len(protocol.loc[us,:]), Experiment.get_experiment_info(self.metadata.experiment, 'parts')['trials'][cs]['elements'][1], Experiment.get_experiment_info(self.metadata.experiment, 'parts')['trials'][us]['elements'][1]):
+				print('Experiment did not run until the end')
 
-			#* Identify the stimuli, trials and blocks of the experiment.
-		#TODO replace by exp_var.experiments_info[Experiment.name]
-			data = f.identify_trials(data, protocol)
+			cs_dur, cs_isi, us_dur, us_isi = protocol_info(protocol)
 
+			#* Plot overview of the experimental protocol actually run
+			plot_protocol(cs_dur, cs_isi, us_dur, us_isi, fish_name, fig_protocol_name)
 
-		#TODO
-				# if f.lost_stim(len(data[data[cs_beg]!=0]), len(data[data[us_beg]!=0]), experiment.expected_number_cs, experiment.expected_number_us, experiment.protocol_info_path, stem_fish_path_orig, 2):
+			#* Identify the stimuli, trials of the experiment.
+			data = identify_trials(data, protocol)
 
-				# 	print(data[data[cs_beg]!=0])
-				# 	print(data[data[us_beg]!=0])
-				# 	continue
-
+			print('\n\n')
 
 			self.data_raw = data
 			
@@ -329,6 +722,60 @@ class Fish:
 
 
 	def filter_data(self):
+
+
+		# def filter_data(data, space_bcf_window=space_bcf_window, time_bcf_window=time_bcf_window):
+
+
+		# 	data_ = data[angle_cols].copy()
+
+		# 	#* Calculate the cumulative sum in space.
+		# 	data_[angle_cols] = data_[angle_cols].cumsum(axis=1)
+
+		# 	#* Filter with a rolling average in space.
+		# 	# This option is too slow. Using the transpose is also slow.
+		# 	# data_[angle_cols] = data_[angle_cols].rolling(window=space_bcf_window, center=True, axis=1).mean()
+		# 	#! Alexandre Laborde confirmed this.
+		# 	# Not using pandas rolling mean beacause over columns it takes a lot of time (confirmed that with this way the result is the same)
+		# 	# The fact that here we are using the cumsum means that when averaging more importance is given to the first points
+		# 	data_[angle_cols[1:-1]] = np.mean(rolling_window(data_[angle_cols].to_numpy(), space_bcf_window), axis=2)
+		# 	# data_.iloc[:, 2:-1] = np.mean(rolling_window(data_.iloc[:, 1:].to_numpy(), space_bcf_window), axis=2)
+		# 	data_[angle_cols[0]] = data_[angle_cols[:3]].mean(axis=1)
+		# 	# data_.iloc[:, 1] = data_.iloc[:, 1:3].mean(axis=1)
+		# 	data_[angle_cols[-1]] = data_[angle_cols[-2:]].mean(axis=1)
+		# 	# data_.iloc[:, -1] = data_.iloc[:, -2:].mean(axis=1)
+
+		# 	#* Filter with a rolling average in time.
+		# 	data_[angle_cols] = data_[angle_cols].rolling(window=time_bcf_window, center=True, axis=0).mean()
+
+		# 	#* Update data with the values changed in data_.
+		# 	data[angle_cols] = data_
+
+		# 	data = data.dropna()
+
+		# 	data[time_experiment_f] -= data[time_experiment_f].iat[0]
+
+		# 	data = data.set_index(time_experiment_f)
+
+		# 	print('Max tail angle at the chosen point: {} deg'.format(round(data.loc[:,tail_angle].max())))
+
+
+			
+		# # TODO might want to test Adrien's way of filtering data (from Megabouts)
+
+		# 	# data[angle_cols] = data[angle_cols].cumsum(axis=1)
+
+		# 	# from sklearn.decomposition import PCA
+		# 	# from scipy.signal import savgol_filter
+
+		# 	# pca = PCA(n_components=4)
+		# 	# low_D = pca.fit_transform(data[angle_cols])
+		# 	# data[angle_cols] = pca.inverse_transform(low_D)
+
+		# 	# data[angle_cols] = savgol_filter(data[angle_cols], window_length=11, polyorder=2, deriv=0, delta=1.0, axis=0, mode='interp', cval=0.0)
+
+
+		# 	return data
 
 		# TODO clean up also coordinates of the tail
 		#! Only filtering the angle data so far.
@@ -344,13 +791,19 @@ class Fish:
 
 		#! cols are the columns to read from the dataframe
 
-		store.get_fish_raw_data()
+		# store.get_raw_data()
 
 		pass
 
+
+
+
+
+
+
 class AllRawData:
 
-	def __init__(self, hdf_store_path: str, compression_level=4, compression_library: str="zlib"):
+	def __init__(self, hdf_store_path: str, compression_level=4, compression_library: str='zlib'):
 
 		self._path = Path(hdf_store_path)
 		self._compression_level = compression_level
@@ -380,12 +833,13 @@ class AllRawData:
 
 
 
-#!!!!!!!!!!!!!!!!     overload: Experiment=...    , Condition=...,    cols to query
-	def get_fish_raw_data(self, fish: Fish):
+
+	def get_raw_data(self, fish: Fish, where_to_query: str | None = None):
+		# Optional[list[str]]
 
 		with pd.HDFStore(self._path, complevel=self._compression_level, complib=self._compression_library) as store:
 
-			return store.select(fish.dataset_key())
+			return store.select(fish.dataset_key(), where=where_to_query)
 		# pd.read_hdf(self._path, key=fish.dataset_key(), mode='r', complevel=self._compression_level, complib=self._compression_library)
 
 #?			

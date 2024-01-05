@@ -88,62 +88,91 @@ plt.style.use('classic')
 
 
 
-def msg(fish_name, message):
+# def msg(fish_name, message):
 	
-	if type(message) is list:
-		message = '\t'.join([str(i) for i in message])
+# 	if type(message) is list:
+# 		message = '\t'.join([str(i) for i in message])
 
-	return [fish_name] + ['\t' + message + '\n']
+# 	return [fish_name] + ['\t' + message + '\n']
 
 	# return [fish_name + '\t' + message + '\n']
 
-def save_info(protocol_info_path, fish_name, message):
+#TODO
+# def save_info(protocol_info_path, fish_name, message):
 
-	message = msg(fish_name, message)
-	print(message)
+# 	message = msg(fish_name, message)
+# 	print(message)
 
-	with open(protocol_info_path, 'a') as file:
-		file.writelines(message)
+# 	with open(protocol_info_path, 'a') as file:
+# 		file.writelines(message)
 
-def fish_id(stem_path):
-	# Info about a specific fish.
+	#!!!!!
+	# def custom_print(message_to_print, log_file='output.txt'):
+	#     print(message_to_print)
+	#     with open(log_file, 'a') as of:
+	#         of.write(message_to_print + '\n')
+
+
+
+# def fish_id(stem_path):
+# 	# Info about a specific fish.
 	
-	stem_fish_path = stem_path.lower()
-	stem_fish_path = stem_fish_path.split('_')
-	day = stem_fish_path[0]
+# 	stem_fish_path = stem_path.lower()
+# 	stem_fish_path = stem_fish_path.split('_')
+# 	day = stem_fish_path[0]
 
-	# strain = stem_fish_path[1]
-	# age = stem_fish_path[2].replace('dpf', '')
-	# exp_type = stem_fish_path[3]
-	# rig = stem_fish_path[4]
-	# fish_number = stem_fish_path[5].replace('fish', '')
+# 	# strain = stem_fish_path[1]
+# 	# age = stem_fish_path[2].replace('dpf', '')
+# 	# exp_type = stem_fish_path[3]
+# 	# rig = stem_fish_path[4]
+# 	# fish_number = stem_fish_path[5].replace('fish', '')
 
-	fish_number = stem_fish_path[1]
-	exp_type = stem_fish_path[2]
-	rig = stem_fish_path[3]
-	strain = stem_fish_path[4]
-	age = stem_fish_path[5].replace('dpf', '')
+# 	fish_number = stem_fish_path[1]
+# 	exp_type = stem_fish_path[2]
+# 	rig = stem_fish_path[3]
+# 	strain = stem_fish_path[4]
+# 	age = stem_fish_path[5].replace('dpf', '')
 	
 
-	return day, strain, age, exp_type, rig, fish_number
+# 	return day, strain, age, exp_type, rig, fish_number
 
-def read_initial_abs_time(camera_path):
-	# Read the absolute time at the beginning of the experiment.
+# def read_initial_abs_time(camera_path):
+# 	# Read the absolute time at the beginning of the experiment.
 
-	try:
-		with open(camera_path, 'r') as f:
-			f.readline()
-		# Previous version.
-			# first_frame_absolute_time = int(float(f.readline().strip('\n').split('\t')[2]))
+# 	try:
+# 		with open(camera_path, 'r') as f:
+# 			f.readline()
+# 		# Previous version.
+# 			# first_frame_absolute_time = int(float(f.readline().strip('\n').split('\t')[2]))
 
-		# return first_frame_absolute_time
+# 		# return first_frame_absolute_time
 
-			return int(float(f.readline().strip('\n').split('\t')[2]))
+# 			return int(float(f.readline().strip('\n').split('\t')[2]))
 
-	except:
-		print('No absolute time in cam file.')
+# 	except:
+# 		print('No absolute time in cam file.')
 
-		return None
+# 		return None
+
+
+# def read_sync_reader(sync_reader_path):
+
+# 	try:
+# 		start = timer()
+		
+# 		sync_reader = pd.read_csv(str(sync_reader_path), sep=' ', header=0, decimal='.')
+		
+# 		print('Time to read scape sync reader.txt: {} (s)'.format(timer()-start))
+
+# 		# sync_reader.rename(columns={'Time' : ela_time}, inplace=True)
+		
+# 		return sync_reader
+
+# 	except:
+# 		# print('Cannot read scape sync file.')
+
+# 		return None
+
 
 def read_camera(camera_path):
 
@@ -170,24 +199,6 @@ def read_camera(camera_path):
 		return None
 
 
-def read_sync_reader(sync_reader_path):
-
-	try:
-		start = timer()
-		
-		sync_reader = pd.read_csv(str(sync_reader_path), sep=' ', header=0, decimal='.')
-		
-		print('Time to read scape sync reader.txt: {} (s)'.format(timer()-start))
-
-		# sync_reader.rename(columns={'Time' : ela_time}, inplace=True)
-		
-		return sync_reader
-
-	except:
-		# print('Cannot read scape sync file.')
-
-		return None
-
 
 def framerate_and_reference_frame(camera, fish_name, fig_camera_name):
 
@@ -208,6 +219,8 @@ def framerate_and_reference_frame(camera, fish_name, fig_camera_name):
 	camera_diff_index_correct_IFI = np.where(abs(camera_diff - ifi) <= max_interval_between_frames)[0]
 
 	camera_diff_index_correct_IFI_diff = np.diff(camera_diff_index_correct_IFI)
+
+	reference_frame_id = 0
 
 	#* Find a region at the beginning where the IFI from frame to frame does not vary significantly and is similar to the first estimate of the true IFI (ifi).
 	for i in range(1, len(camera_diff_index_correct_IFI_diff)):
@@ -457,20 +470,20 @@ def protocol_info(protocol):
 	# Using len() just in case these is a single element.
 	number_cycles = len(protocol.loc['Cycle', beg])
 
-	if protocol.index.isin(['Session']).any():
-		number_blocks_plot = len(protocol.loc['Session', beg])
-	else:
-		number_blocks_plot = number_cycles
+	# if protocol.index.isin(['Session']).any():
+	# 	number_blocks_plot = len(protocol.loc['Session', beg])
+	# else:
+	# 	number_blocks_plot = number_cycles
 
-	if protocol.index.isin([trial]).any():
-		number_trials_plot = len(protocol.loc[trial, beg])
-	else:
-		number_trials_plot = number_cycles
+	# if protocol.index.isin([trial]).any():
+	# 	number_trials_plot = len(protocol.loc[trial, beg])
+	# else:
+	# 	number_trials_plot = number_cycles
 
-	if protocol.index.isin([bout]).any():
-		number_bouts = len(protocol.loc[bout, beg])	  
-	else:
-		number_bouts = 0
+	# if protocol.index.isin([bout]).any():
+	# 	number_bouts = len(protocol.loc[bout, beg])	  
+	# else:
+	# 	number_bouts = 0
 		
 	if protocol.index.isin(['Reinforcer']).any():
 		number_reinforcers = len(protocol.loc['Reinforcer', beg])
@@ -575,16 +588,16 @@ def plot_protocol(cs_dur, cs_isi, us_dur, us_isi, fish_name, fig_protocol_name):
 	plt.savefig(fig_protocol_name, dpi=100, bbox_inches='tight')
 	plt.close()
 
-def number_frames_discard(data_path, reference_frame_id):
-	# Consider the experiment starts only whith the first frame whose ID is both in tail tracking and camera files.
+# def number_frames_discard(data_path, reference_frame_id):
+# 	# Consider the experiment starts only whith the first frame whose ID is both in tail tracking and camera files.
 
-	with open(data_path, 'r') as f:
-		f.readline()
-		tracking_frames_to_discard = 0
-		while reference_frame_id != int(f.readline().split(' ')[0]):
-			tracking_frames_to_discard += 1
+# 	with open(data_path, 'r') as f:
+# 		f.readline()
+# 		tracking_frames_to_discard = 0
+# 		while reference_frame_id != int(f.readline().split(' ')[0]):
+# 			tracking_frames_to_discard += 1
 
-	return tracking_frames_to_discard
+# 	return tracking_frames_to_discard
 
 #def readTailTracking(data_path, protocol_frame, tracking_frames_to_discard, time_bcf_window, time_max_window, time_min_window, time_bef_frame, time_aft_frame):
 	#	# protocol in number of frames
@@ -657,7 +670,8 @@ def read_tail_tracking_data(data_path):
 		return data
 
 	except:
-
+#TODO
+		# f.save_info(protocol_info_path, self.metadata.name, 'Tail tracking might be corrupted!')
 		return None
 
 
@@ -669,7 +683,7 @@ def read_tail_tracking_data(data_path):
 def tracking_errors(data, single_point_tracking_error_thr = single_point_tracking_error_thr):
 
 	if ((a := data.loc[:,1:].abs().max()) > single_point_tracking_error_thr).any():
-		print('Possible tracking error! Max(abs(angle of individual point)):')
+		print('Possible tracking error! Max(abs(angle of individual point)): ')
 		print(a)
 
 		return True
@@ -704,6 +718,11 @@ def interpolate_data(data, predicted_framerate, expected_framerate=expected_fram
 	data[data_.drop(columns=time_experiment_f).columns] = interp_function(data[time_experiment_f])
 
 	return data
+
+
+
+
+
 
 def rolling_window(a, window):
 
@@ -765,79 +784,79 @@ def filter_data(data, space_bcf_window=space_bcf_window, time_bcf_window=time_bc
 
 	return data
 
-def stim_in_data(data, protocol):
-	# , number_cycles, number_reinforcers, exp_type):
+# def stim_in_data(data, protocol):
+# 	# , number_cycles, number_reinforcers, exp_type):
 
-	#region Merge protocol with data
-	data[cols_stim[:4]] = 0
+# 	#region Merge protocol with data
+# 	data[cols_stim[:4]] = 0
 
 
-	# TODO case of Operant Conditioning.
-	#if exp_type == 'OC':
+# 	# TODO case of Operant Conditioning.
+# 	#if exp_type == 'OC':
 
-		#data['Trial beg'] = 0
-		#data['Trial end'] = 0
-		#data['Reinforcer beg'] = 0
-		#data['Reinforcer end'] = 0
+# 		#data['Trial beg'] = 0
+# 		#data['Trial end'] = 0
+# 		#data['Reinforcer beg'] = 0
+# 		#data['Reinforcer end'] = 0
 	
-		#if protocol.index.isin(['Session']).any():
+# 		#if protocol.index.isin(['Session']).any():
 		
-		#	# For operant conditioning experiments
-		#	data['Session beg'] = 0
-		#	data['Session end'] = 0
+# 		#	# For operant conditioning experiments
+# 		#	data['Session beg'] = 0
+# 		#	data['Session end'] = 0
 
-		#	for i in range(number_blocks_plot):
-		#		data.loc[data.iloc[:,0] == protocol.loc['Session', beg].iat[i], 'Session beg'] = int(i + 1)
-		#		data.loc[data.iloc[:,0] == protocol.loc['Session', end].iat[i], 'Session end'] = int(i + 1)
+# 		#	for i in range(number_blocks_plot):
+# 		#		data.loc[data.iloc[:,0] == protocol.loc['Session', beg].iat[i], 'Session beg'] = int(i + 1)
+# 		#		data.loc[data.iloc[:,0] == protocol.loc['Session', end].iat[i], 'Session end'] = int(i + 1)
 	
-		#if protocol.index.isin(['Trial']).any():
+# 		#if protocol.index.isin(['Trial']).any():
 		
-		#	# For operant conditioning experiments	
-		#	for i in range(number_trials_plot):
-		#		data.loc[data.iloc[:,0] == protocol.loc[trial, beg].iat[i], 'Trial beg'] = int(i + 1)
-		#		data.loc[data.iloc[:,0] == protocol.loc[trial, end].iat[i], 'Trial end'] = int(i + 1)
+# 		#	# For operant conditioning experiments	
+# 		#	for i in range(number_trials_plot):
+# 		#		data.loc[data.iloc[:,0] == protocol.loc[trial, beg].iat[i], 'Trial beg'] = int(i + 1)
+# 		#		data.loc[data.iloc[:,0] == protocol.loc[trial, end].iat[i], 'Trial end'] = int(i + 1)
 
-		#	data['Cycle beg'] = 0
-		#	data['Cycle end'] = 0
+# 		#	data['Cycle beg'] = 0
+# 		#	data['Cycle end'] = 0
 
-		#	for i in range(number_cycles):
+# 		#	for i in range(number_cycles):
 			
-		#		data.loc[data.iloc[:,0] == protocol.loc['Cycle', beg].iat[i], 'Cycle beg'] = int(i + 1)
-		#		data.loc[data.iloc[:,0] == protocol.loc['Cycle', end].iat[i], 'Cycle end'] = int(i + 1)
+# 		#		data.loc[data.iloc[:,0] == protocol.loc['Cycle', beg].iat[i], 'Cycle beg'] = int(i + 1)
+# 		#		data.loc[data.iloc[:,0] == protocol.loc['Cycle', end].iat[i], 'Cycle end'] = int(i + 1)
 		
-		#else:
-		#	for i in range(number_cycles):
-		#		data.loc[data.iloc[:,0] == protocol.loc['Cycle', beg].iat[i], 'Trial beg'] = int(i + 1)
-		#		data.loc[data.iloc[:,0] == protocol.loc['Cycle', end].iat[i], 'Trial end'] = int(i + 1)
+# 		#else:
+# 		#	for i in range(number_cycles):
+# 		#		data.loc[data.iloc[:,0] == protocol.loc['Cycle', beg].iat[i], 'Trial beg'] = int(i + 1)
+# 		#		data.loc[data.iloc[:,0] == protocol.loc['Cycle', end].iat[i], 'Trial end'] = int(i + 1)
 		
-		#if protocol.index.isin(['Reinforcer']).any():
-		#	for i in range(number_reinforcers):
-		#		data.loc[data.iloc[:,0] == protocol.loc['Reinforcer', beg].iat[i], 'Reinforcer beg'] = int(i + 1)
-		#		data.loc[data.iloc[:,0] == protocol.loc['Reinforcer', end].iat[i], 'Reinforcer end'] = int(i + 1)
+# 		#if protocol.index.isin(['Reinforcer']).any():
+# 		#	for i in range(number_reinforcers):
+# 		#		data.loc[data.iloc[:,0] == protocol.loc['Reinforcer', beg].iat[i], 'Reinforcer beg'] = int(i + 1)
+# 		#		data.loc[data.iloc[:,0] == protocol.loc['Reinforcer', end].iat[i], 'Reinforcer end'] = int(i + 1)
 	
-	# 	data['Session beg', 'Trial beg', 'Cycle beg', 'Reinforcer beg', 'Session end', 'Trial end', 'Cycle end', 'Reinforcer end'] = data['Session', trial, 'Cycle', 'Reinforcer'].astype('category')
+# 	# 	data['Session beg', 'Trial beg', 'Cycle beg', 'Reinforcer beg', 'Session end', 'Trial end', 'Cycle end', 'Reinforcer end'] = data['Session', trial, 'Cycle', 'Reinforcer'].astype('category')
 
-	#if exp_type != 'OC':	
+# 	#if exp_type != 'OC':	
 
-	for i, [cs_b, cs_e] in enumerate(protocol.loc['Cycle', [beg, end]].to_numpy()):
-		# print('hi')
-		data.loc[data.iloc[:,0].astype('int') == cs_b, cs_beg] = int(i + 1)
-		data.loc[data.iloc[:,0].astype('int') == cs_e, cs_end] = int(i + 1)
+# 	for i, [cs_b, cs_e] in enumerate(protocol.loc['Cycle', [beg, end]].to_numpy()):
+# 		# print('hi')
+# 		data.loc[data.iloc[:,0].astype('int') == cs_b, cs_beg] = int(i + 1)
+# 		data.loc[data.iloc[:,0].astype('int') == cs_e, cs_end] = int(i + 1)
 		
-	if protocol.index.isin(['Reinforcer']).any():
+# 	if protocol.index.isin(['Reinforcer']).any():
 
-		for i, [us_b, us_e] in enumerate(protocol.loc['Reinforcer', [beg, end]].to_numpy()):
-			data.loc[data.iloc[:,0].astype('int') == us_b, us_beg] = int(i + 1)
-			data.loc[data.iloc[:,0].astype('int') == us_e, us_end] = int(i + 1)
+# 		for i, [us_b, us_e] in enumerate(protocol.loc['Reinforcer', [beg, end]].to_numpy()):
+# 			data.loc[data.iloc[:,0].astype('int') == us_b, us_beg] = int(i + 1)
+# 			data.loc[data.iloc[:,0].astype('int') == us_e, us_end] = int(i + 1)
 
 
-	# data.loc[:,cols_stim[:4]] = data.loc[:,cols_stim[:4]].astype('category')
-	data.loc[:, cs_beg] = data.loc[:, cs_beg].astype(pd.api.types.CategoricalDtype(categories=data[cs_beg].unique().sort(), ordered=True))		
-	data.loc[:, us_beg] = data.loc[:, us_beg].astype(pd.api.types.CategoricalDtype(categories=data[us_beg].unique().sort(), ordered=True))
-	data.loc[:, cs_end] = data.loc[:, cs_end].astype(pd.api.types.CategoricalDtype(categories=data[cs_end].unique().sort(), ordered=True))
-	data.loc[:, us_end] = data.loc[:, us_end].astype(pd.api.types.CategoricalDtype(categories=data[us_end].unique().sort(), ordered=True))
+# 	# data.loc[:,cols_stim[:4]] = data.loc[:,cols_stim[:4]].astype('category')
+# 	data.loc[:, cs_beg] = data.loc[:, cs_beg].astype(pd.api.types.CategoricalDtype(categories=data[cs_beg].unique().sort(), ordered=True))		
+# 	data.loc[:, us_beg] = data.loc[:, us_beg].astype(pd.api.types.CategoricalDtype(categories=data[us_beg].unique().sort(), ordered=True))
+# 	data.loc[:, cs_end] = data.loc[:, cs_end].astype(pd.api.types.CategoricalDtype(categories=data[cs_end].unique().sort(), ordered=True))
+# 	data.loc[:, us_end] = data.loc[:, us_end].astype(pd.api.types.CategoricalDtype(categories=data[us_end].unique().sort(), ordered=True))
 
-	return data
+# 	return data
 
 def plot_behavior_overview(data, fish_name, fig_behavior_name):
 	# data containing tail_angle.
@@ -862,7 +881,7 @@ def plot_behavior_overview(data, fish_name, fig_behavior_name):
 	plt.suptitle('Behavior overview\n' + fish_name)
 	# plt.show()
 	# plt.legend(frameon=False, loc='upper center', ncol=2)
-	plt.savefig(fig_behavior_name, dpi=100, bbox_inches='tight')
+	plt.savefig(fig_behavior_name, dpi=100, bbox_inches='tight', fig_size=(15, 5))
 	plt.close()
 
 def extract_data_around_stimuli(data, protocol_frame, time_bef_frame, time_aft_frame, time_bcf_window, time_max_window, time_min_window):
@@ -1209,73 +1228,73 @@ def clean_data(data):
 
 	# return data
 
-def identify_trials_old(data, time_bef_frame, time_aft_frame):
+# def identify_trials_old(data, time_bef_frame, time_aft_frame):
 
-	trials_list = []
+# 	trials_list = []
 
-	for cs_us in ['CS', 'US']:
+# 	for cs_us in ['CS', 'US']:
 
-		cs_us_beg = cs_us + ' beg'
+# 		cs_us_beg = cs_us + ' beg'
 
-		trials_csus = data.loc[data[cs_us_beg] != 0, cs_us_beg].unique()
-		# trials_csus = data.loc[data[cs_us_beg] > 0, cs_us_beg].unique()
+# 		trials_csus = data.loc[data[cs_us_beg] != 0, cs_us_beg].unique()
+# 		# trials_csus = data.loc[data[cs_us_beg] > 0, cs_us_beg].unique()
 
-		for t in trials_csus:
+# 		for t in trials_csus:
 
-			# trial_beg = trial_reference + time_bef_frame# time_bef_ms / 1000
-			# # trial_end in relation to cs_us_beg also because stimuli duration may slightly differ from number_trial to number_trial.
-			# trial_end = trial_reference + time_aft_frame # time_aft_ms / 1000 
-			trial_reference = data.loc[data[cs_us_beg] == t, data.columns[0]].to_numpy()[0]
+# 			# trial_beg = trial_reference + time_bef_frame# time_bef_ms / 1000
+# 			# # trial_end in relation to cs_us_beg also because stimuli duration may slightly differ from number_trial to number_trial.
+# 			# trial_end = trial_reference + time_aft_frame # time_aft_ms / 1000 
+# 			trial_reference = data.loc[data[cs_us_beg] == t, data.columns[0]].to_numpy()[0]
 			
-			trial = data.loc[(data.iloc[:,0] >= trial_reference + time_bef_frame) & (data.iloc[:,0] <= trial_reference + time_aft_frame), :]
+# 			trial = data.loc[(data.iloc[:,0] >= trial_reference + time_bef_frame) & (data.iloc[:,0] <= trial_reference + time_aft_frame), :]
 			
-			# trial[time_trial] is not given by np.arange(time_bef_frame, time_aft_frame + 1) because there may be "incomplete' trials at the end (stopped before trial_reference + time_aft_frame).
-			# trial[[type_trial_csus, number_trial, time_trial]] = cs_us, str(t), np.arange(time_bef_frame, len(trial) + time_bef_frame)	
-			trial[[type_trial_csus, number_trial]] = cs_us, str(t)
-			trial[time_trial_f] = np.arange(time_bef_frame, len(trial) + time_bef_frame)
-			# 1000/expected_framerate
+# 			# trial[time_trial] is not given by np.arange(time_bef_frame, time_aft_frame + 1) because there may be "incomplete' trials at the end (stopped before trial_reference + time_aft_frame).
+# 			# trial[[type_trial_csus, number_trial, time_trial]] = cs_us, str(t), np.arange(time_bef_frame, len(trial) + time_bef_frame)	
+# 			trial[[type_trial_csus, number_trial]] = cs_us, str(t)
+# 			trial[time_trial_f] = np.arange(time_bef_frame, len(trial) + time_bef_frame)
+# 			# 1000/expected_framerate
 
-			trials_list.append(trial)
+# 			trials_list.append(trial)
 		
-	data = pd.concat(trials_list)
+# 	data = pd.concat(trials_list)
 
-	# data[vigor] = data[vigor].astype(pd.SparseDtype('float32', 0))
-	# data.loc[ : , number_trial] = data.loc[ : , number_trial].astype('category')
-	data[type_trial_csus] = data[type_trial_csus].astype('category')
-	# data.loc[ : , time_trial] = data.loc[ : , time_trial].astype('float32')
+# 	# data[vigor] = data[vigor].astype(pd.SparseDtype('float32', 0))
+# 	# data.loc[ : , number_trial] = data.loc[ : , number_trial].astype('category')
+# 	data[type_trial_csus] = data[type_trial_csus].astype('category')
+# 	# data.loc[ : , time_trial] = data.loc[ : , time_trial].astype('float32')
 
-	data.drop(data.columns[0], axis=1, inplace=True)
+# 	data.drop(data.columns[0], axis=1, inplace=True)
 
-		# To discard automatically fish.
-			#zero_bouts_trials = 0
+# 		# To discard automatically fish.
+# 			#zero_bouts_trials = 0
 			
-			# trial = data.loc[data[number_trial] == t, :]
+# 			# trial = data.loc[data[number_trial] == t, :]
 
-			# Check that fish beats the tail before the us at least every few trials.
-			# if cs_us == 'us':
-			# 	if trial.loc[(trial[time_trial] > -numb_seconds_before_us*expected_framerate) & (trial[time_trial] < numb_seconds_after_us*expected_framerate) & (trial[vigor] > 0),:].empty:
-			# 		zero_bouts_trials += 1
-			# 		if zero_bouts_trials == max_numb_trials_no_bout_bef:
-			# 			print('!!! Quiet fish before and after us !!!  trial: ', t)
-			# 			lines.append(stem_fish_path + '\n\t' ' Quiet fish before and after cs ({} consecutive trials). last trial: {}\n'.format(max_numb_trials_no_bout_bef, t))
+# 			# Check that fish beats the tail before the us at least every few trials.
+# 			# if cs_us == 'us':
+# 			# 	if trial.loc[(trial[time_trial] > -numb_seconds_before_us*expected_framerate) & (trial[time_trial] < numb_seconds_after_us*expected_framerate) & (trial[vigor] > 0),:].empty:
+# 			# 		zero_bouts_trials += 1
+# 			# 		if zero_bouts_trials == max_numb_trials_no_bout_bef:
+# 			# 			print('!!! Quiet fish before and after us !!!  trial: ', t)
+# 			# 			lines.append(stem_fish_path + '\n\t' ' Quiet fish before and after cs ({} consecutive trials). last trial: {}\n'.format(max_numb_trials_no_bout_bef, t))
 
-			# 			skip = True
-			# 			break
-			# 	else:
-			# 		if zero_bouts_trials > 0:
-			# 			zero_bouts_trials = 0
+# 			# 			skip = True
+# 			# 			break
+# 			# 	else:
+# 			# 		if zero_bouts_trials > 0:
+# 			# 			zero_bouts_trials = 0
 
-			# Check that fish always beats the tail after the us.
-			# else:
-			# 	if trial.loc[(trial[time_trial] > 0) & (trial[time_trial] < numb_seconds_after_us*expected_framerate) & (trial[vigor] > 0),:].empty:
-			# 		print('!!! Fish inactive after us !!!  trial: ', t)
-			# 		lines.append(stem_fish_path + '\n\t' ' Fish inactive after us. trial: {}\n'.format(t))
+# 			# Check that fish always beats the tail after the us.
+# 			# else:
+# 			# 	if trial.loc[(trial[time_trial] > 0) & (trial[time_trial] < numb_seconds_after_us*expected_framerate) & (trial[vigor] > 0),:].empty:
+# 			# 		print('!!! Fish inactive after us !!!  trial: ', t)
+# 			# 		lines.append(stem_fish_path + '\n\t' ' Fish inactive after us. trial: {}\n'.format(t))
 
-			# 		skip = True
-			# 		break
+# 			# 		skip = True
+# 			# 		break
 
 
-	return data
+# 	return data
 
 
 
@@ -1465,7 +1484,7 @@ def suppression_ratio_pooled(data, metric, baseline_window, cr_window, segments_
 # 	# axs.set_xticks(ticks=axs.get_xticks(), labels=np.arange(-baseline_window, baseline_window+1, interval_between_xticks))
 
 # 	axs.set_xlabel('Time relative to {} onset (s)'.format(cs_us))
-# 	axs.tick_params(axis='both', which='both', bottom=True, top=False, right=False, direction='out')
+# 	axs.tick_params(axis='both', which='both', bottom=True, top=False, right=False, direction='out')number_cyclesnumber_reinforcersnumber_reinforcersnumber_reinforcersnumber_reinforcersnumber_reinforcersnumber_reinforcersnumber_reinforcersBDVS
 # 	# axs.set_title(cs_us, color=color, fontsize=14)
 
 # 	return fig, axs

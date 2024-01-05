@@ -36,7 +36,16 @@ all_data_raw = AllRawData(store_raw)
 
 fish.preprocess(all_data_raw, False)
 
-fish.__dict__
+fish.data_raw
+# [cs].astype('int')
+# .plot()
+
+def get_raw_data(self, fish: Fish, where_to_query: str | None = None):
+	# Optional[list[str]]
+
+	with pd.HDFStore(self._path, complevel=self._compression_level, complib=self._compression_library) as store:
+
+		return store.select(fish.dataset_key(), where=where_to_query)
 
 # if not all_data_raw.fish_is_in_store(fish):
 	# 	#TODO Overwrite and store as inputs
@@ -50,14 +59,14 @@ fish.__dict__
 
 
 #! Do the same but for all fish from an exp. or condition
-
+# Experiment should loop over all fish
 
 
 print('done')
 
 
 
-
+fish.fish_name()
 
 
 # fish.__dict__.items()
