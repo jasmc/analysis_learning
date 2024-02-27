@@ -32,13 +32,13 @@ pmt_off_end = 'PMT_OFF end'
 
 
 
-protocol_path = r"F:\Pilot studies\2023_11_2-P\fish delay\20240104_01_delay_2p-test1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05f_7dpf_stim control.txt"
+protocol_path = r"F:\Pilot studies\2023_11_2-P\Behavior\20240227_01_delay_2p-1_mitfaMinusMinus,elavl3H2BCaMP6s_6dpf_stim control.txt"
 
-data_path = r"F:\Pilot studies\2023_11_2-P\fish delay\20240104_01_delay_2p-test1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05f_7dpf_cam.txt"
+data_path = r"F:\Pilot studies\2023_11_2-P\Behavior\20240227_01_delay_2p-1_mitfaMinusMinus,elavl3H2BCaMP6s_6dpf_cam.txt"
 
-galvo_path = r"F:\Pilot studies\2023_11_2-P\fish_5_delay\experiment\signalsfeedback.xls"
+galvo_path = r"F:\Pilot studies\2023_11_2-P\20240227_01_delay_2p-1_mitfaMinusMinus,elavl3H2BCaMP6s_6dpf\Imaging\signalsfeedback.xls"
 
-images_path = r"F:\Pilot studies\2023_11_2-P\fish_5_delay\experiment\fish_5_delay_green.tif"
+images_path = r"F:\Pilot studies\2023_11_2-P\20240227_01_delay_2p-1_mitfaMinusMinus,elavl3H2BCaMP6s_6dpf\Imaging\20240227_01_delay_2p-1_mitfaMinusMinus,elavl3H2BCaMP6s_6dpf_green.tif"
 
 
 
@@ -53,20 +53,21 @@ data = pd.read_csv(data_path, engine='c', sep=' ', header=0, decimal='.', nrows=
 
 data[abs_time] = data[abs_time].astype('float64')
 
+galvo = pd.read_csv(galvo_path, sep='\t', decimal=',', usecols=[0,1], names=[abs_time, 'GalvoValue'], dtype={'GalvoValue':'float64'}, parse_dates=[abs_time], date_format=r'%d/%m/%Y  %H:%M:%S,%f', skip_blank_lines=True, skipinitialspace=True).dropna(axis=0)
 
-galvo = pd.read_csv(galvo_path, sep='\t', decimal='.', usecols=[0,1], names=[abs_time, 'GalvoValue'], dtype={'GalvoValue':'float64'}, skip_blank_lines=True, skipinitialspace=True, nrows=number_rows_read).dropna(axis=0)
+
+# , nrows=number_rows_read
+# galvo[abs_time] = galvo[abs_time].str.replace(',', '.')
+# 
+galvo[abs_time] = pd.to_datetime(galvo[abs_time], dayfirst=True, infer_datetime_format=True)
+#format='%d/%m/%y %H:%M:%S,%f',
 
 
-galvo[abs_time] = pd.to_datetime(galvo[abs_time])
-
-# Calculate unixtime in ms
-galvo[abs_time] = galvo[abs_time].astype('int64') / 10**6
-# galvo = (galvo[abs_time] - pd.Timestamp("1970-01-01")) // pd.Timedelta('1s')
-# galvo = galvo[abs_time].map(pd.Timestamp.timestamp)
+chunks = [pd.to_datetime(galvo[abs_time].iloc[i:i+10000], infer_datetime_format=True) for i in range(0, len(galvo[abs_time]), 10000)]
+galvo[abs_time] = pd.concat(chunks)
 
 
 plt.plot(galvo[galvo_value].iloc[3500:3800])
-
 
 galvo['1diff'] = galvo[galvo_value].diff()
 
@@ -332,7 +333,7 @@ len(tif.pages)  # number of pages in the file
 np.mean(tif.pages[1000])
 
 
-imread(images_path, key=0)
+imread(images_path, key=-100:)
 
 imread()
 
