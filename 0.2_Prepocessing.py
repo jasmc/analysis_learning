@@ -2,18 +2,19 @@ data = pd.read_pickle(r"E:\Results (paper)\2022 11_Basic delay and (increasing) 
 
 # 1. Preprocess data, using absolute time; plot summary of each experiment, showing cropped data; clean data after identifying swim movements.
 
+import gc
 # %%
 from pathlib import Path
+
 import numpy as np
 import pandas as pd
 from pandas.api.types import CategoricalDtype
 from tqdm import tqdm
-import gc
 
-from my_general_variables import *
-from my_classes import *
 import my_functions as f
-	
+from my_classes import *
+from my_general_variables import *
+
 # pd.options.mode.chained_assignment = None
 
 # from importlib import reload
@@ -279,7 +280,7 @@ for fish_path in tqdm(all_fish_raw_data_paths):
 	for col_s in [cs_beg, cs_end, us_beg, us_end, number_trial]:
 		
 		data[col_s] = data[col_s].astype('int')
-		data[col_s] = data[col_s].astype(pd.api.types.CategoricalDtype(categories=np.sort(data[col_s].unique()), ordered=True))
+		data[col_s] = data[col_s].astype(pd.CategoricalDtype(categories=np.sort(data[col_s].unique()), ordered=True))
 
 
 #! ADD ANOTHER COL WITH THE CS COLOR #! give numbers to the setupes instead AND 

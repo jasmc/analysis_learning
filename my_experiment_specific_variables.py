@@ -1,6 +1,6 @@
-from my_general_variables import *
 from pathlib import Path
 
+from my_general_variables import *
 
 map_folder_to_experiment = {
 	r'2000 01_Test' : 'test'
@@ -12,10 +12,10 @@ experiments_info = {
 	# 'Delay_increasingTrace':
 	'test' : 
 					
-										{'path_home' : Path(r'D:\2022 11_Basic delay and (increasing) trace CC paradigm\Raw data'),
-										'path_save' : Path(r'E:\Results (paper)\2022 11_Basic delay and (increasing) trace CC paradigm'),
+										{'path_home' : r'D:\2022 11_Basic delay and (increasing) trace CC paradigm\Raw data',
+										'path_save' : r'E:\Results (paper)\2022 11_Basic delay and (increasing) trace CC paradigm',
 										'parts' : {'trials' :
-					 									{'CS' : {'elements' : (1,95),
+					 									{'CS' : {'elements' : (1,94),
 				#! is names of the elements necessary???
 																'names_elements' : None},
 														'US' : {'elements' : (1,79),

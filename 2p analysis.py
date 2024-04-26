@@ -1,15 +1,17 @@
 import re
 from pathlib import Path
+
 import cv2
+import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.io as pio
+import tifffile
 from imagecodecs import imread
 from PIL import Image, ImageSequence
 from scipy import interpolate, signal
-import tifffile
 from tqdm import tqdm
 
 import my_functions as f
@@ -462,7 +464,10 @@ def identify_trials(data, protocol):
 
 	data = data.set_index(abs_time)
 
-	data.loc[:, data_cols] = data.loc[:, data_cols].interpolate(kind='slinear')
+	try:
+		data.loc[:, data_cols] = data.loc[:, data_cols].interpolate(kind='slinear')
+	except:
+		print('HERE. FIX THIS')
 
 	#! data = data.reset_index(drop=True).dropna()
 	data = data.reset_index().dropna()
@@ -492,7 +497,8 @@ fish_names.remove('Behavior')
 # for fish_name in fish_names:
 # fish_name = r'20240228_01_delay_2p-1_mitfaMinusMinus,elavl3H2BCaMP6s_7dpf'
 
-fish_name = r'20240314_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf'
+fish_name = r'20240415_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_5dpf'
+# '20240314_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf'
 # "20240404_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_7dpf"
 # '20240327_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_7dpf'
 
@@ -502,11 +508,12 @@ fish_name = r'20240314_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf'
 # fish_names[-6]
 #! '20240304_01_delay_2p-1_mitfaMinusMinus,Gal4elavl3GCaMP6s_6dpf' is good
 
+
 behavior_path = Path(r'D:\2024 02_Delay 2p\Behavior')
 imaging_path = Path(r'D:\2024 02_Delay 2p') / fish_name / 'Imaging'
 
-# behavior_path = Path(r'E:\2024 03_Delay 2-P multiple planes\Behavior')
-# imaging_path = Path(r'E:\2024 03_Delay 2-P multiple planes') / fish_name / 'Imaging'
+behavior_path = Path(r'E:\2024 03_Delay 2-P multiple planes\Behavior')
+imaging_path = Path(r'E:\2024 03_Delay 2-P multiple planes') / fish_name / 'Imaging'
 
 protocol_path = behavior_path / (fish_name + '_stim control.txt')
 camera_path = behavior_path / (fish_name + '_cam.txt')
@@ -527,65 +534,6 @@ anatomy_1_path = Path(r'D:\2024 02_Delay 2p') / fish_name / 'Anatomical stack 1.
 
 
 
-camera = read_camera(camera_path)
-camera[abs_time] = camera[abs_time].astype('float64')
-
-
-#* Estimate the true framerate.
-predicted_framerate, reference_frame_id = framerate_and_reference_frame(camera)
-
-
-camera = camera.drop(columns=ela_time)
-
-#* Discard frames that will not be used (in camera and hence further down).
-# The calculated interframe interval before the reference frame is variable. Discard what happens up to then (also achieved by using how='inner' in merge_camera_with_data).
-camera = camera[camera[frame_id] >= reference_frame_id]
-
-#! reverse data_cols to what we want
-#! #* Open tail tracking data.
-data = read_tail_tracking_data(tracking_path)
-
-# if (data := read_tail_tracking_data(data_path)) is None: # type: ignore
-# 	return None
-
-# plot_behavior_overview(data, fish_name, fig_behavior_name)
-
-# #* Look for possible tail tracking errors.
-# if tracking_errors(data, single_point_tracking_error_thr):
-# 	return None
-
-#! #* Add information about the time of each frame to data.
-data = merge_camera_with_data(data, camera)
-# data = camera
-
-#* Fix abs_time so that the time of each frame becomes closer to the time at which the frames were acquired by the data and not when they were caught by the computer.
-# The delay between acquiring and catching the frame is unknown and therefore disregarded.
-data[abs_time] = np.linspace(data[abs_time].iat[0], data[abs_time].iat[0] + len(data) * (1000 / predicted_framerate), len(data))
-
-#! Need to join with galvo before doing this.
-#! #* Interpolate data to the expected framerate.
-# data = interpolate_data(data, predicted_framerate)
-
-#* Open the stim log.
-protocol = read_protocol(protocol_path)
-	# return None
-
-#TODO replace by exp_var.experiments_info[Experiment.name]
-# if lost_stim(len(protocol.loc[cs,:]), len(protocol.loc[us,:]), Experiment.get_experiment_info(self.metadata.experiment, 'parts')['trials'][cs]['elements'][1], Experiment.get_experiment_info(self.metadata.experiment, 'parts')['trials'][us]['elements'][1]):
-# 	print('Experiment did not run until the end')
-
-# cs_dur, cs_isi, us_dur, us_isi = protocol_info(protocol)
-
-# #* Plot overview of the experimental protocol actually run
-# plot_protocol(cs_dur, cs_isi, us_dur, us_isi, fish_name, fig_protocol_name)
-
-#* Identify the stimuli, trials of the experiment.
-data = identify_trials(data, protocol)
-
-# plt.plot(data[abs_time])
-
-
-
 
 
 
@@ -597,12 +545,6 @@ galvo = galvo.reset_index(drop=True)
 #* Convert the time in galvo to unixtime in ms
 galvo[abs_time] = galvo[abs_time].astype('int64') / 10**6
 
-
-
-
-plt.plot(galvo[abs_time])
-
-plt.plot(data[abs_time])
 
 
 
@@ -622,11 +564,8 @@ plt.plot(data[abs_time])
 
 first_timepoint = galvo[abs_time].iat[0]
 
-data[abs_time] -= first_timepoint
 galvo[abs_time] -= first_timepoint
 
-data = data[data[abs_time] >= 0]
-galvo = galvo[galvo[abs_time] <= data[abs_time].iat[-1]]
 
 
 
@@ -865,6 +804,92 @@ fig.show()
 
 
 
+camera = read_camera(camera_path)
+camera[abs_time] = camera[abs_time].astype('float64')
+
+
+#* Estimate the true framerate.
+predicted_framerate, reference_frame_id = framerate_and_reference_frame(camera)
+
+
+camera = camera.drop(columns=ela_time)
+
+#* Discard frames that will not be used (in camera and hence further down).
+# The calculated interframe interval before the reference frame is variable. Discard what happens up to then (also achieved by using how='inner' in merge_camera_with_data).
+camera = camera[camera[frame_id] >= reference_frame_id]
+
+		# #! reverse data_cols to what we want
+		# #! #* Open tail tracking data.
+		# data = read_tail_tracking_data(tracking_path)
+
+		# # if (data := read_tail_tracking_data(data_path)) is None: # type: ignore
+		# # 	return None
+
+		# # plot_behavior_overview(data, fish_name, fig_behavior_name)
+
+		# # #* Look for possible tail tracking errors.
+		# # if tracking_errors(data, single_point_tracking_error_thr):
+		# # 	return None
+
+		# #! #* Add information about the time of each frame to data.
+		# data = merge_camera_with_data(data, camera)
+		# # data = camera
+  
+data = camera
+
+del camera
+
+
+galvo = galvo[galvo[abs_time] <= data[abs_time].iat[-1]]
+
+
+#* Fix abs_time so that the time of each frame becomes closer to the time at which the frames were acquired by the data and not when they were caught by the computer.
+# The delay between acquiring and catching the frame is unknown and therefore disregarded.
+data[abs_time] = np.linspace(data[abs_time].iat[0], data[abs_time].iat[0] + len(data) * (1000 / predicted_framerate), len(data))
+
+#! Need to join with galvo before doing this.
+#! #* Interpolate data to the expected framerate.
+# data = interpolate_data(data, predicted_framerate)
+
+#* Open the stim log.
+protocol = read_protocol(protocol_path)
+	# return None
+
+#TODO replace by exp_var.experiments_info[Experiment.name]
+# if lost_stim(len(protocol.loc[cs,:]), len(protocol.loc[us,:]), Experiment.get_experiment_info(self.metadata.experiment, 'parts')['trials'][cs]['elements'][1], Experiment.get_experiment_info(self.metadata.experiment, 'parts')['trials'][us]['elements'][1]):
+# 	print('Experiment did not run until the end')
+
+# cs_dur, cs_isi, us_dur, us_isi = protocol_info(protocol)
+
+# #* Plot overview of the experimental protocol actually run
+# plot_protocol(cs_dur, cs_isi, us_dur, us_isi, fish_name, fig_protocol_name)
+
+#* Identify the stimuli, trials of the experiment.
+data_cols = []
+data = identify_trials(data, protocol)
+
+# plt.plot(data[abs_time])
+
+
+data[abs_time] -= first_timepoint
+data = data[data[abs_time] >= 0]
+
+
+
+
+fig, axs = plt.subplots(2, 1, figsize=(10, 8))
+axs[0].plot(galvo[abs_time])
+axs[0].set_title('Galvo Signal')
+axs[1].plot(data[abs_time])
+axs[1].set_title('Data')
+plt.tight_layout()
+plt.show()
+
+
+
+
+
+
 
 #* Discard imaging before the tracking started (in some cases, the tracking might start after the imaging).
 if (first_timepoint_galvo := galvo[abs_time].iat[0]) <= (first_timepoint_data := data[abs_time].iat[0]):
@@ -898,61 +923,13 @@ if (first_timepoint_galvo := galvo[abs_time].iat[0]) <= (first_timepoint_data :=
 
 
 
-#* Get the images and align them to data.
-#! Do not forget to discard the first images.
-#!!!!! images = np.array([get_image_from_tiff(images_path, image_i, bytes_header, height, width) for image_i in range(number_images_before_first_image_to_consider, len(peaks))])
-# images_subset_mean = [np.mean(image[-30:-10][-30:-10]).astype('float32') for image in images]
-images = np.array([get_image_from_tiff(images_path, image_i, bytes_header, height, width).astype('float32') for image_i in range(number_images)])
-
-images.shape
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-images_subset_mean = [image.mean() for image in images]
-
-images_subset_mean_top = [image[ : round(image.shape[0]/2)] [ -round(image.shape[1]/2) : ].mean() for image in images]
-images_subset_mean_bottom = [image[ : round(image.shape[0]/2) ] [ : round(image.shape[1]/2) ].mean() for image in images]
-
-
-plt.plot(images_subset_mean_top)
-# plt.plot(images_subset_mean_bottom)
-
-
-
-# images_subset_mean.flatten()
-# images_subset_mean.shape
-
-
-
-
-
-
-
-data.loc[data['Frame beg'].notna(),:]
-number_images
-
-
-
-
 
 
 #* Merge galvo with data.
 # data = pd.merge_ordered(data, galvo.drop(columns=galvo_value), on=abs_time, how='outer')
 data = pd.merge_ordered(data, galvo, on=abs_time, how='outer')
 
-# del galvo
+del galvo
 # data = pd.merge_ordered(data, galvo, on=abs_time, how='outer')
 
 
@@ -972,7 +949,62 @@ plt.plot(data[abs_time])
 
 data['Image mean'] = np.nan
 
-data.loc[data['Frame beg'].notna(), 'Image mean'] = images_subset_mean[:len(data[data['Frame beg'].notna()])]
+
+#* Update the number of images.
+# Discard all images after the tracking is over.
+number_images = len(data.loc[data['Frame beg'].notna(),:])
+
+
+
+
+
+
+
+
+
+
+
+
+
+#* Get the images and align them to data.
+#! Do not forget to discard the first images.
+#!!!!! images = np.array([get_image_from_tiff(images_path, image_i, bytes_header, height, width) for image_i in range(number_images_before_first_image_to_consider, len(peaks))])
+# images_subset_mean = [np.mean(image[-30:-10][-30:-10]).astype('float32') for image in images]
+images = np.array([get_image_from_tiff(images_path, image_i, bytes_header, height, width).astype('float32') for image_i in range(number_images)])
+
+images.shape
+
+images_mean = [image.mean() for image in images]
+
+
+
+
+
+
+
+# images_subset_mean_top = [image[ : round(image.shape[0]/2)] [ -round(image.shape[1]/2) : ].mean() for image in images]
+# images_subset_mean_bottom = [image[ : round(image.shape[0]/2) ] [ : round(image.shape[1]/2) ].mean() for image in images]
+
+
+# plt.plot(images_subset_mean_top)
+# plt.plot(images_subset_mean_bottom)
+
+
+
+# images_subset_mean.flatten()
+# images_subset_mean.shape
+
+
+
+
+
+
+
+
+
+
+
+data.loc[data['Frame beg'].notna(), 'Image mean'] = images_mean
 # data.loc[data['Frame beg'].notna(), 'Image mean'] = images_subset_mean_top[:len(data[data['Frame beg'].notna()])]
 
 plt.plot(data.loc[data['Frame beg'].notna(), 'Image mean'])
@@ -994,7 +1026,7 @@ data[us].cat.remove_unused_categories()
 
 
 
-data[us].unique()
+# data[us].unique()
 
 x0 = 25000
 x1 = 25000
@@ -1063,11 +1095,12 @@ for stim_number_i, stim_number in enumerate(stim_numbers[1:]):
 	# break
 
 
+data['Frame number'] = data['Frame number'].astype(('float'))
+data['Frame beg'] = data['Frame beg'].fillna(0).astype('Sparse[bool]')
 
-import h5py
-with h5py.File(r"I:\20240314_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf\Data.hdf", "w") as file:
-	file.create_dataset("data", data=data.drop(columns=data.columns[[2,3,4]]), compression="gzip")
+data.rename(columns={abs_time : 'Absolute time (ms)'}, inplace=True)
 
+print(data.dtypes)
 
 
 
@@ -1075,151 +1108,53 @@ with h5py.File(r"I:\20240314_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf
 
 
 
-# Save images as a multi-page TIFF
-tifffile.imwrite(r"I:\20240314_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf\After removing dark images at the end.tif", images[:len(data.loc[data['Frame beg'].notna(),:])])
 
-images_=images[:len(data.loc[data['Frame beg'].notna(),:])]
-import h5py
-with h5py.File(r"I:\20240314_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf\After removing dark images at the end.hdf", "w") as file:
-	file.create_dataset("images", data=images_, compression="gzip")
 
 
 
-# images_ = tifffile.imread(r"I:\20240314_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf\After removing dark images at the end.tif")
 
 
-# with pd.HDFStore(r"I:\20240314_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf\After removing dark images at the end.hdf", complevel=4, complib: str='zlib') as store:
-	
-# 	store.append('data', images_, expectedrows=images_.shape, append=False)
 
-# 	store.get_storer(fish.dataset_key()).attrs['metadata'] = fish.metadata._asdict()
 
-# images_.shape
 
 
-plt.plot(data[abs_time], data[abs_time])
 
 
 
-#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-# images = np.array([get_image_from_tiff(images_path, image_i, bytes_header, height, width).astype('float32') for image_i in range(100, 30000)])
 
 
-#! Piece of 3 min
-images_subset = images[5000:5000+180*3]
+#* Find
 
 
+step_size = 0.001  # mm
+number_repetitions_the_plane = 120  # Should be around 2 min if at around 2 Hz.
+number_repetitions_the_plane_consecutively_stable = 40
+step_between_repetitions_of_the_plane = 1
 
 
-
-
-
-
-#! def
-
-
-
-top = np.mean(np.mean(images_subset[:, 0:50, :], axis=1), axis=1)
-bottom = np.mean(np.mean(images_subset[:, -50:, :], axis=1), axis=1)
-front = np.mean(np.mean(images_subset[:, :, -100:], axis=1), axis=1)
-back = np.mean(np.mean(images_subset[:, :, 0:100], axis=1), axis=1)
-
-all = np.mean(np.mean(images_subset, axis=1), axis=1)
-
-light_percentage_increase = np.abs(all - np.mean(all))/np.mean(all)
-
-# plt.plot(top)
-# plt.plot(bottom)
-# plt.plot(front)
-# plt.plot(back)
-# plt.plot(all)
-# plt.plot(light_percentage_increase)
-
-# plt.plot(np.abs(np.diff(top)))
-# plt.plot(np.diff(bottom))
-# plt.plot(np.diff(front))
-# plt.plot(np.diff(back))
-# plt.plot(np.diff(all))
-
-
-
-#* Discard based on overall light (too low or too high)
-mask_good_frames = light_percentage_increase < light_percentage_increase_thr
-
-#* And also discard based on the derivative
-mask_good_frames = mask_good_frames & ([False] + list((np.abs(np.diff(top)) < average_light_derivative_thr) & (np.abs(np.diff(bottom)) < average_light_derivative_thr) & (np.abs(np.diff(front)) < average_light_derivative_thr) & (np.abs(np.diff(back)) < average_light_derivative_thr) & (np.abs(np.diff(all) < average_light_derivative_thr))))
-
-images_subset_corrected = images_subset[mask_good_frames,:,:]
-plt.imshow(np.mean(images_subset_corrected, axis=0))
-
-images_subset_corrected_average = np.mean(images_subset_corrected, axis=0)
-
-# top = np.mean(np.mean(images_subset_corrected[:, 0:50, :], axis=1), axis=1)
-# bottom = np.mean(np.mean(images_subset_corrected[:, -50:, :], axis=1), axis=1)
-# front = np.mean(np.mean(images_subset_corrected[:, :, -100:], axis=1), axis=1)
-# back = np.mean(np.mean(images_subset_corrected[:, :, 0:100], axis=1), axis=1)
-
-# all = np.mean(np.mean(images_subset_corrected, axis=1), axis=1)
-
-
-
-
-#! def
-images_subset_corrected_average = images_subset_corrected_average.astype('uint8')
-
-
-#* Remove noise by blurring with a Gaussian filter
-src = cv2.GaussianBlur(images_subset_corrected_average, (3, 3), 0)
-src.dtype
-
-#* Apply Laplace function
-dst = cv2.Laplacian(src, ddepth, ksize=kernel_size)
-
-
-plt.imshow(dst)
-
-
-
-
-
-
-
-
-
-
-
-
-images = images_original[::10]
-
-
-#* Anatomy
-# original_anatomy=np.sum(images,0)
 
 anatomical_stack_images = tifffile.imread(anatomy_1_path)
-# anatomical_stack_images.shape
 
+anatomical_stack_images.shape
 
-#* Calculate the dimensions of the imaged plane to crop out before template-matching.
-_, y_dim, x_dim = np.array(anatomical_stack_images.shape)
 
-x_dim = int(x_dim * xy_movement_allowed/2)
-y_dim = int(y_dim * xy_movement_allowed/2)
 
+image_number = 0
 
 
-#* Find the plane in the anatomical stack
-initial_imaging_plane = np.mean(images[10:110], axis=0).astype('float32')
+for image_number in range(number_images):
+	
+	the_plane_mean_subset_last_images = get_the_plane_mean_subset_last_images(the_plane_path, image_number, number_repetitions_the_plane, step_between_repetitions_of_the_plane, bytes_header, height, width)
 
-# anatomical_stack_images[initial_plane].max()
-# initial_imaging_plane.max()
+	print(the_plane_mean_subset_last_images.shape)
+	#* Find where the imaged plane is in the anatomical stack.
+	# plane_where_we_are, xy_in_plane = find_plane_in_anatomical_stack(anatomical_stack_images, the_plane_mean_subset_last_images, plane_where_we_are)
+	plane_where_we_are, xy_in_plane = find_plane_in_anatomical_stack(anatomical_stack_images, the_plane_mean_subset_last_images, None, x_dim, y_dim)
 
 
-initial_plane, xy_in_plane = find_plane_in_anatomical_stack(anatomical_stack_images, initial_imaging_plane[y_dim:-y_dim, x_dim:-x_dim])
 
-plt.imshow(anatomical_stack_images[initial_plane], cmap='gray')
-plt.imshow(initial_imaging_plane, cmap='gray')
 
 
 
@@ -1227,58 +1162,27 @@ plt.imshow(initial_imaging_plane, cmap='gray')
 
 
 
-#* Phase cross-correlation to measure motion of each frame
-original_anatomy = anatomical_stack_images[initial_plane]
-frames = images
+import h5py
 
-from skimage.registration import phase_cross_correlation
-import math
+with h5py.File(r"I:\20240314_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf\Data.hdf", "w") as file:
+	file.create_dataset("data", data=data, compression="gzip")
 
 
-Xs=np.zeros(np.shape(images)[0])
-Ys=np.zeros(np.shape(images)[0])
-total_motion=np.zeros(np.shape(images)[0])
-for i in tqdm(range(frames.shape[0])):
-	X=phase_cross_correlation(original_anatomy, frames[i,:,:], upsample_factor=10, space='real')
-	Xs[i]=X[0][0]
-	Ys[i]=X[0][1]
-	total_motion[i]=math.sqrt(Xs[i]*Xs[i]+Ys[i]*Ys[i])
 
 
 
-plt.figure()
-plt.subplot(1,2,1)
-plt.plot(total_motion)
-plt.subplot(1,2,2)
-plt.scatter(Xs-0.01+0.02*np.random.rand(Xs.shape[0]),Ys-0.01+0.02*np.random.rand(Xs.shape[0]),s=0.5)
-plt.show()
 
 
 
 
 
-#! Joaquim
-# Discard frames with too much motion
-images[np.where(total_motion > 100)[0]] = np.zeros(images.shape[1:])
 
 
 
 
 
-from scipy.ndimage import shift
 
-aligned_frames=np.zeros(frames.shape)
-for i in tqdm(range(frames.shape[0])):
-	aligned_frames[i,:,:]=shift(frames[i,:,:], (Xs[i],Ys[i]), output=None, order=3, mode='constant', cval=0.0, prefilter=True)
-#   the commented lines below check that the shift was performed in the correct direction	
-#   X=phase_cross_correlation(anatomy, frames[i,:,:] ,upsample_factor=10, space='real')
-#   print(X)
-#   Y=phase_cross_correlation(anatomy, aligned_frames[i,:,:] ,upsample_factor=10, space='real')
-#   print(Y)
 
-aligned_anatomy=np.sum(aligned_frames,0)
-plt.figure()
-plt.imshow(aligned_anatomy, cmap='gray')
 
 
 
@@ -1286,83 +1190,45 @@ plt.imshow(aligned_anatomy, cmap='gray')
 
 
 
-from skimage.registration import phase_cross_correlation
-import math
-Xs2=np.zeros(np.shape(images)[0])
-Ys2=np.zeros(np.shape(images)[0])
-total_motion2=np.zeros(np.shape(images)[0])
-for i in tqdm(range(frames.shape[0])):
-    X=phase_cross_correlation(aligned_anatomy, frames[i,:,:] ,upsample_factor=10, space='real')
-    Xs2[i]=X[0][0]
-    Ys2[i]=X[0][1]
-    total_motion2[i]=math.sqrt(Xs2[i]*Xs2[i]+Ys2[i]*Ys2[i])
 
-plt.figure()
-plt.plot(total_motion)
-plt.plot(total_motion2)
-plt.show()
 
 
 
 
+# # # Save images as a multi-page TIFF
+# # tifffile.imwrite(r"I:\20240314_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf\After removing dark images at the end.tif", images[:len(data.loc[data['Frame beg'].notna(),:])])
 
+# # images_=images[:len(data.loc[data['Frame beg'].notna(),:])]
+# # import h5py
+# # with h5py.File(r"I:\20240314_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf\After removing dark images at the end.hdf", "w") as file:
+# # 	file.create_dataset("images", data=images_, compression="gzip")
 
 
 
-from scipy.ndimage import shift
-final_frames=np.zeros(frames.shape)
-for i in tqdm(range(frames.shape[0])):
-    final_frames[i,:,:]=shift(frames[i,:,:], (Xs2[i],Ys2[i]), output=None, order=3, mode='constant', cval=0.0, prefilter=True)
-final_anatomy=np.sum(final_frames,0)
+# # images_ = tifffile.imread(r"I:\20240314_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf\After removing dark images at the end.tif")
 
 
-plt.figure()
-plt.subplot(3,3,1)
-plt.imshow(original_anatomy, cmap='gray')
-plt.subplot(3,3,2)
-plt.imshow(aligned_anatomy, cmap='gray')
-plt.subplot(3,3,3)
-plt.imshow(final_anatomy)
-plt.subplot(3,3,4)
-plt.imshow(original_anatomy[10:-10,10:-10], cmap='gray')
-plt.subplot(3,3,5)
-plt.imshow(aligned_anatomy[10:-10,10:-10], cmap='gray')
-plt.subplot(3,3,6)
-plt.imshow(final_anatomy[10:-10,10:-10])
-plt.subplot(3,3,7)
-plt.imshow(original_anatomy[130:150,110:130], cmap='gray')
-plt.subplot(3,3,8)
-plt.imshow(original_anatomy[130:150,110:130]-final_anatomy[130:150,110:130], cmap='gray')
-plt.subplot(3,3,9)
-plt.imshow(final_anatomy[130:150,110:130], cmap='gray')
+# # with pd.HDFStore(r"I:\20240314_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf\After removing dark images at the end.hdf", complevel=4, complib: str='zlib') as store:
+	
+# # 	store.append('data', images_, expectedrows=images_.shape, append=False)
 
+# # 	store.get_storer(fish.dataset_key()).attrs['metadata'] = fish.metadata._asdict()
 
+# # images_.shape
 
 
+# plt.plot(data[abs_time], data[abs_time])
 
 
 
+# #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-from scipy.stats import pearsonr
+# # images = np.array([get_image_from_tiff(images_path, image_i, bytes_header, height, width).astype('float32') for image_i in range(100, 30000)])
 
-correlation_map=np.zeros(final_anatomy.shape)
-for i in tqdm(range(final_anatomy.shape[0])):
-    if i>0 and i<(final_anatomy.shape[0]-1):
-        for j in range(final_anatomy.shape[1]):
-            if j>0 and j<(final_anatomy.shape[1]-1):
-                this_pixel=np.squeeze(final_frames[:,i,j])
-                surr_pixels=np.squeeze(np.sum(np.sum(np.squeeze(final_frames[:,i-1:i+2,j-1:j+2]),2),1))-this_pixel
-                C, _ = pearsonr(this_pixel, surr_pixels)
-                correlation_map[i,j]=C
-original_correlation_map=np.copy(correlation_map)   
 
-plt.figure()
-plt.subplot(1,2,1)
-plt.imshow(final_anatomy)
-plt.subplot(1,2,2)
-plt.imshow(correlation_map)
-plt.show()
+# #! Piece of 3 min
+# images_subset = images[5000:5000+180*3]
 
 
 
@@ -1371,47 +1237,301 @@ plt.show()
 
 
 
+# #! def
 
 
 
+# top = np.mean(np.mean(images_subset[:, 0:50, :], axis=1), axis=1)
+# bottom = np.mean(np.mean(images_subset[:, -50:, :], axis=1), axis=1)
+# front = np.mean(np.mean(images_subset[:, :, -100:], axis=1), axis=1)
+# back = np.mean(np.mean(images_subset[:, :, 0:100], axis=1), axis=1)
 
+# all = np.mean(np.mean(images_subset, axis=1), axis=1)
 
-def next_roi(Vcorrelation_map, Vframes, corr_thresh, Vsize):
+# light_percentage_increase = np.abs(all - np.mean(all))/np.mean(all)
+
+# # plt.plot(top)
+# # plt.plot(bottom)
+# # plt.plot(front)
+# # plt.plot(back)
+# # plt.plot(all)
+# # plt.plot(light_percentage_increase)
+
+# # plt.plot(np.abs(np.diff(top)))
+# # plt.plot(np.diff(bottom))
+# # plt.plot(np.diff(front))
+# # plt.plot(np.diff(back))
+# # plt.plot(np.diff(all))
+
+
+
+# #* Discard based on overall light (too low or too high)
+# mask_good_frames = light_percentage_increase < light_percentage_increase_thr
+
+# #* And also discard based on the derivative
+# mask_good_frames = mask_good_frames & ([False] + list((np.abs(np.diff(top)) < average_light_derivative_thr) & (np.abs(np.diff(bottom)) < average_light_derivative_thr) & (np.abs(np.diff(front)) < average_light_derivative_thr) & (np.abs(np.diff(back)) < average_light_derivative_thr) & (np.abs(np.diff(all) < average_light_derivative_thr))))
+
+# images_subset_corrected = images_subset[mask_good_frames,:,:]
+# plt.imshow(np.mean(images_subset_corrected, axis=0))
+
+# images_subset_corrected_average = np.mean(images_subset_corrected, axis=0)
+
+# # top = np.mean(np.mean(images_subset_corrected[:, 0:50, :], axis=1), axis=1)
+# # bottom = np.mean(np.mean(images_subset_corrected[:, -50:, :], axis=1), axis=1)
+# # front = np.mean(np.mean(images_subset_corrected[:, :, -100:], axis=1), axis=1)
+# # back = np.mean(np.mean(images_subset_corrected[:, :, 0:100], axis=1), axis=1)
+
+# # all = np.mean(np.mean(images_subset_corrected, axis=1), axis=1)
+
+
+
+
+# #! def
+# images_subset_corrected_average = images_subset_corrected_average.astype('uint8')
+
+
+# #* Remove noise by blurring with a Gaussian filter
+# src = cv2.GaussianBlur(images_subset_corrected_average, (3, 3), 0)
+# src.dtype
+
+# #* Apply Laplace function
+# dst = cv2.Laplacian(src, ddepth, ksize=kernel_size)
+
+
+# plt.imshow(dst)
+
+
+
+
+
+
+
+
+
+
+
+
+# images = images_original[::10]
+
+
+# #* Anatomy
+# # original_anatomy=np.sum(images,0)
+
+# anatomical_stack_images = tifffile.imread(anatomy_1_path)
+# # anatomical_stack_images.shape
+
+
+# #* Calculate the dimensions of the imaged plane to crop out before template-matching.
+# _, y_dim, x_dim = np.array(anatomical_stack_images.shape)
+
+# x_dim = int(x_dim * xy_movement_allowed/2)
+# y_dim = int(y_dim * xy_movement_allowed/2)
+
+
+
+# #* Find the plane in the anatomical stack
+# initial_imaging_plane = np.mean(images[10:110], axis=0).astype('float32')
+
+# # anatomical_stack_images[initial_plane].max()
+# # initial_imaging_plane.max()
+
+
+# initial_plane, xy_in_plane = find_plane_in_anatomical_stack(anatomical_stack_images, initial_imaging_plane[y_dim:-y_dim, x_dim:-x_dim])
+
+# plt.imshow(anatomical_stack_images[initial_plane], cmap='gray')
+# plt.imshow(initial_imaging_plane, cmap='gray')
+
+
+
+
+
+
+
+# #* Phase cross-correlation to measure motion of each frame
+# original_anatomy = anatomical_stack_images[initial_plane]
+# frames = images
+
+# from skimage.registration import phase_cross_correlation
+# import math
+
+
+# Xs=np.zeros(np.shape(images)[0])
+# Ys=np.zeros(np.shape(images)[0])
+# total_motion=np.zeros(np.shape(images)[0])
+# for i in tqdm(range(frames.shape[0])):
+# 	X=phase_cross_correlation(original_anatomy, frames[i,:,:], upsample_factor=10, space='real')
+# 	Xs[i]=X[0][0]
+# 	Ys[i]=X[0][1]
+# 	total_motion[i]=math.sqrt(Xs[i]*Xs[i]+Ys[i]*Ys[i])
+
+
+
+# plt.figure()
+# plt.subplot(1,2,1)
+# plt.plot(total_motion)
+# plt.subplot(1,2,2)
+# plt.scatter(Xs-0.01+0.02*np.random.rand(Xs.shape[0]),Ys-0.01+0.02*np.random.rand(Xs.shape[0]),s=0.5)
+# plt.show()
+
+
+
+
+
+# #! Joaquim
+# # Discard frames with too much motion
+# images[np.where(total_motion > 100)[0]] = np.zeros(images.shape[1:])
+
+
+
+
+
+# from scipy.ndimage import shift
+
+# aligned_frames=np.zeros(frames.shape)
+# for i in tqdm(range(frames.shape[0])):
+# 	aligned_frames[i,:,:]=shift(frames[i,:,:], (Xs[i],Ys[i]), output=None, order=3, mode='constant', cval=0.0, prefilter=True)
+# #   the commented lines below check that the shift was performed in the correct direction	
+# #   X=phase_cross_correlation(anatomy, frames[i,:,:] ,upsample_factor=10, space='real')
+# #   print(X)
+# #   Y=phase_cross_correlation(anatomy, aligned_frames[i,:,:] ,upsample_factor=10, space='real')
+# #   print(Y)
+
+# aligned_anatomy=np.sum(aligned_frames,0)
+# plt.figure()
+# plt.imshow(aligned_anatomy, cmap='gray')
+
+
+
+
+
+
+
+# from skimage.registration import phase_cross_correlation
+# import math
+# Xs2=np.zeros(np.shape(images)[0])
+# Ys2=np.zeros(np.shape(images)[0])
+# total_motion2=np.zeros(np.shape(images)[0])
+# for i in tqdm(range(frames.shape[0])):
+#     X=phase_cross_correlation(aligned_anatomy, frames[i,:,:] ,upsample_factor=10, space='real')
+#     Xs2[i]=X[0][0]
+#     Ys2[i]=X[0][1]
+#     total_motion2[i]=math.sqrt(Xs2[i]*Xs2[i]+Ys2[i]*Ys2[i])
+
+# plt.figure()
+# plt.plot(total_motion)
+# plt.plot(total_motion2)
+# plt.show()
+
+
+
+
+
+
+
+
+# from scipy.ndimage import shift
+# final_frames=np.zeros(frames.shape)
+# for i in tqdm(range(frames.shape[0])):
+#     final_frames[i,:,:]=shift(frames[i,:,:], (Xs2[i],Ys2[i]), output=None, order=3, mode='constant', cval=0.0, prefilter=True)
+# final_anatomy=np.sum(final_frames,0)
+
+
+# plt.figure()
+# plt.subplot(3,3,1)
+# plt.imshow(original_anatomy, cmap='gray')
+# plt.subplot(3,3,2)
+# plt.imshow(aligned_anatomy, cmap='gray')
+# plt.subplot(3,3,3)
+# plt.imshow(final_anatomy)
+# plt.subplot(3,3,4)
+# plt.imshow(original_anatomy[10:-10,10:-10], cmap='gray')
+# plt.subplot(3,3,5)
+# plt.imshow(aligned_anatomy[10:-10,10:-10], cmap='gray')
+# plt.subplot(3,3,6)
+# plt.imshow(final_anatomy[10:-10,10:-10])
+# plt.subplot(3,3,7)
+# plt.imshow(original_anatomy[130:150,110:130], cmap='gray')
+# plt.subplot(3,3,8)
+# plt.imshow(original_anatomy[130:150,110:130]-final_anatomy[130:150,110:130], cmap='gray')
+# plt.subplot(3,3,9)
+# plt.imshow(final_anatomy[130:150,110:130], cmap='gray')
+
+
+
+
+
+
+
+
+
+# from scipy.stats import pearsonr
+
+# correlation_map=np.zeros(final_anatomy.shape)
+# for i in tqdm(range(final_anatomy.shape[0])):
+#     if i>0 and i<(final_anatomy.shape[0]-1):
+#         for j in range(final_anatomy.shape[1]):
+#             if j>0 and j<(final_anatomy.shape[1]-1):
+#                 this_pixel=np.squeeze(final_frames[:,i,j])
+#                 surr_pixels=np.squeeze(np.sum(np.sum(np.squeeze(final_frames[:,i-1:i+2,j-1:j+2]),2),1))-this_pixel
+#                 C, _ = pearsonr(this_pixel, surr_pixels)
+#                 correlation_map[i,j]=C
+# original_correlation_map=np.copy(correlation_map)   
+
+# plt.figure()
+# plt.subplot(1,2,1)
+# plt.imshow(final_anatomy)
+# plt.subplot(1,2,2)
+# plt.imshow(correlation_map)
+# plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+# def next_roi(Vcorrelation_map, Vframes, corr_thresh, Vsize):
     
-    this_max=np.max(Vcorrelation_map)
-    #print(this_max)
-    result = np.where(Vcorrelation_map== this_max)
-    coords=list(zip(result[0], result[1]))
-    I=coords[0][0]
-    J=coords[0][1]
-    this_roi_trace=np.squeeze(Vframes[:,I,J])
-    this_roi=np.zeros(Vcorrelation_map.shape)
-    this_roi[I,J]=1;
-    this_correlation_map=np.copy(Vcorrelation_map)
-    this_correlation_map[I,J]=0;
-    from skimage import morphology
+#     this_max=np.max(Vcorrelation_map)
+#     #print(this_max)
+#     result = np.where(Vcorrelation_map== this_max)
+#     coords=list(zip(result[0], result[1]))
+#     I=coords[0][0]
+#     J=coords[0][1]
+#     this_roi_trace=np.squeeze(Vframes[:,I,J])
+#     this_roi=np.zeros(Vcorrelation_map.shape)
+#     this_roi[I,J]=1;
+#     this_correlation_map=np.copy(Vcorrelation_map)
+#     this_correlation_map[I,J]=0;
+#     from skimage import morphology
 
-    added=1
-    while (np.sum(np.sum(this_roi,1),0)<Vsize and added==1):
-        added=0
-        dilated=morphology.binary_dilation(this_roi, np.ones((3,3))).astype(np.uint8)
-        new_pixels=dilated-this_roi
-        result = np.where(new_pixels == 1)
-        coords=list(zip(result[0], result[1]))
-        coords2=np.asarray(coords, dtype=np.int32)
-        for a in range(coords2.shape[0]):
-            I=coords2[a][0]
-            J=coords2[a][1]
-            if not(this_correlation_map[I,J]==0):
-                Y=np.squeeze(Vframes[:,I,J])
-                C, _ = pearsonr(this_roi_trace, Y)
-                if C>corr_thresh:
-                    this_roi[I,J]=1
-                    this_correlation_map[I,J]=0
-                    this_roi_trace=this_roi_trace+Y
-                    added=1
+#     added=1
+#     while (np.sum(np.sum(this_roi,1),0)<Vsize and added==1):
+#         added=0
+#         dilated=morphology.binary_dilation(this_roi, np.ones((3,3))).astype(np.uint8)
+#         new_pixels=dilated-this_roi
+#         result = np.where(new_pixels == 1)
+#         coords=list(zip(result[0], result[1]))
+#         coords2=np.asarray(coords, dtype=np.int32)
+#         for a in range(coords2.shape[0]):
+#             I=coords2[a][0]
+#             J=coords2[a][1]
+#             if not(this_correlation_map[I,J]==0):
+#                 Y=np.squeeze(Vframes[:,I,J])
+#                 C, _ = pearsonr(this_roi_trace, Y)
+#                 if C>corr_thresh:
+#                     this_roi[I,J]=1
+#                     this_correlation_map[I,J]=0
+#                     this_roi_trace=this_roi_trace+Y
+#                     added=1
 
-    return this_roi, this_roi_trace, np.sum(np.sum(this_roi,1),0), this_correlation_map
+#     return this_roi, this_roi_trace, np.sum(np.sum(this_roi,1),0), this_correlation_map
 
 
 
@@ -1419,113 +1539,113 @@ def next_roi(Vcorrelation_map, Vframes, corr_thresh, Vsize):
 
 
 
-Nrois=300
-all_traces=np.zeros((Nrois,aligned_frames.shape[0]))
-all_rois=np.zeros(original_correlation_map.shape)
-used_pixels=np.zeros(original_correlation_map.shape)
-original_correlation_map[:5,:]=0
-original_correlation_map[:,:5]=0
-original_correlation_map[-5:,:]=0
-original_correlation_map[:,-5:]=0
-correlation_map=np.copy(original_correlation_map)
+# Nrois=300
+# all_traces=np.zeros((Nrois,aligned_frames.shape[0]))
+# all_rois=np.zeros(original_correlation_map.shape)
+# used_pixels=np.zeros(original_correlation_map.shape)
+# original_correlation_map[:5,:]=0
+# original_correlation_map[:,:5]=0
+# original_correlation_map[-5:,:]=0
+# original_correlation_map[:,-5:]=0
+# correlation_map=np.copy(original_correlation_map)
 
 
-for i in tqdm(range(Nrois)):
-    this_roi3,this_roi_trace,N,this_correlation_map=next_roi(correlation_map, final_frames, 0.4,150)
-    all_traces[i,:]=this_roi_trace
-    all_rois=all_rois+(i+1)*this_roi3
-    used_pixels=used_pixels+this_roi3
-    correlation_map[all_rois>0]=0
+# for i in tqdm(range(Nrois)):
+#     this_roi3,this_roi_trace,N,this_correlation_map=next_roi(correlation_map, final_frames, 0.4,150)
+#     all_traces[i,:]=this_roi_trace
+#     all_rois=all_rois+(i+1)*this_roi3
+#     used_pixels=used_pixels+this_roi3
+#     correlation_map[all_rois>0]=0
 
 
-from scipy.stats import zscore
+# from scipy.stats import zscore
 
-fig,(ax1,ax2,ax3,ax4)= plt.subplots(1,4)
+# fig,(ax1,ax2,ax3,ax4)= plt.subplots(1,4)
 
-ax1 = plt.subplot(121)
-img=ax1.imshow(zscore(all_traces, 1), aspect="auto", vmin=-3, vmax=3, cmap="RdBu_r")
-ax1.set_ylabel("trace ROI number")
-ax1.set_xlabel("frame number")
-fig.colorbar(img,ax=ax1)
-ax2 = plt.subplot(322)
-ax2.imshow(all_rois)
-ax3 = plt.subplot(324)
-ax3.imshow(correlation_map)
-ax4 = plt.subplot(326)
-ax4.imshow(original_correlation_map)
-plt.show()
-fig.tight_layout()
+# ax1 = plt.subplot(121)
+# img=ax1.imshow(zscore(all_traces, 1), aspect="auto", vmin=-3, vmax=3, cmap="RdBu_r")
+# ax1.set_ylabel("trace ROI number")
+# ax1.set_xlabel("frame number")
+# fig.colorbar(img,ax=ax1)
+# ax2 = plt.subplot(322)
+# ax2.imshow(all_rois)
+# ax3 = plt.subplot(324)
+# ax3.imshow(correlation_map)
+# ax4 = plt.subplot(326)
+# ax4.imshow(original_correlation_map)
+# plt.show()
+# fig.tight_layout()
 
 
 
 
 
 
-#* CS average
+# #* CS average
 
 
 
 
-images = np.array(images)
+# images = np.array(images)
 
-# images[:10].shape
-# np.mean(images[:10], axis=0).shape
+# # images[:10].shape
+# # np.mean(images[:10], axis=0).shape
 
-images_subset_mean_cs = np.mean(images[:10], axis=0).astype('float32')
+# images_subset_mean_cs = np.mean(images[:10], axis=0).astype('float32')
 
 
 
 
-stim_number = 50
+# stim_number = 50
 
 
-us_beg_index = data[data[cs_beg] == stim_number].index[0]
-us_end_index = data[data[cs_end] == stim_number].index[0]
+# us_beg_index = data[data[cs_beg] == stim_number].index[0]
+# us_end_index = data[data[cs_end] == stim_number].index[0]
 
 
-x0 = 5000
-x1 = 5000
+# x0 = 5000
+# x1 = 5000
 
-data_CS_bef = data.iloc[us_beg_index-10000:us_beg_index]
-data_CS_aft = data.iloc[us_beg_index:us_end_index-2000]
+# data_CS_bef = data.iloc[us_beg_index-10000:us_beg_index]
+# data_CS_aft = data.iloc[us_beg_index:us_end_index-2000]
 
 
-image_indices_CS_bef = data_CS_bef.loc[data_CS_bef['Frame beg']!=0, 'Frame beg'].to_numpy()
-image_indices_CS_aft = data_CS_aft.loc[data_CS_aft['Frame beg']!=0, 'Frame beg'].to_numpy()
+# image_indices_CS_bef = data_CS_bef.loc[data_CS_bef['Frame beg']!=0, 'Frame beg'].to_numpy()
+# image_indices_CS_aft = data_CS_aft.loc[data_CS_aft['Frame beg']!=0, 'Frame beg'].to_numpy()
 
 
-image_bef_mean = np.mean(images[image_indices_CS_bef], axis=0).astype('float32')
-image_aft_mean = np.mean(images[image_indices_CS_aft], axis=0).astype('float32')
+# image_bef_mean = np.mean(images[image_indices_CS_bef], axis=0).astype('float32')
+# image_aft_mean = np.mean(images[image_indices_CS_aft], axis=0).astype('float32')
 
-plt.imshow(image_bef_mean)
-		#	, cmap='gray')
-plt.imshow(image_aft_mean)
+# plt.imshow(image_bef_mean)
+# 		#	, cmap='gray')
+# plt.imshow(image_aft_mean)
 
 
-plt.imshow(image_aft_mean - image_bef_mean, cmap='gray')
+# plt.imshow(image_aft_mean - image_bef_mean, cmap='gray')
 
 
-plt.imshow(images[-1])
-images.shape
+# plt.imshow(images[-1])
+# images.shape
 
-# USbeg = data__.loc[data__[us_beg]==stim_number, abs_time].to_numpy()[0]
-# USend = data__.loc[data__[us_end]==stim_number, abs_time].to_numpy()[0]
+# # USbeg = data__.loc[data__[us_beg]==stim_number, abs_time].to_numpy()[0]
+# # USend = data__.loc[data__[us_end]==stim_number, abs_time].to_numpy()[0]
 
 
-# USend - USbeg
+# # USend - USbeg
 
-time = data_plot[abs_time].to_numpy()
+# time = data_plot[abs_time].to_numpy()
 
-# plt.plot(time, data__[galvo_value]], 'k')
-# plt.plot(time, data__['Frame beg'], 'bo')
-plt.plot(time, data_plot['Image mean'], 'k.')
-plt.axvline(x=USbeg, color='g', linestyle='--')
-plt.axvline(x=USend, color='r', linestyle='--')
-# plt.plot(time, data__[us_beg], 'yo')
-# plt.plot(time, data__[us_end], 'mo')
+# # plt.plot(time, data__[galvo_value]], 'k')
+# # plt.plot(time, data__['Frame beg'], 'bo')
+# plt.plot(time, data_plot['Image mean'], 'k.')
+# plt.axvline(x=USbeg, color='g', linestyle='--')
+# plt.axvline(x=USend, color='r', linestyle='--')
+# # plt.plot(time, data__[us_beg], 'yo')
+# # plt.plot(time, data__[us_end], 'mo')
 
 
-# data__.plot(x=abs_time, y=['Frame beg', 'Image mean', us_beg, us_end], ls='.')
+# # data__.plot(x=abs_time, y=['Frame beg', 'Image mean', us_beg, us_end], ls='.')
 
 
 
@@ -1539,14 +1659,14 @@ plt.axvline(x=USend, color='r', linestyle='--')
 
 
 
-plt.plot(images_subset_mean)
+# plt.plot(images_mean)
 
-images.shape
-# images = np.mean(images, axis=0).astype('float32')
-images.shape
-plt.imshow(images, cmap='gray')
+# images.shape
+# # images = np.mean(images, axis=0).astype('float32')
+# images.shape
+# plt.imshow(images, cmap='gray')
 
-# the_plane_mean_subset_last_images = get_the_plane_mean_subset_last_images(images_path, number_images, number_repetitions_the_plane, step_between_repetitions_of_the_plane)
+# # the_plane_mean_subset_last_images = get_the_plane_mean_subset_last_images(images_path, number_images, number_repetitions_the_plane, step_between_repetitions_of_the_plane)
 
 
 
@@ -1576,17 +1696,354 @@ plt.imshow(images, cmap='gray')
 
 
 
-#* Open the images and take the mean
+# #* Open the images and take the mean
+# # images_paths = [*Path(images_path).glob('*tiff')]
+
+# # number_images = len(images_paths)
+
+# # images_mean = [0 for _ in images_paths]
+
+# # for image_i, image in enumerate(images_paths):
+	
+# # 	images_mean[image_i] = np.sum(np.array(Image.open(image)))
+# # 	# [240:260, 240:260])
+
+
+# # images_mean = np.array(images_mean, dtype='int')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# data.dtypes
+
+# data['ID'].max()
+
+
+# x0 = 10
+# x1 = 10
+
+# for i in data[data[us_beg] > 0]:
+# 	# break
+
+# 	i
+
+
+# 	time = data.loc[i-x0:i+x1, abs_time].to_numpy()
+# 	gv = data.loc[i-x0:i+x1, galvo_value].to_numpy()
+# 	usb = data.loc[i-x0:i+x1, us_beg].to_numpy()
+# 	use = data.loc[i-x0:i+x1, us_end].to_numpy()
+
+# 	# use[use > 0]
+
+# 	plt.plot(time, gv, 'k')
+# 	plt.plot(time, usb, 'ro')
+# 	plt.plot(time, use, 'bo')
+
+# 	break
+
+
+
+
+
+
+
+# data[[us_beg, 'Frame beg']].plot()
+
+
+
+# x0=-10000
+# x1=-1
+
+# a = interframe_interval.iloc[x0:x1].median()
+
+# # plt.plot(galvo[abs_time].iloc[x0:x1], galvo[galvo_value].iloc[x0:x1], 'k')
+# plt.plot(galvo[abs_time].iloc[x0:x1], galvo[galvo_value].iloc[x0:x1], 'k')
+# plt.plot(galvo[abs_time].iloc[x0:x1], galvo['Frame beg'].iloc[x0:x1], 'ro')
+# # plt.plot(galvo[abs_time].iloc[x0:x1], interframe_interval.iloc[x0:x1] - a, 'y.')
+
+
+
+
+
+
+
+# fig = go.Figure()
+# fig.add_trace(go.Scattergl(x=galvo[abs_time], y=galvo[galvo_value].to_numpy()))
+# # fig.add_trace(go.Scattergl(x=galvo[::2][abs_time], y=galvo[galvo_value][::2].to_numpy()))
+# # fig.add_trace(go.Scattergl(x=galvo[abs_time], y=galvo['1diff'].to_numpy()))
+# # fig.add_trace(go.Scattergl(x=galvo[abs_time], y=galvo['2diff'].to_numpy()))
+# # fig.add_trace(go.Scattergl(x=galvo[abs_time], y=galvo['3'].to_numpy()))
+
+# # fig.add_trace(go.Scattergl(x=galvo[abs_time][:-1], y=galvo['2diff'].to_numpy()[1:]))
+# # fig.add_trace(go.Scattergl(x=galvo[abs_time], y=galvo['2diff'].diff().to_numpy()))
+# fig.add_trace(go.Scattergl(x=galvo[abs_time], y=galvo['beg'].to_numpy()))
+
+
+
+
+
+# galvo['1diff'].median()
+
+
+
+# galvo.loc[index - space : index + space]['beg'].dropna().index
+
+
+
+# space = 1000
+
+# # index=815563
+
+# for i, index in enumerate(galvo[galvo['beg'].notna()].index):
+
+# 	fig = go.Figure()
+# 	fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space][galvo_value].to_numpy()))
+# 	# fig.add_trace(go.Scattergl(x=galvo[::2].loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space][galvo_value][::2].to_numpy()))
+# 	# fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space]['1diff'].to_numpy()))
+# 	# fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space]['2diff'].to_numpy()))
+# 	# fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space]['3'].to_numpy()))
+
+# 	# fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time][:-1], y=galvo.loc[index - space : index + space]['2diff'].to_numpy()[1:]))
+# 	# fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space]['2diff'].diff().to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space]['beg'].to_numpy()))
+
+# 	fig.show()
+
+# 	break
+
+# 	# plt.plot(galvo.loc[index - space : index + space][abs_time], galvo.loc[index - space : index + space][galvo_value], 'k.')
+# 	# plt.plot(galvo.loc[index - space : index + space][abs_time], galvo.loc[index - space : index + space]['1diff'], 'g.')
+# 	# plt.plot(galvo.loc[index - space : index + space][abs_time], galvo.loc[index - space : index + space]['2diff'], 'r.')
+
+# 	# plt.plot(galvo.loc[index - space : index + space][abs_time], galvo.loc[index - space : index + space]['beg'], 'bo')
+
+# 	# plt.show()
+
+
+
+
+
+
+
+# #!
+# DATA = data.copy()
+
+# # plt.plot(data[us_beg], 'ko')
+
+# data = pd.merge_ordered(data, galvo, on=abs_time, how='outer').drop_duplicates(abs_time, keep='first')
+
+# # data.loc[data[pmt_off_beg].notna(), pmt_off_beg] = 1
+# # data.loc[data[pmt_off_end].notna(), pmt_off_end] = 1
+
+# data.loc[data[us_beg].notna(), us_beg] = 1
+# data.loc[data[us_end].notna(), us_end] = 1
+
+
+
+
+# interp_function = interpolate.interp1d(galvo[abs_time], galvo[galvo_value], kind='slinear', axis=0, assume_sorted=True, bounds_error=False)
+
+# data[galvo_value] = interp_function(data[abs_time])
+
+
+
+
+
+
+
+
+
+
+# # galvo_peaks = galvo['GalvoValue'].diff()
+
+# # # galvo_peaks[galvo_peaks>1.5]
+
+
+# # galvo_peaks = galvo_peaks.to_numpy()
+
+
+# # galvo_peaks = np.where(galvo_peaks>1.5)
+
+# # galvo_peaks = np.where(galvo_peaks>1.5, 5, 0)
+
+
+
+# # galvo.plot(abs_time, 'GalvoValue')
+
+# # galvo = galvo.drop(columns='GalvoValue')
+
+# # galvo = galvo.rename(columns={'AblationValue' : 'GalvoValue'})
+
+# # galvo = galvo.rename(columns={'FrameID' : 'ID'})
+
+# # galvo = galvo.drop(columns=['ElapsedTime', 'AbsoluteTime'])
+
+
+
+
+# 		# np.median(np.diff(galvo_peaks))
+
+
+
+
+# # fig = go.Figure()
+# # fig.add_trace(go.Scattergl(x=np.arange(len(galvo)), y=galvo['GalvoValue'].to_numpy()))
+# # fig.add_trace(go.Scattergl(x=np.arange(len(galvo)), y=galvo_peaks))
+# # fig.add_trace(go.Scattergl(x=np.arange(len(galvo)), y=galvo['GalvoValue'].to_numpy()))
+
+
+# # fig.write_html(r"C:\Users\joaqc\Desktop\test.html")
+
+
+
+
+
+
+# # galvo['GalvoValue'].iloc[50000:52000].plot()
+# # galvo_peaks.iloc[50000:52000].plot()
+
+# # galvo['GalvoValue'][galvo_peaks>2]
+
+
+
+# 	#! this is for when the galvo signal is saved throgh LabView
+# 	# galvo = pd.read_csv(galvo_path, engine='pyarrow', sep='\t', header=4, decimal='.', na_filter=False)
+
+# 	# galvo.rename(columns={'time' : abs_time, 'Dev1/ai0' : galvo_value}, inplace=True)
+
+# 	# galvo = galvo.iloc[:,[0,1]]
+
+# 	# galvo[abs_time] = galvo[abs_time].astype('datetime64[ns]') - pd.Timedelta('1h')
+
+# 	# # Calculate unixtime in ms
+# 	# galvo[abs_time] = galvo[abs_time].astype('int64') / 10**6
+# 	# # galvo = (galvo[abs_time] - pd.Timestamp("1970-01-01")) // pd.Timedelta('1s')
+# 	# # galvo = galvo[abs_time].map(pd.Timestamp.timestamp)
+
+
+
+# # data = f.highlight_stim_in_data(data, protocol)
+
+
+
+# # del galvo
+
+
+# 		# index_pmt_beg = np.zeros(len(data[data[pmt_off_beg].notna()]))
+# 		# # len(index_pmt_beg)
+
+
+# 		# for index in data.loc[data[pmt_off_beg].notna(), abs_time]:
+
+# 		# 	data = data.loc[data[abs_time].between(index - 1000, index + 3000)]
+			
+			
+# 		# 	plt.plot(data[abs_time], data[pmt_off_beg] + 1, 'ko')
+# 		# 	plt.plot(data[abs_time], data[pmt_off_end] + 1, 'go')
+# 		# 	plt.plot(data[abs_time], data[us_beg] + 1, '.')
+# 		# 	plt.plot(data[abs_time], data[us_end] + 1, '.')
+# 		# 	plt.plot(data[abs_time], data[galvo_value])
+
+
+
+# 		# 	print(data.loc[data[pmt_off_end].notna(), abs_time].to_numpy() - data.loc[data[pmt_off_beg].notna(), abs_time].to_numpy(), data.loc[data[us_beg].notna(), abs_time].to_numpy() - data.loc[data[pmt_off_beg].notna(), abs_time].to_numpy(), data.loc[data[pmt_off_end].notna(), abs_time].to_numpy() - data.loc[data[us_end].notna(), abs_time].to_numpy())
+
+# 		# 	break
+
+
+
+
+
+
+# A = data[galvo_value].diff()
+
+
+
+# A[A>2]
+
+
+# data.iloc[5000:][galvo_value].plot()
+
+
+# len(images_mean)
+
+
+# plt.plot(A.iloc[5000:10000], 'k.')
+# plt.plot(data[galvo_value].iloc[5000:10000], 'g.')
+
+
+
+# plt.plot(images_mean)
+
+
+# #* Pad the image paths
+# # List all files in the folder
+# # files = os.listdir(folder_path)
 # images_paths = [*Path(images_path).glob('*tiff')]
 
-# number_images = len(images_paths)
+# # Regex pattern to find all integer numbers in the file names
+# pattern = re.compile(r'(\d+)')
 
-# images_mean = [0 for _ in images_paths]
+# # Iterate through each file and rename it
+# for images_name in images_paths:
 
-# for image_i, image in enumerate(images_paths):
+# 	new_image_name = re.sub(pattern, lambda x: x.group(1).zfill(10), str(images_name.stem))
 	
-# 	images_mean[image_i] = np.sum(np.array(Image.open(image)))
-# 	# [240:260, 240:260])
+# 	images_name.rename(Path(images_path).joinpath(new_image_name + '.tiff'))
+
+
+# import multipagetiff as mtif
+# s = mtif.read_stack(images_path, units='um')
+# mtif.plot_flatten(s)
+# pages = s.pages
+# pages.shape
+# mtif.Stack(pages)
+
+
+
+# tif = TiffFile(images_path)
+# len(tif.pages)  # number of pages in the file
+
+# np.mean(tif.pages[1000])
+
+
+# imread(images_path, key=-100:)
+
+# imread()
+
+
+
+
+
+
+# #! images_paths = images_path + r"\test_1green.tif"
+
+# im = Image.open(images_path)
+
+# images_mean = []
+
+# ImageSequence.all_frames(im, np.mean)
+
+# try:
+# 	for frame in ImageSequence.Iterator(im):
+		
+# 		images_mean.append(np.sum(frame))
+# except:
+# 	pass
+
+# plt.plot(images_mean)
+
 
 
 # images_mean = np.array(images_mean, dtype='int')
@@ -1594,194 +2051,100 @@ plt.imshow(images, cmap='gray')
 
 
 
+# len(images_mean)
 
 
 
+# data['image'] = 0
 
 
 
 
+# B = data.loc[data['beg'].notna(), 'image'].iloc[::2].index
 
+# data.loc[B, 'image'] = images_mean[1:-1]
 
 
 
-data.dtypes
+# len(images_mean[1:-1])
 
-data['ID'].max()
 
 
-x0 = 10
-x1 = 10
 
-for i in data[data[us_beg] > 0]:
-	# break
 
-	i
 
 
-	time = data.loc[i-x0:i+x1, abs_time].to_numpy()
-	gv = data.loc[i-x0:i+x1, galvo_value].to_numpy()
-	usb = data.loc[i-x0:i+x1, us_beg].to_numpy()
-	use = data.loc[i-x0:i+x1, us_end].to_numpy()
 
-	# use[use > 0]
 
-	plt.plot(time, gv, 'k')
-	plt.plot(time, usb, 'ro')
-	plt.plot(time, use, 'bo')
 
-	break
 
 
 
 
+# data.loc[:,[cs_beg, cs_end, us_beg, us_end, 'PMT_OFF beg', 'PMT_OFF end']] = data[[cs_beg, cs_end, us_beg, us_end, 'PMT_OFF beg', 'PMT_OFF end']].fillna(0)
 
 
+# plt.plot(data[abs_time], data['PMT_OFF beg'], 'ko')
+# plt.plot(data[abs_time], data[galvo_value])
 
-data[[us_beg, 'Frame beg']].plot()
+# # data = data.dropna(subset='ID')
 
 
 
-x0=-10000
-x1=-1
 
-a = interframe_interval.iloc[x0:x1].median()
+# data.dtypes
 
-# plt.plot(galvo[abs_time].iloc[x0:x1], galvo[galvo_value].iloc[x0:x1], 'k')
-plt.plot(galvo[abs_time].iloc[x0:x1], galvo[galvo_value].iloc[x0:x1], 'k')
-plt.plot(galvo[abs_time].iloc[x0:x1], galvo['Frame beg'].iloc[x0:x1], 'ro')
-# plt.plot(galvo[abs_time].iloc[x0:x1], interframe_interval.iloc[x0:x1] - a, 'y.')
 
 
 
 
 
+# #* Fix dtypes.
+# data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']] = data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']].astype(pd.SparseDtype('int', 0))
 
+# data['ID'] = data['ID'].astype('int')
 
-fig = go.Figure()
-fig.add_trace(go.Scattergl(x=galvo[abs_time], y=galvo[galvo_value].to_numpy()))
-# fig.add_trace(go.Scattergl(x=galvo[::2][abs_time], y=galvo[galvo_value][::2].to_numpy()))
-# fig.add_trace(go.Scattergl(x=galvo[abs_time], y=galvo['1diff'].to_numpy()))
-# fig.add_trace(go.Scattergl(x=galvo[abs_time], y=galvo['2diff'].to_numpy()))
-# fig.add_trace(go.Scattergl(x=galvo[abs_time], y=galvo['3'].to_numpy()))
 
-# fig.add_trace(go.Scattergl(x=galvo[abs_time][:-1], y=galvo['2diff'].to_numpy()[1:]))
-# fig.add_trace(go.Scattergl(x=galvo[abs_time], y=galvo['2diff'].diff().to_numpy()))
-fig.add_trace(go.Scattergl(x=galvo[abs_time], y=galvo['beg'].to_numpy()))
 
 
 
 
 
-galvo['1diff'].median()
 
 
+# plt.plot(data['image'])
+# plt.plot(data['PMT_OFF end'])
+# plt.plot(images_mean*(-1/20000))
 
-galvo.loc[index - space : index + space]['beg'].dropna().index
+# plt.plot(images_mean)
+# plt.plot(A)
 
 
+# A = np.diff(images_mean)
+# # *(-1/20000)
 
-space = 1000
+# len(A[A<-50000])
 
-# index=815563
 
-for i, index in enumerate(galvo[galvo['beg'].notna()].index):
+# plt.plot(data[abs_time], y=data[galvo_value])
+# plt.plot(data[abs_time], y=data[pmt_off_beg])
+# plt.plot(data[abs_time], y=data[pmt_off_end])
 
-	fig = go.Figure()
-	fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space][galvo_value].to_numpy()))
-	# fig.add_trace(go.Scattergl(x=galvo[::2].loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space][galvo_value][::2].to_numpy()))
-	# fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space]['1diff'].to_numpy()))
-	# fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space]['2diff'].to_numpy()))
-	# fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space]['3'].to_numpy()))
 
-	# fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time][:-1], y=galvo.loc[index - space : index + space]['2diff'].to_numpy()[1:]))
-	# fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space]['2diff'].diff().to_numpy()))
-	fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space]['beg'].to_numpy()))
+# space = 10000
 
-	fig.show()
+# for index in data[data[us_beg]>0].index:
+	
+# 	data = data.loc[index-space:index+space]
 
-	break
+# 	fig = go.Figure()
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[galvo_value].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data['image'].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_beg].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_end].to_numpy()))
 
-	# plt.plot(galvo.loc[index - space : index + space][abs_time], galvo.loc[index - space : index + space][galvo_value], 'k.')
-	# plt.plot(galvo.loc[index - space : index + space][abs_time], galvo.loc[index - space : index + space]['1diff'], 'g.')
-	# plt.plot(galvo.loc[index - space : index + space][abs_time], galvo.loc[index - space : index + space]['2diff'], 'r.')
 
-	# plt.plot(galvo.loc[index - space : index + space][abs_time], galvo.loc[index - space : index + space]['beg'], 'bo')
-
-	# plt.show()
-
-
-
-
-
-
-
-#!
-DATA = data.copy()
-
-# plt.plot(data[us_beg], 'ko')
-
-data = pd.merge_ordered(data, galvo, on=abs_time, how='outer').drop_duplicates(abs_time, keep='first')
-
-# data.loc[data[pmt_off_beg].notna(), pmt_off_beg] = 1
-# data.loc[data[pmt_off_end].notna(), pmt_off_end] = 1
-
-data.loc[data[us_beg].notna(), us_beg] = 1
-data.loc[data[us_end].notna(), us_end] = 1
-
-
-
-
-interp_function = interpolate.interp1d(galvo[abs_time], galvo[galvo_value], kind='slinear', axis=0, assume_sorted=True, bounds_error=False)
-
-data[galvo_value] = interp_function(data[abs_time])
-
-
-
-
-
-
-
-
-
-
-# galvo_peaks = galvo['GalvoValue'].diff()
-
-# # galvo_peaks[galvo_peaks>1.5]
-
-
-# galvo_peaks = galvo_peaks.to_numpy()
-
-
-# galvo_peaks = np.where(galvo_peaks>1.5)
-
-# galvo_peaks = np.where(galvo_peaks>1.5, 5, 0)
-
-
-
-# galvo.plot(abs_time, 'GalvoValue')
-
-# galvo = galvo.drop(columns='GalvoValue')
-
-# galvo = galvo.rename(columns={'AblationValue' : 'GalvoValue'})
-
-# galvo = galvo.rename(columns={'FrameID' : 'ID'})
-
-# galvo = galvo.drop(columns=['ElapsedTime', 'AbsoluteTime'])
-
-
-
-
-		# np.median(np.diff(galvo_peaks))
-
-
-
-
-# fig = go.Figure()
-# fig.add_trace(go.Scattergl(x=np.arange(len(galvo)), y=galvo['GalvoValue'].to_numpy()))
-# fig.add_trace(go.Scattergl(x=np.arange(len(galvo)), y=galvo_peaks))
-# fig.add_trace(go.Scattergl(x=np.arange(len(galvo)), y=galvo['GalvoValue'].to_numpy()))
-
+# 	break
 
 # fig.write_html(r"C:\Users\joaqc\Desktop\test.html")
 
@@ -1790,353 +2153,110 @@ data[galvo_value] = interp_function(data[abs_time])
 
 
 
-# galvo['GalvoValue'].iloc[50000:52000].plot()
-# galvo_peaks.iloc[50000:52000].plot()
+# #region
 
-# galvo['GalvoValue'][galvo_peaks>2]
+# need to find the beginning of each imaging frame
 
 
 
-	#! this is for when the galvo signal is saved throgh LabView
-	# galvo = pd.read_csv(galvo_path, engine='pyarrow', sep='\t', header=4, decimal='.', na_filter=False)
 
-	# galvo.rename(columns={'time' : abs_time, 'Dev1/ai0' : galvo_value}, inplace=True)
 
-	# galvo = galvo.iloc[:,[0,1]]
 
-	# galvo[abs_time] = galvo[abs_time].astype('datetime64[ns]') - pd.Timedelta('1h')
 
-	# # Calculate unixtime in ms
-	# galvo[abs_time] = galvo[abs_time].astype('int64') / 10**6
-	# # galvo = (galvo[abs_time] - pd.Timestamp("1970-01-01")) // pd.Timedelta('1s')
-	# # galvo = galvo[abs_time].map(pd.Timestamp.timestamp)
 
 
+# # B = data['GalvoValue'] / data[abs_time].diff()
+# # A = data['GalvoValue'] / data[ela_time].diff()
 
-# data = f.highlight_stim_in_data(data, protocol)
+# # fig = go.Figure()
+# # fig.add_trace(go.Scattergl(x=np.arange(len(A)), y=A.to_numpy()))
+# # fig.add_trace(go.Scattergl(x=np.arange(len(B)), y=B.to_numpy()))
 
+# # A = A.dropna()
 
+# # A.median()
 
-# del galvo
+# data = data.reset_index(drop=True)
 
+# galvo_peaks = data['GalvoValue'].diff()
 
-		# index_pmt_beg = np.zeros(len(data[data[pmt_off_beg].notna()]))
-		# # len(index_pmt_beg)
+# # galvo_peaks[galvo_peaks>1.5]
 
+# galvo_peaks = galvo_peaks.to_numpy()
 
-		# for index in data.loc[data[pmt_off_beg].notna(), abs_time]:
+# # galvo_peaks.where(galvo_peaks > 1.5, False)
 
-		# 	data = data.loc[data[abs_time].between(index - 1000, index + 3000)]
-			
-			
-		# 	plt.plot(data[abs_time], data[pmt_off_beg] + 1, 'ko')
-		# 	plt.plot(data[abs_time], data[pmt_off_end] + 1, 'go')
-		# 	plt.plot(data[abs_time], data[us_beg] + 1, '.')
-		# 	plt.plot(data[abs_time], data[us_end] + 1, '.')
-		# 	plt.plot(data[abs_time], data[galvo_value])
+# galvo_peaks_index = np.where(galvo_peaks>1.5)[0]
 
+# #* Interval between frames (only works for a lot of frames).
+# interval_between_frames = np.median(np.diff(galvo_peaks_index))
 
+# mask = np.diff(galvo_peaks_index) > 600
+# # (np.diff(galvo_peaks_index) > 340) & (np.diff(galvo_peaks_index) < 360)
 
-		# 	print(data.loc[data[pmt_off_end].notna(), abs_time].to_numpy() - data.loc[data[pmt_off_beg].notna(), abs_time].to_numpy(), data.loc[data[us_beg].notna(), abs_time].to_numpy() - data.loc[data[pmt_off_beg].notna(), abs_time].to_numpy(), data.loc[data[pmt_off_end].notna(), abs_time].to_numpy() - data.loc[data[us_end].notna(), abs_time].to_numpy())
+# C = data.loc[galvo_peaks_index[1:][mask][0]:]
+# # data.loc[data.index >= galvo_peaks_index[1:][mask][0]]
 
-		# 	break
 
-
-
-
-
-
-A = data[galvo_value].diff()
-
-
-
-A[A>2]
-
-
-data.iloc[5000:][galvo_value].plot()
-
-
-len(images_mean)
-
-
-plt.plot(A.iloc[5000:10000], 'k.')
-plt.plot(data[galvo_value].iloc[5000:10000], 'g.')
-
-
-
-plt.plot(images_mean)
-
-
-#* Pad the image paths
-# List all files in the folder
-# files = os.listdir(folder_path)
-images_paths = [*Path(images_path).glob('*tiff')]
-
-# Regex pattern to find all integer numbers in the file names
-pattern = re.compile(r'(\d+)')
-
-# Iterate through each file and rename it
-for images_name in images_paths:
-
-	new_image_name = re.sub(pattern, lambda x: x.group(1).zfill(10), str(images_name.stem))
-	
-	images_name.rename(Path(images_path).joinpath(new_image_name + '.tiff'))
-
-
-import multipagetiff as mtif
-s = mtif.read_stack(images_path, units='um')
-mtif.plot_flatten(s)
-pages = s.pages
-pages.shape
-mtif.Stack(pages)
-
-
-
-tif = TiffFile(images_path)
-len(tif.pages)  # number of pages in the file
-
-np.mean(tif.pages[1000])
-
-
-imread(images_path, key=-100:)
-
-imread()
-
-
-
-
-
-
-#! images_paths = images_path + r"\test_1green.tif"
-
-im = Image.open(images_path)
-
-images_mean = []
-
-ImageSequence.all_frames(im, np.mean)
-
-try:
-	for frame in ImageSequence.Iterator(im):
-		
-		images_mean.append(np.sum(frame))
-except:
-	pass
-
-plt.plot(images_mean)
-
-
-
-images_mean = np.array(images_mean, dtype='int')
-
-
-
-
-len(images_mean)
-
-
-
-data['image'] = 0
-
-
-
-
-B = data.loc[data['beg'].notna(), 'image'].iloc[::2].index
-
-data.loc[B, 'image'] = images_mean[1:-1]
-
-
-
-len(images_mean[1:-1])
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-data.loc[:,[cs_beg, cs_end, us_beg, us_end, 'PMT_OFF beg', 'PMT_OFF end']] = data[[cs_beg, cs_end, us_beg, us_end, 'PMT_OFF beg', 'PMT_OFF end']].fillna(0)
-
-
-plt.plot(data[abs_time], data['PMT_OFF beg'], 'ko')
-plt.plot(data[abs_time], data[galvo_value])
-
-# data = data.dropna(subset='ID')
-
-
-
-
-data.dtypes
-
-
-
-
-
-
-#* Fix dtypes.
-data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']] = data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']].astype('Sparse[int16]')
-
-data['ID'] = data['ID'].astype('int')
-
-
-
-
-
-
-
-
-
-plt.plot(data['image'])
-plt.plot(data['PMT_OFF end'])
-plt.plot(images_mean*(-1/20000))
-
-plt.plot(images_mean)
-plt.plot(A)
-
-
-A = np.diff(images_mean)
-# *(-1/20000)
-
-len(A[A<-50000])
-
-
-plt.plot(data[abs_time], y=data[galvo_value])
-plt.plot(data[abs_time], y=data[pmt_off_beg])
-plt.plot(data[abs_time], y=data[pmt_off_end])
-
-
-space = 10000
-
-for index in data[data[us_beg]>0].index:
-	
-	data = data.loc[index-space:index+space]
-
-	fig = go.Figure()
-	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[galvo_value].to_numpy()))
-	fig.add_trace(go.Scattergl(x=data[abs_time], y=data['image'].to_numpy()))
-	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_beg].to_numpy()))
-	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_end].to_numpy()))
-
-
-	break
-
-fig.write_html(r"C:\Users\joaqc\Desktop\test.html")
-
-
-
-
-
-
-#region
-
-need to find the beginning of each imaging frame
-
-
-
-
-
-
-
-
-
-# B = data['GalvoValue'] / data[abs_time].diff()
-# A = data['GalvoValue'] / data[ela_time].diff()
 
 # fig = go.Figure()
-# fig.add_trace(go.Scattergl(x=np.arange(len(A)), y=A.to_numpy()))
-# fig.add_trace(go.Scattergl(x=np.arange(len(B)), y=B.to_numpy()))
-
-# A = A.dropna()
-
-# A.median()
-
-data = data.reset_index(drop=True)
-
-galvo_peaks = data['GalvoValue'].diff()
-
-# galvo_peaks[galvo_peaks>1.5]
-
-galvo_peaks = galvo_peaks.to_numpy()
-
-# galvo_peaks.where(galvo_peaks > 1.5, False)
-
-galvo_peaks_index = np.where(galvo_peaks>1.5)[0]
-
-#* Interval between frames (only works for a lot of frames).
-interval_between_frames = np.median(np.diff(galvo_peaks_index))
-
-mask = np.diff(galvo_peaks_index) > 600
-# (np.diff(galvo_peaks_index) > 340) & (np.diff(galvo_peaks_index) < 360)
-
-C = data.loc[galvo_peaks_index[1:][mask][0]:]
-# data.loc[data.index >= galvo_peaks_index[1:][mask][0]]
+# fig.add_trace(go.Scattergl(x=data.index, y=galvo_peaks))
+# fig.add_trace(go.Scattergl(x=data.index, y=data['GalvoValue'].to_numpy()))
+# fig.add_trace(go.Scattergl(x=C.index, y=C['GalvoValue'].to_numpy()))
 
 
 
-fig = go.Figure()
-fig.add_trace(go.Scattergl(x=data.index, y=galvo_peaks))
-fig.add_trace(go.Scattergl(x=data.index, y=data['GalvoValue'].to_numpy()))
-fig.add_trace(go.Scattergl(x=C.index, y=C['GalvoValue'].to_numpy()))
-
-
-
-# fig.add_trace(go.Scattergl(x=np.arange(len(data)), y=galvo_peaks))
-fig.add_trace(go.Scattergl(x=np.arange(len(data)), y=data['GalvoValue'].to_numpy()))
-
-
-fig.write_html(r"C:\Users\joaqc\Desktop\test.html")
-
-
-
-#! Improve this part
-galvo_peaks = C['GalvoValue'].diff()
-# galvo_peaks[galvo_peaks>1.5]
-galvo_peaks = galvo_peaks.to_numpy()
-# galvo_peaks.where(galvo_peaks > 1.5, False)
-galvo_peaks_index = np.where(galvo_peaks>1.5)[0]
-
-#? Fix the time of all peaks?
-
-D = C.iloc[galvo_peaks_index]
-
-E = np.zeros(len(D))
-E[:len(images_mean)] = images_mean
-
-D['Mean of images'] = E
-
-
-data['Mean of images'] = 0
-
-data.loc[D.index] = D
-
-
-x = data[abs_time].to_numpy()
-
-fig = go.Figure()
-# fig.add_trace(go.Scattergl(x=x, y=D['GalvoValue'].to_numpy()))
-fig.add_trace(go.Scattergl(x=x, y=data['Mean of images'].to_numpy()))
-
-fig.add_trace(go.Scattergl(x=x, y=data['PMT_OFF beg'].to_numpy()*200))
-
-
-
-
-
-# data[abs_time] -= data[abs_time].iloc[0]
-
-# fig = go.Figure()
-# fig.add_trace(go.Scattergl(x=data[abs_time].to_numpy(), y=data['GalvoValue'].to_numpy()))
 # # fig.add_trace(go.Scattergl(x=np.arange(len(data)), y=galvo_peaks))
 # fig.add_trace(go.Scattergl(x=np.arange(len(data)), y=data['GalvoValue'].to_numpy()))
 
 
-#endregion
+# fig.write_html(r"C:\Users\joaqc\Desktop\test.html")
+
+
+
+# #! Improve this part
+# galvo_peaks = C['GalvoValue'].diff()
+# # galvo_peaks[galvo_peaks>1.5]
+# galvo_peaks = galvo_peaks.to_numpy()
+# # galvo_peaks.where(galvo_peaks > 1.5, False)
+# galvo_peaks_index = np.where(galvo_peaks>1.5)[0]
+
+# #? Fix the time of all peaks?
+
+# D = C.iloc[galvo_peaks_index]
+
+# E = np.zeros(len(D))
+# E[:len(images_mean)] = images_mean
+
+# D['Mean of images'] = E
+
+
+# data['Mean of images'] = 0
+
+# data.loc[D.index] = D
+
+
+# x = data[abs_time].to_numpy()
+
+# fig = go.Figure()
+# # fig.add_trace(go.Scattergl(x=x, y=D['GalvoValue'].to_numpy()))
+# fig.add_trace(go.Scattergl(x=x, y=data['Mean of images'].to_numpy()))
+
+# fig.add_trace(go.Scattergl(x=x, y=data['PMT_OFF beg'].to_numpy()*200))
+
+
+
+
+
+# # data[abs_time] -= data[abs_time].iloc[0]
+
+# # fig = go.Figure()
+# # fig.add_trace(go.Scattergl(x=data[abs_time].to_numpy(), y=data['GalvoValue'].to_numpy()))
+# # # fig.add_trace(go.Scattergl(x=np.arange(len(data)), y=galvo_peaks))
+# # fig.add_trace(go.Scattergl(x=np.arange(len(data)), y=data['GalvoValue'].to_numpy()))
+
+
+# #endregion
 
 
 
@@ -2148,9 +2268,9 @@ fig.add_trace(go.Scattergl(x=x, y=data['PMT_OFF beg'].to_numpy()*200))
 
 
 
-fig = go.Figure()
-fig.add_trace(go.Scatter(x=data[abs_time], y=data['GalvoValue'].to_numpy()))
-fig.add_trace(go.Scatter(x=data[abs_time], y=galvo_peaks))
+# fig = go.Figure()
+# fig.add_trace(go.Scatter(x=data[abs_time], y=data['GalvoValue'].to_numpy()))
+# fig.add_trace(go.Scatter(x=data[abs_time], y=galvo_peaks))
 
 
 
@@ -2163,23 +2283,21 @@ fig.add_trace(go.Scatter(x=data[abs_time], y=galvo_peaks))
 
 
 
-galvo.plot(y='GalvoValue')
+# galvo.plot(y='GalvoValue')
 
-galvo.iloc[15000:20000].plot(y='GalvoValue')
-
-
+# galvo.iloc[15000:20000].plot(y='GalvoValue')
 
 
 
-data = data.iloc[20000:80000]
+
+
+# data = data.iloc[20000:80000]
 
 
 
-data['GalvoValue'].iloc[20000:22000].plot()
+# data['GalvoValue'].iloc[20000:22000].plot()
 
-data.plot(x='ID', y=abs_time)
-
-
+# data.plot(x='ID', y=abs_time)
 
 
 
@@ -2188,65 +2306,65 @@ data.plot(x='ID', y=abs_time)
 
 
 
-plt.plot(images_mean)
+
+
+# plt.plot(images_mean)
 
 
 
 
-#! PLOTS
+# #! PLOTS
 
 
 
-data['ID'] -= data['ID'].iat[0]
+# data['ID'] -= data['ID'].iat[0]
 
 
 
 
-# with open(galvo_path, 'rb') as file:
-#	 binary_string = file.read()
+# # with open(galvo_path, 'rb') as file:
+# #	 binary_string = file.read()
 
-# # print(binary_string)
+# # # print(binary_string)
 
-# # with open(r'E:\\data\\test\\zscan\\conversionNEW.txt', 'w') as new_file:
-# # 	new_file.write(binary_string)
+# # # with open(r'E:\\data\\test\\zscan\\conversionNEW.txt', 'w') as new_file:
+# # # 	new_file.write(binary_string)
 	
 
-# text_string = binary_string.decode('')
-# print(text_string)
+# # text_string = binary_string.decode('')
+# # print(text_string)
 
 
 
 
 
 
-#! Shape of the galvoValue
-data.plot('ID', 'GalvoValue')
+# #! Shape of the galvoValue
+# data.plot('ID', 'GalvoValue')
 
-data.plot(x='ID', y=['GalvoValue', us_beg, us_end] )
-
-
-plt.plot(data[us_beg], 'green')
-plt.plot(data[us_beg], 'red')
+# data.plot(x='ID', y=['GalvoValue', us_beg, us_end] )
 
 
-data = data[data['ID'].between(8000,45000)]
-data.plot(x='ID', y=[us_beg, 'PMT_OFF beg'], )
+# plt.plot(data[us_beg], 'green')
+# plt.plot(data[us_beg], 'red')
 
 
-data.plot(x='ID', y=[us_beg, us_end, cs_beg, cs_end], )
+# data = data[data['ID'].between(8000,45000)]
+# data.plot(x='ID', y=[us_beg, 'PMT_OFF beg'], )
 
 
-data.plot(x='ID', y=[ 'PMT_OFF beg', 'PMT_OFF end'])
-
-# data[abs_time].diff().plot()
-
-data.plot(x='ID', y=[us_beg, us_end],)
+# data.plot(x='ID', y=[us_beg, us_end, cs_beg, cs_end], )
 
 
+# data.plot(x='ID', y=[ 'PMT_OFF beg', 'PMT_OFF end'])
 
-protocol[end] - protocol[beg]
+# # data[abs_time].diff().plot()
+
+# data.plot(x='ID', y=[us_beg, us_end],)
 
 
+
+# protocol[end] - protocol[beg]
 
 
 
@@ -2256,33 +2374,35 @@ protocol[end] - protocol[beg]
 
 
 
-data.dtypes
+
+
+# data.dtypes
 
 
 
-data.plot()
-
-
-
-
-
-
-import struct
-import tifffile
-import h5py
-
-galvo_path = Path(r"C:\Users\joaqc\Desktop\monacoshutterSat, Oct 28, 2023 6-04-58 PM.dat")
-
-# galvo_bits = open(galvo_path, 'rb')
-# galvo_bits = galvo_bits.read()
-# struct.unpack('>i', galvo_bits)
+# data.plot()
 
 
 
 
 
-# Reading and decoding data from the file
-with open(str(galvo_path), 'rb') as f:
-	binary_data = f.read()
-	decoded_data = binary_data.decode('ascii', 'ignore')
-	print(decoded_data)
+
+# import struct
+# import tifffile
+# import h5py
+
+# galvo_path = Path(r"C:\Users\joaqc\Desktop\monacoshutterSat, Oct 28, 2023 6-04-58 PM.dat")
+
+# # galvo_bits = open(galvo_path, 'rb')
+# # galvo_bits = galvo_bits.read()
+# # struct.unpack('>i', galvo_bits)
+
+
+
+
+
+# # Reading and decoding data from the file
+# with open(str(galvo_path), 'rb') as f:
+# 	binary_data = f.read()
+# 	decoded_data = binary_data.decode('ascii', 'ignore')
+# 	print(decoded_data)

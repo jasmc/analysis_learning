@@ -1,20 +1,19 @@
 
 # TODO remove
-from scipy import interpolate
+# TODO remove
+from importlib import reload
 
-#TODO import my_general_variables as g
-from my_general_variables import *
+from scipy import interpolate
 
 import my_functions as f
 from my_classes import *
+#TODO import my_general_variables as g
+from my_general_variables import *
 
-# TODO remove
-from importlib import reload
 reload(f)
 
 
 import my_experiment_specific_variables as exp_var
-
 
 store_raw = r"C:\Users\joaqc\Desktop\2000 01_Test\all_data_raw.h5"
 
@@ -36,16 +35,12 @@ all_data_raw = AllRawData(store_raw)
 
 fish.preprocess(all_data_raw, False)
 
-fish.data_raw
-# [cs].astype('int')
-# .plot()
 
-def get_raw_data(self, fish: Fish, where_to_query: str | None = None):
-	# Optional[list[str]]
+fish.__dict__
 
-	with pd.HDFStore(self._path, complevel=self._compression_level, complib=self._compression_library) as store:
 
-		return store.select(fish.dataset_key(), where=where_to_query)
+
+
 
 # if not all_data_raw.fish_is_in_store(fish):
 	# 	#TODO Overwrite and store as inputs

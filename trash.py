@@ -411,7 +411,7 @@ class Fishh:
 		for col_s in [cs_beg, cs_end, us_beg, us_end, number_trial]:
 			
 			data[col_s] = data[col_s].astype('int')
-			data[col_s] = data[col_s].astype(pd.api.types.CategoricalDtype(categories=np.sort(data[col_s].unique()), ordered=True))
+			data[col_s] = data[col_s].astype(pd.CategoricalDtype(categories=np.sort(data[col_s].unique()), ordered=True))
 
 
 
@@ -737,7 +737,7 @@ class Fishh:
 		for col_s in [cs_beg, cs_end, us_beg, us_end, number_trial]:
 			
 			data[col_s] = data[col_s].astype('int')
-			data[col_s] = data[col_s].astype(pd.api.types.CategoricalDtype(categories=np.sort(data[col_s].unique()), ordered=True))
+			data[col_s] = data[col_s].astype(pd.CategoricalDtype(categories=np.sort(data[col_s].unique()), ordered=True))
 
 
 

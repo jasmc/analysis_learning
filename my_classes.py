@@ -1,16 +1,18 @@
-from timeit import default_timer as timer
 from collections import namedtuple
 from dataclasses import dataclass
-from scipy import interpolate
 from pathlib import Path
+from timeit import default_timer as timer
 from typing import Optional
-from tqdm import tqdm
+
 import numpy as np
 import pandas as pd
+from scipy import interpolate
+from tqdm import tqdm
 
-from my_general_variables import *
 import my_experiment_specific_variables as exp_var
 import my_functions as f
+from my_general_variables import *
+
 # import Main as m
 
 
@@ -37,11 +39,11 @@ class  Experiment:
 	#! Set parts of the experiment, specific part chosen
 	def define_parts_experiment(self, part_type, cs_us):
 		
-		self.part_type = self.Part(part_type, cs_us)
+		self.part_type = self.Parts(part_type, cs_us)
 
 	#* Instantiate the conditions of the experiment.
 	def define_conditions(self):
-		for cond in self.get_conditions():
+		for cond in Experiment.get_conditions(self.name):
 
 			setattr(self, cond, self.Condition(name=cond['name'],
 							  	name_in_path=cond['name_in_path'],
@@ -49,14 +51,14 @@ class  Experiment:
 								cr_window=cond['cr_window']))
 
 		#* This overwrites what was initially read from the module exp_var
-		self.conditions = self.get_conditions()
+		self.conditions = self.get_conditions(self.name)
 
 	@staticmethod
 	def get_experiment_info(experiment, variable):
 		return exp_var.experiments_info[experiment][variable]
 
-	# def get_path(self, path):
-		return self.get_experiment_info(self.name, path)
+	def get_path(self):
+		return self.get_experiment_info(self.name, 'path_home')
 
 	@staticmethod
 	def get_conditions(experiment):
@@ -68,16 +70,13 @@ class  Experiment:
 	
 	class Parts:
 
-		def __init__(self, name, cs_us):
-
-			self.elements, self.names_elements = exp_var.experiments_info[Experiment.name]['parts'][name][cs_us]
+		def __init__(self, name_part, cs_us):
+			self.elements, self.names_elements = exp_var.experiments_info[Experiment.__name__]['parts'][name_part][cs_us]
 
 		@staticmethod
 		def get_number_elements(experiment, part_type, cs_us):
-			
 			if cs_us in [cs, us]:
 				return exp_var.experiments_info[experiment]['parts'][part_type][cs_us]
-			
 			elif cs_us == 'plot':
 				return max(len(exp_var.experiments_info[experiment]['parts'][part_type][cs]), len(exp_var.experiments_info[experiment]['parts'][part_type][us]))
 
@@ -126,20 +125,21 @@ class  Experiment:
 			# get all fish in AllFishInfo
 
 
-#! To be finished
-	def preprocess_data(self, Overwrite=False):
+	def preprocess(self, store: 'AllRawData', Overwrite: bool=True):
 
-		all_fish_raw_data_paths = [*Path(self.path_home).glob('*mp tail tracking.txt')]
+		"""
+		Preprocesses all fish from the experiment.
+		"""
+
+
+		all_fish_raw_data_paths = [*Path(self.get_path()).glob('*mp tail tracking.txt')]
 		
 		for fish_raw_data_path in tqdm(all_fish_raw_data_paths):
 
-			# self.fish_name = fish_raw_data_path.stem.replace('mp tail tracking', '').lower()
+			fish = Fish.from_raw_data_txt(fish_raw_data_path)
 
-			fish = Fish(self.experiment).preprocess(Overwrite, fish_raw_data_path)
+			fish.preprocess(store, Overwrite)
 
-#! the rest with Fish class
-			# call Fish methods
-			# return None, then return None
 
 	#! def
 	# have access to all fish from the experiment
@@ -211,7 +211,7 @@ class Fish:
 		strain = fish_metadata[4]
 		age = fish_metadata[5].replace('dpf', '')
 
-		fish_metadata = ('_').join([experiment, condition, age, strain, day, fish_number, rig_name, rig_cs_color, protocol_number])
+		fish_metadata = ('_').join([experiment, condition, strain, age, day, fish_number, rig_name, rig_cs_color, protocol_number])
 
 		return cls(fish_metadata, str(fish_raw_data_path))
 
@@ -232,7 +232,7 @@ class Fish:
 		if dataset_type == 'txt raw data' and store is None:
 		
 			return Experiment.get_experiment_info(self.metadata.experiment, 
-			'path_home') / '_'.join([fish.metadata.day, fish.metadata.fish_number, fish.metadata.condition, fish.metadata.rig_name, fish.metadata.strain, fish.metadata.age])
+			'path_home') / '_'.join([self.metadata.day, self.metadata.fish_number, self.metadata.condition, self.metadata.rig_name, self.metadata.strain, self.metadata.age])
 
 		elif store is not None:
 		
@@ -554,14 +554,14 @@ class Fish:
 				# save_info(protocol_info_path, fish_name, 'Not all CS! Stopped at CS {} ({}).'.
 				# format(number_cycles, id_debug))
 				print('Not all CS!')
-			
-				return True
 
-			elif number_reinforcers < expected_number_us_trials:
+			if number_reinforcers < expected_number_us_trials:
 				
 				# save_info(protocol_info_path, fish_name, 'Not all US! Stopped at US {} ({}).'.format(number_reinforcers, id_debug))
 				print('Not all US!')
 				 
+			if number_cycles < expected_number_cs_trials or number_reinforcers < expected_number_us_trials:
+
 				return True
 			
 			else:
@@ -635,7 +635,7 @@ class Fish:
 			#* Fix dtypes.
 			for cs_us in [cs, us]:
 
-				data[cs_us] = data.loc[:, cs_us].astype(pd.api.types.CategoricalDtype(categories=data[cs_us].unique(), ordered=True))
+				data[cs_us] = data.loc[:, cs_us].astype(pd.CategoricalDtype(categories=data[cs_us].unique(), ordered=True))
 
 			return data
 		
@@ -643,7 +643,7 @@ class Fish:
 
 		if not Overwrite and store.fish_is_in_store(self):
 
-			self.data_raw = store.get_raw_data(self)
+			self.raw_data = store.get_raw_data(self)
 
 		else:
 
@@ -716,7 +716,7 @@ class Fish:
 
 			print('\n\n')
 
-			self.data_raw = data
+			self.raw_data = data
 			
 			store.add_fish_raw_data(self)
 
@@ -825,7 +825,7 @@ class AllRawData:
 		with pd.HDFStore(self._path, complevel=self._compression_level, complib=self._compression_library) as store:
 			
 	#! CONFIRM THE DATA_COLS
-			store.append(fish.dataset_key(), fish.data_raw, data_columns=[cs, us], expectedrows=len(fish.data_raw), append=False)
+			store.append(fish.dataset_key(), fish.raw_data, data_columns=[cs, us], expectedrows=len(fish.raw_data), append=False)
 
 			store.get_storer(fish.dataset_key()).attrs['metadata'] = fish.metadata._asdict()
 			
