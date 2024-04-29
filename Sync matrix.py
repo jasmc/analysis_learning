@@ -1,23 +1,24 @@
-from pathlib import Path
-from scipy import ndimage
-import cv2
-import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import xarray as xr
 import plotly.io as pio
+import my_functions as f
+
 import tifffile
+import h5py
+import cv2
+import math
+import scipy.ndimage as ndimage
+
+from pathlib import Path
 from scipy import interpolate, signal
 from tqdm import tqdm
 from dataclasses import dataclass
-
 from scipy.stats import pearsonr
-from skimage.registration import phase_cross_correlation
-import math
 from scipy.ndimage import shift
+from skimage.registration import phase_cross_correlation
 
-import my_functions as f
 from my_general_variables import *
 
 pio.templates.default = "plotly_dark"
@@ -50,7 +51,7 @@ median_filter_kernel = 3
 # ddepth = cv2.CV_16S
 
 
-total_motion_thr = 5
+total_motion_thr = 0.5
 
 
 #! debug
@@ -573,13 +574,13 @@ def identify_trials(data, protocol):
 
 def get_good_images_indices(images_subset):
 
-	top = np.mean(np.mean(images_subset[:, :top_bottom_frame_slice, :], axis=1), axis=1)
-	bottom = np.mean(np.mean(images_subset[:, -top_bottom_frame_slice:, :], axis=1), axis=1)
-	front = np.mean(np.mean(images_subset[:, :, -front_back_frame_slice:], axis=1), axis=1)
-	back = np.mean(np.mean(images_subset[:, :, :front_back_frame_slice], axis=1), axis=1)
+	top = np.nanmean(np.nanmean(images_subset[:, :top_bottom_frame_slice, :], axis=1), axis=1)
+	bottom = np.nanmean(np.nanmean(images_subset[:, -top_bottom_frame_slice:, :], axis=1), axis=1)
+	front = np.nanmean(np.nanmean(images_subset[:, :, -front_back_frame_slice:], axis=1), axis=1)
+	back = np.nanmean(np.nanmean(images_subset[:, :, :front_back_frame_slice], axis=1), axis=1)
 
-	all = np.mean(np.mean(images_subset, axis=1), axis=1)
-	all_mean = np.mean(all)
+	all = np.nanmean(np.nanmean(images_subset, axis=1), axis=1)
+	all_mean = np.nanmean(all)
 
 	light_percentage_change = (np.abs(all - all_mean) / all_mean) * 100
 
@@ -589,11 +590,11 @@ def get_good_images_indices(images_subset):
 	#* And also discard based on the derivative
 	mask_good_images = mask_good_images & ([True] + list((np.abs(np.diff(top)) < average_light_derivative_thr) & (np.abs(np.diff(bottom)) < average_light_derivative_thr) & (np.abs(np.diff(front)) < average_light_derivative_thr) & (np.abs(np.diff(back)) < average_light_derivative_thr) & (np.abs(np.diff(all) < average_light_derivative_thr))))
 
-	plt.plot(top-np.median(top))
-	plt.plot(bottom-np.median(bottom))
-	plt.plot(front-np.median(front))
-	plt.plot(back-np.median(back))
-	plt.plot(all-np.median(all))
+	plt.plot(top-np.nanmedian(top))
+	plt.plot(bottom-np.nanmedian(bottom))
+	plt.plot(front-np.nanmedian(front))
+	plt.plot(back-np.nanmedian(back))
+	plt.plot(all-np.nanmedian(all))
 	plt.plot(light_percentage_change)
 	plt.plot(np.where(mask_good_images, mask_good_images, np.nan)*(-10), lw=3)
 	plt.legend(['Top', 'Bottom', 'Front', 'Back', 'Whole', r'Whole % change', r'Good images'], loc='center left', bbox_to_anchor=(1, 0.5))
@@ -657,6 +658,8 @@ def get_maximum_number_good_last_images(images_subset):
 			if consecutive_count > 0 and consecutive_count > number_repetitions_the_plane_consecutively_stable:
 				new_mask[i - consecutive_count : i] = True
 				break
+			else:
+				consecutive_count = 0
 			
 	mask_good_images = new_mask[::-1]
 	
@@ -674,8 +677,10 @@ def get_maximum_number_good_last_images(images_subset):
 def get_template_image(frames):
 
 	template_image = ndimage.median_filter(np.nanmean(frames, axis=0), size=median_filter_kernel)
+	# np.mean(ndimage.median_filter(frames, size=median_filter_kernel, axes=(1,2)), axis=0)
 
 	plt.imshow(template_image)
+	plt.colorbar()
 	plt.title('Anatomy')
 	plt.show()
 
@@ -683,12 +688,12 @@ def get_template_image(frames):
 
 
 
-def measure_motion(frames, anatomy):
+def measure_motion(frames, anatomy, normalization=None):
 
 	x_motion=np.zeros(np.shape(frames)[0])
 	y_motion=np.zeros(np.shape(frames)[0])
 	for j in range(frames.shape[0]):
-		X=phase_cross_correlation(anatomy, frames[j,:,:], upsample_factor=10, space='real')
+		X=phase_cross_correlation(anatomy, frames[j,:,:], upsample_factor=10, space='real', normalization=normalization, overlap_ratio=0.9)
 		x_motion[j]=X[0][0]
 		y_motion[j]=X[0][1]
 
@@ -699,10 +704,10 @@ def get_total_motion(motion):
 	# total_motion=np.zeros(np.shape(frames)[0])
 	total_motion = np.linalg.norm(motion, axis=1)
 
-	plt.show()
+	# plt.show()
 	fig, axs = plt.subplots(1, 2)
+	fig.suptitle('Motion of each frame')
 	axs[0].plot(total_motion)
-	axs[0].set_title('Motion of each frame')
 	axs[1].scatter(motion[:,0]-0.01+0.02*np.random.rand(motion[:,0].shape[0]),motion[:,1]-0.01+0.02*np.random.rand(motion[:,1].shape[0]),s=0.5)
 	# fig.show()
 	plt.show()
@@ -711,12 +716,15 @@ def get_total_motion(motion):
 
 
 
-def align_frames(frames, motion, total_motion_thr=total_motion_thr):
+def align_frames(frames, motion, total_motion_thr=None):
 
 	total_motion = get_total_motion(motion)
 
 	##* Discard frames with too much motion.
-	frames_indices_ignore = np.where(total_motion > total_motion_thr)[0]
+	if total_motion_thr is not None:
+		frames_indices_ignore = np.where(total_motion > total_motion_thr)[0]
+	else:
+		frames_indices_ignore = []
 	
 	aligned_frames=np.zeros(frames.shape)
 
@@ -730,6 +738,119 @@ def align_frames(frames, motion, total_motion_thr=total_motion_thr):
 			# print(Y)
    
 	return aligned_frames
+
+
+
+
+
+# def correct_motion(images_trial_, template_image_, Average_for_template, number_iterations=5):
+
+# 	#* 1.1. Motion correction relative to trials average.
+
+# 	##* Measure motion of each frame using phase cross-correlation.
+# 	motion = measure_motion(images_trial_[:, 5:-5, 5:-5], template_image_[5:-5, 5:-5], normalization=None)
+# 	# total_motion = get_total_motion(motion)
+
+# 	##* Align the frames to their average.
+# 	aligned_frames = align_frames(images_trial_, motion, 5)
+
+
+# 	for _ in range(number_iterations-1):
+# 		#* 1.2. Motion correction relative to trials average.
+		
+# 		##* Measure motion of each frame using phase cross-correlation.
+# 		total_motion = get_total_motion(motion)
+
+# 		# Use half of the frames to get the template image.
+# 		motion_thr = np.median(total_motion)
+# 		if Average_for_template:
+# 			template_image_ = get_template_image(aligned_frames[np.where(total_motion <= motion_thr)[0]])
+
+# 		##* Measure motion of each frame using phase cross-correlation.
+# 		motion_thr = int(np.ceil(motion_thr))
+# 		motion_thr = motion_thr if motion_thr > 5 else 5
+# 		motion = measure_motion(images_trial_[:, motion_thr:-motion_thr, motion_thr:-motion_thr], template_image_[motion_thr:-motion_thr, motion_thr:-motion_thr], normalization=None)
+
+# 		##* Align the frames to their average.
+# 		aligned_frames = align_frames(images_trial_, motion, 5)
+
+# 	plt.imshow(ndimage.median_filter(np.mean(aligned_frames, axis=0), size=median_filter_kernel))
+# 	# plt.imshow(np.mean(ndimage.median_filter(aligned_frames, size=median_filter_kernel, axes=(1,2)), axis=0))
+
+
+# 	#* Final template image.
+
+# 	##* Measure motion of each frame using phase cross-correlation.
+# 	total_motion = get_total_motion(motion)
+
+# 	#* Use half of the frames to get the template image.
+# 	motion_thr = np.median(total_motion)
+# 	template_image_ = get_template_image(aligned_frames[np.where(total_motion <= motion_thr)[0]])
+
+
+# 	#* Identify the plane number of the trial.
+# 	plane_number, motion = find_plane_in_anatomical_stack(anatomical_stack_images, template_image_.astype('float32'), None, x_dim, y_dim)
+# 	plt.imshow(anatomical_stack_images[plane_number])
+
+
+# 	return aligned_frames, template_image_, plane_number
+
+
+
+
+
+
+def correct_motion(images_trial_, template_image_, Average_for_template, number_iterations=5):
+
+	motion_thr = 5
+
+	for _ in range(number_iterations):
+
+		motion_thr = int(np.ceil(motion_thr))
+		motion_thr = motion_thr if motion_thr > 5 else 5
+		
+		#* Measure motion of each frame using phase cross-correlation.
+		motion = measure_motion(images_trial_[:, motion_thr:-motion_thr, motion_thr:-motion_thr], template_image_[motion_thr:-motion_thr, motion_thr:-motion_thr], normalization=None)
+
+		#* Align the frames to their average.
+		aligned_frames = align_frames(images_trial_, motion, 5)
+
+		#* Measure motion of each frame using phase cross-correlation.
+		total_motion = get_total_motion(motion)
+
+		# Use half of the frames to get the template image.
+		motion_thr = np.median(total_motion)
+		
+		#* Motion correction relative to trials average.
+		if Average_for_template:
+			template_image_ = get_template_image(aligned_frames[np.where(total_motion <= motion_thr)[0]])
+
+
+	plt.imshow(ndimage.median_filter(np.mean(aligned_frames, axis=0), size=median_filter_kernel))
+	# plt.imshow(np.mean(ndimage.median_filter(aligned_frames, size=median_filter_kernel, axes=(1,2)), axis=0))
+
+
+	#* Final template image.
+
+	##* Measure motion of each frame using phase cross-correlation.
+	total_motion = get_total_motion(motion)
+
+	#* Use half of the frames to get the template image.
+	motion_thr = np.median(total_motion)
+	template_image_ = get_template_image(aligned_frames[np.where(total_motion <= motion_thr)[0]])
+
+
+	#* Identify the plane number of the trial.
+	plane_number, motion = find_plane_in_anatomical_stack(anatomical_stack_images, template_image_.astype('float32'), None, x_dim, y_dim)
+
+	return aligned_frames, template_image_, plane_number
+
+
+
+
+
+
+
 
 
 
@@ -1380,121 +1501,228 @@ for plane_i, plane_cs_onset_indices in tqdm(enumerate(planes_cs_onset_indices)):
 
 	planes_list[plane_i] = Plane(trials_list)
 
+	break
+
 del trials_list
 
 
 
 for plane in tqdm(planes_list):
-	for trial in plane.trials:
+
+	#* Motion correction within trial.
+	for trial_i, trial in enumerate(plane.trials):
 
 	# 	break
 	# break
 
 
+		images_trial = trial.images.to_numpy()
 
 
+		#* 1.1. Motion correction relative to trials average.
 
-	images_trial = trial.images.to_numpy()
+		##* Discard bad frames due to motion, gating of the PMT or plane change when making a template image for the trial.
+	#? USE ONLY THE LAST GOOD IMAGES???
+	#? Filter?
+		template_image = get_template_image(get_maximum_number_good_last_images(images_trial))
+
+		plane.trials[trial_i].images.values, plane.trials[trial_i].template_image, plane.trials[trial_i].position_anatomical_stack = correct_motion(images_trial, template_image, True)
+
+		plt.imshow(anatomical_stack_images[plane.trials[trial_i].position_anatomical_stack])
+
+		
+		# ##* Measure motion of each frame using phase cross-correlation.
+		# motion = measure_motion(images_trial[:, 5:-5, 5:-5], template_image[5:-5, 5:-5], normalization=None)
+		# # total_motion = get_total_motion(motion)
+
+		# ##* Align the frames to their average.
+		# aligned_frames = align_frames(images_trial, motion, 5)
 
 
-	#* First iteration of motion correction relative to trials average.
+		# for _ in range(4):
+		# 	#* 1.2. Motion correction relative to trials average.
+			
+		# 	##* Measure motion of each frame using phase cross-correlation.
+		# 	total_motion = get_total_motion(motion)
+
+		# 	# Use half of the frames to get the template image.
+		# 	motion_thr = np.median(total_motion)
+		# 	template_image = get_template_image(aligned_frames[np.where(total_motion <= motion_thr)[0]])
+
+		# 	##* Measure motion of each frame using phase cross-correlation.
+		# 	motion_thr = int(np.ceil(motion_thr))
+		# 	motion_thr = motion_thr if motion_thr > 5 else 5
+		# 	motion = measure_motion(images_trial[:, motion_thr:-motion_thr, motion_thr:-motion_thr], template_image[motion_thr:-motion_thr, motion_thr:-motion_thr], normalization=None)
+
+		# 	##* Align the frames to their average.
+		# 	aligned_frames = align_frames(images_trial, motion, 5)
 	
-	##* Discard bad frames due to motion, gating of the PMT or plane change when making a template image for the trial.
-#? USE ONLY THE LAST GOOD IMAGES???
-#? Filter?
-	template_image = get_template_image(get_maximum_number_good_last_images(images_trial))
+		# plt.imshow(ndimage.median_filter(np.mean(aligned_frames, axis=0), size=median_filter_kernel))
+		# # plt.imshow(np.mean(ndimage.median_filter(aligned_frames, size=median_filter_kernel, axes=(1,2)), axis=0))
+
+
+		# #* Final template image.
+
+		# ##* Measure motion of each frame using phase cross-correlation.
+		# total_motion = get_total_motion(motion)
+
+		# #* Use half of the frames to get the template image.
+		# motion_thr = np.median(total_motion)
+		# template_image = get_template_image(aligned_frames[np.where(total_motion <= motion_thr)[0]])
+
+
+		# #* Identify the plane number of the trial.
+		# plane_number, motion = find_plane_in_anatomical_stack(anatomical_stack_images, template_image.astype('float32'), None, x_dim, y_dim)
+		# plt.imshow(anatomical_stack_images[plane_number])
+
+		# trial.images.values = aligned_frames
+		# trial.template_image = template_image
+		# trial.position_anatomical_stack = plane_number
+
+
+	#* Motion correction across trials of the same plane.
+	trial_reference = plane.trials[0]
+
+	for trial_i, trial in enumerate(plane.trials[1:]):
+		
+		trial_i += 1
+		
+		# trial.images.values, template_image, trial.position_anatomical_stack = 
+		plane.trials[trial_i].images.values, plane.trials[trial_i].template_image, plane.trials[trial_i].position_anatomical_stack = correct_motion(trial.images.to_numpy(), trial_reference.template_image, False, 3)
+
+
+HAS THE POSITION IN THE ANATOMICAL STACK CHANGED?
+
+COMPARE THE TEMPLATE IMAGES OF THE TRIALS. HAVE THEY BEEN CORRECTED?
+
+
+
+
+		break
+	break
+
+
+	trial.__dict__.keys()
+
+
+	[trial.position_anatomical_stack for trial in plane.trials]
+
+ 
+
+	break
+
+
+		# #* 2.1. Motion correction relative to reference plane in anatomical stack.
+		
+		# template_image = anatomical_stack_images[plane_number]
+		
+		# ##* Measure motion of each frame using phase cross-correlation.
+		# motion = measure_motion(images_trial, template_image, normalization=None)
+		# total_motion = get_total_motion(motion)
+
+		# ##* Align the frames to their reference plane.
+		# aligned_frames = align_frames(images_trial, motion)
+		# # total_motion_thr=max(x_dim, y_dim)
+
+		# plt.imshow(np.mean(images_trial[10:30], 0))
+
+		# plt.imshow(np.mean( ndimage.median_filter(images_trial[10], size=median_filter_kernel), 0))
+
+
+
+		# plt.imshow(np.sum(ndimage.median_filter(images_trial, size=median_filter_kernel, axes=(0,1,2)), axis=0))
+
+		# plt.imshow(ndimage.median_filter(np.mean(images_trial, axis=0), size=median_filter_kernel))
+
+
+
+		# motion = measure_motion(aligned_frames[:,50:-50,50:-50], template_image[50:-50,50:-50])
+
+		# # motion = measure_motion(images_trial, template_image)
+		# total_motion = get_total_motion(motion)
+
+		# ##* Align the frames to their reference plane.
+		# aligned_frames = align_frames(aligned_frames, motion)
+		# # total_motion_thr=max(x_dim, y_dim)
+
+
+		# plt.imshow(get_template_image(aligned_frames[np.where(total_motion <= total_motion_thr)[0]]))
+		# plt.imshow(np.nanmean(np.where(aligned_frames==np.nan, aligned_frames, np.mean(aligned_frames)), axis=0))
+		# plt.imshow(np.nanmean(get_maximum_number_good_last_images(aligned_frames), axis=0))
+		
+
+		#! del aligned_frames, motion, total_motion, template_image
+
+
+
+
+
+
+
+
+
+
+
+		break
+	break
+
+
+
+
+
+
+#!!!!!!!!!!! REGISTRATION USING TEMPLATE MATCHING
+
+# the_plane_mean_subset_last_images = template_image.astype('float32')
+
+# plt.imshow(the_plane_mean_subset_last_images)
+
+
+# # the_plane_mean_of_last_images = the_plane_tiff.asarray(slice(-number_repetitions_of_the_plane_to_analyze-1,-1,step_between_repetitions_of_the_plane_to_analyze))
+# the_plane_mean_subset_last_images = the_plane_mean_subset_last_images[y_dim:-y_dim, x_dim:-x_dim]
+
+# anatomical_stack_images_ = anatomical_stack_images
+
+# first_plane_substack = 0
 	
-	##* Measure motion of each frame using phase cross-correlation.
-	motion = measure_motion(images_trial, template_image)
-	# total_motion = get_total_motion(motion)
+# template_matching_results = [cv2.matchTemplate(plane, the_plane_mean_subset_last_images, cv2.TM_CCOEFF_NORMED) for plane in anatomical_stack_images_]
 
-	##* Align the frames to their average.
-	aligned_frames = align_frames(images_trial, motion, total_motion_thr)
+# # b = [np.array(x.flatten())[np.argpartition(x.flatten(), 3)[:3]] for x in template_matching_results]
 
+# # # [print(ii) for ii in b]
 
+# # a = np.mean(b, axis=1)
 
-	#* Second iteration of motion correction relative to trials average.
-	
-	##* Measure motion of each frame using phase cross-correlation.
-	total_motion = get_total_motion(motion)
-	template_image = get_template_image(aligned_frames[np.where(total_motion <= total_motion_thr)[0]])
-	del aligned_frames
+# plane_i = np.argmax([x.max() for x in template_matching_results])
+# # np.argmax(a)
 
-	##* Measure motion of each frame using phase cross-correlation.
-	motion = measure_motion(images_trial, template_image)
-
-	##* Align the frames to their average.
-	images_trial = align_frames(images_trial, motion, total_motion_thr)
+# xy_in_plane = np.argmax(template_matching_results[plane_i][0]), np.argmax(template_matching_results[plane_i][1])
 
 
 
-	#* Final template image.
-	motion = measure_motion(images_trial, template_image)
-	total_motion = get_total_motion(motion)
-	template_image = get_template_image(images_trial[np.where(total_motion <= total_motion_thr)[0]])
-
-
-
-	#* Identify the plane number of the trial.
-	plane_number, motion = find_plane_in_anatomical_stack(anatomical_stack_images, template_image.astype('float32'), None, x_dim, y_dim)
-	plt.imshow(anatomical_stack_images[plane_number])
-
-
-
-
-
-
-the_plane_mean_subset_last_images = template_image.astype('float32')
-
-plt.imshow(the_plane_mean_subset_last_images)
-
-
-# the_plane_mean_of_last_images = the_plane_tiff.asarray(slice(-number_repetitions_of_the_plane_to_analyze-1,-1,step_between_repetitions_of_the_plane_to_analyze))
-the_plane_mean_subset_last_images = the_plane_mean_subset_last_images[y_dim:-y_dim, x_dim:-x_dim]
-
-anatomical_stack_images_ = anatomical_stack_images
-
-first_plane_substack = 0
-	
-template_matching_results = [cv2.matchTemplate(plane, the_plane_mean_subset_last_images, cv2.TM_CCOEFF_NORMED) for plane in anatomical_stack_images_]
-
-# b = [np.array(x.flatten())[np.argpartition(x.flatten(), 3)[:3]] for x in template_matching_results]
-
-# # [print(ii) for ii in b]
-
-# a = np.mean(b, axis=1)
-
-plane_i = np.argmax([x.max() for x in template_matching_results])
-# np.argmax(a)
-
-xy_in_plane = np.argmax(template_matching_results[plane_i][0]), np.argmax(template_matching_results[plane_i][1])
-
-
-
-# Assume `template` is your template and `image` is your image
-template = the_plane_mean_subset_last_images
-image = anatomical_stack_images[plane_number]
-
-# Perform template matching
-result = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
+# # Assume `template` is your template and `image` is your image
+# template = the_plane_mean_subset_last_images
+# image = anatomical_stack_images[plane_number]
 
 # # Perform template matching
-# result = template_matching_results[plane_i]
+# result = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
 
-# Find the location of the best match
-min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+# # # Perform template matching
+# # result = template_matching_results[plane_i]
 
-result.shape
+# # Find the location of the best match
+# min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
 
-# Calculate the shift needed to align the template with the image
-shift_x = max_loc[0] - template.shape[1] // 2
-shift_y = max_loc[1] - template.shape[0] // 2
+# result.shape
 
+# # Calculate the shift needed to align the template with the image
+# shift_x = max_loc[0] - template.shape[1] // 2
+# shift_y = max_loc[1] - template.shape[0] // 2
 
-encontrar o 0,0 da recortada
 
-shift_by  = np.array([x_dim, y_dim])-np.array(max_loc)
+# encontrar o 0,0 da recortada
 
+# shift_by  = np.array([x_dim, y_dim])-np.array(max_loc)
 
 
 
@@ -1502,99 +1730,100 @@ shift_by  = np.array([x_dim, y_dim])-np.array(max_loc)
 
 
 
-shifted_image = shift(template, shift_by[::-1], mode='constant', cval=0.0)
 
-plt.imshow(anatomical_stack_images[plane_number] - shifted_image)
-plt.imshow(shifted_image)
+# shifted_image = shift(template, shift_by[::-1], mode='constant', cval=0.0)
 
+# plt.imshow(anatomical_stack_images[plane_number] - shifted_image)
+# plt.imshow(shifted_image)
 
 
-w, h = template.shape[::-1]
 
+# w, h = template.shape[::-1]
 
 
 
-template_matching_results[plane_i].shape
-template_matching_results[0].shape
-import cv2 as cv
 
-_,_, min_loc, max_loc = cv.minMaxLoc(template_matching_results[plane_i])
+# template_matching_results[plane_i].shape
+# template_matching_results[0].shape
+# import cv2 as cv
 
+# _,_, min_loc, max_loc = cv.minMaxLoc(template_matching_results[plane_i])
 
-image = np.mean(images_trial, axis=0)
 
-plt.imshow(image)
+# image = np.mean(images_trial, axis=0)
 
+# plt.imshow(image)
 
-plt.imshow(anatomical_stack_images[plane_number] - image)
 
+# plt.imshow(anatomical_stack_images[plane_number] - image)
 
-new_image = shift(image, np.array(motion)[::-1], output=None, order=3, mode='constant', cval=0.0, prefilter=True)
 
-# plt.imshow(new_image)
+# new_image = shift(image, np.array(motion)[::-1], output=None, order=3, mode='constant', cval=0.0, prefilter=True)
 
-# np.array([image[crop:-crop,crop:-crop] for image in images_trial])
+# # plt.imshow(new_image)
 
-plt.imshow(anatomical_stack_images[plane_number] - new_image)
+# # np.array([image[crop:-crop,crop:-crop] for image in images_trial])
 
+# plt.imshow(anatomical_stack_images[plane_number] - new_image)
 
 
-plt.imshow(anatomical_stack_images[plane_number])
 
+# plt.imshow(anatomical_stack_images[plane_number])
 
 
 
 
-	crop = 25
-	# int(extra_border/2)
 
-	template_image = anatomical_stack_images[plane_number][crop:-crop,crop:-crop]
-	# template_image = np.pad(anatomical_stack_images[plane_number][crop:-crop,crop:-crop], pad_width=extra_border, mode='constant', constant_values=0).astype('float32')
+# 	crop = 25
+# 	# int(extra_border/2)
 
-	plt.imshow(template_image)
+# 	template_image = anatomical_stack_images[plane_number][crop:-crop,crop:-crop]
+# 	# template_image = np.pad(anatomical_stack_images[plane_number][crop:-crop,crop:-crop], pad_width=extra_border, mode='constant', constant_values=0).astype('float32')
 
-	new_images_trial = np.array([image[crop:-crop,crop:-crop] for image in images_trial])
-	# new_images_trial = np.array([np.pad(image[crop:-crop,crop:-crop], pad_width=extra_border, mode='constant', constant_values=0).astype('float32') for image in images_trial])
+# 	plt.imshow(template_image)
 
-	plt.imshow(np.mean(new_images_trial, axis=0))
+# 	new_images_trial = np.array([image[crop:-crop,crop:-crop] for image in images_trial])
+# 	# new_images_trial = np.array([np.pad(image[crop:-crop,crop:-crop], pad_width=extra_border, mode='constant', constant_values=0).astype('float32') for image in images_trial])
 
+# 	plt.imshow(np.mean(new_images_trial, axis=0))
 
-	##* Measure motion of each frame using phase cross-correlation.
-	motion = measure_motion(new_images_trial, template_image)
-	total_motion = get_total_motion(motion)
 
-	##* Align the frames to their average.
-	aligned_frames = align_frames(new_images_trial, motion, 1000)
+# 	##* Measure motion of each frame using phase cross-correlation.
+# 	motion = measure_motion(new_images_trial, template_image)
+# 	total_motion = get_total_motion(motion)
 
-	plt.imshow(np.mean(aligned_frames, axis=0))
+# 	##* Align the frames to their average.
+# 	aligned_frames = align_frames(new_images_trial, motion, 1000)
 
+# 	plt.imshow(np.mean(aligned_frames, axis=0))
 
-images_trial.max()
 
+# images_trial.max()
 
 
 
 
 
-	total_motion = get_total_motion(motion)
-	template_image = get_template_image(get_maximum_number_good_last_images(aligned_frames[np.where(total_motion <= total_motion_thr)[0]]))
-	del aligned_frames
 
-	##* Measure motion of each frame using phase cross-correlation.
-	motion = measure_motion(images_trial, template_image)
+# 	total_motion = get_total_motion(motion)
+# 	template_image = get_template_image(get_maximum_number_good_last_images(aligned_frames[np.where(total_motion <= total_motion_thr)[0]]))
+# 	del aligned_frames
 
-	##* Align the frames to their average.
-	images_trial = align_frames(images_trial, motion, template_image, total_motion_thr)
+# 	##* Measure motion of each frame using phase cross-correlation.
+# 	motion = measure_motion(images_trial, template_image)
 
+# 	##* Align the frames to their average.
+# 	images_trial = align_frames(images_trial, motion, template_image, total_motion_thr)
 
 
 
 
 
-plt.imshow(anatomical_stack_images[plane_number])
-plt.imshow(np.mean(aligned_frames, axis=0))
-plt.imshow(anatomical_stack_images[plane_number]-np.mean(aligned_frames, axis=0))
-plt.imshow(anatomical_stack_images[plane_number]-template_image)
+
+# plt.imshow(anatomical_stack_images[plane_number])
+# plt.imshow(np.mean(aligned_frames, axis=0))
+# plt.imshow(anatomical_stack_images[plane_number]-np.mean(aligned_frames, axis=0))
+# plt.imshow(anatomical_stack_images[plane_number]-template_image)
 
 
 
