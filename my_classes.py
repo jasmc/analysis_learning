@@ -6,6 +6,7 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
+import xarray as xr
 from scipy import interpolate
 from tqdm import tqdm
 
@@ -891,3 +892,46 @@ class AllRawData:
 	
 	#! read HDF files from single fish, seleting the required cols and concat
 		# get all fish in AllFishInfo
+
+
+
+
+
+
+
+#* Classes
+# %%
+# region Classes
+@dataclass
+class Trial:
+	
+	trial_number : int
+
+	# position_anatomical_stack : int
+	# reference_image : np.ndarray
+
+	protocol : pd.DataFrame
+	behavior : pd.DataFrame
+	images : xr.DataArray
+
+
+@dataclass
+class Plane:
+
+	trials : list[Trial]
+
+	# reference_image_position_anatomical_stack : int
+	# reference_image : np.ndarray
+
+	# order_planes_sequence : int
+
+	def get_reference_position(self):
+
+		return round(np.median([trial.position_anatomical_stack for trial in self.trials]))
+
+@dataclass
+class Data:
+	
+	planes : list['Plane']
+
+#endregion

@@ -1,10 +1,11 @@
+import math
+import warnings
 from os import name
 from typing import Final
-import numpy as np
-import math
-import matplotlib.pyplot as plt
 
-import warnings
+import matplotlib.pyplot as plt
+import numpy as np
+
 warnings.filterwarnings(action='ignore', category=FutureWarning)
 
 
@@ -243,7 +244,7 @@ trace: Final = 'trace'
 # cond2: Final = 'increasingtrace'
 
 
-trials: Final = 'trials'
+plane_trials: Final = 'trials'
 blocks: Final = 'blocks'
 
 

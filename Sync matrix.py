@@ -1,25 +1,40 @@
+
+#* Imports
+# %%
+# region Imports
+import math
+import pickle
+from dataclasses import dataclass
+from pathlib import Path
+
+import cv2
+import h5py
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import xarray as xr
 import plotly.io as pio
-import my_functions as f
-
-import tifffile
-import h5py
-import cv2
-import math
 import scipy.ndimage as ndimage
-
-from pathlib import Path
+import tifffile
+import xarray as xr
 from scipy import interpolate, signal
-from tqdm import tqdm
-from dataclasses import dataclass
-from scipy.stats import pearsonr
 from scipy.ndimage import shift
+from scipy.stats import pearsonr, zscore
+from skimage import morphology
 from skimage.registration import phase_cross_correlation
+from tqdm import tqdm
+from skimage.measure import block_reduce
 
+import my_functions as f
+import my_classes as c
 from my_general_variables import *
+# endregion
+
+#* Settings
+# %% Settings
+# region Settings
+
+# %matplotlib ipympl
 
 pio.templates.default = "plotly_dark"
 
@@ -27,10 +42,11 @@ pd.set_option("mode.copy_on_write", True)
 pd.set_option("compute.use_numba", True)
 pd.set_option("compute.use_numexpr", True)
 pd.set_option("compute.use_bottleneck", True)
+#endregion
 
-
+#* Parameters
+# %%
 #region Parameters
-
 light_percentage_increase_thr = 5
 average_light_derivative_thr = 10
 top_bottom_frame_slice = 50  # number pixels
@@ -43,13 +59,11 @@ images_bin_size = 30
 number_repetitions_the_plane_consecutively_stable = 40
 # step_between_repetitions_of_the_plane = 1
 
-
-
 median_filter_kernel = 3
+gaussian_filter_sigma = 1
 
 # kernel_size = 3
 # ddepth = cv2.CV_16S
-
 
 total_motion_thr = 0.5
 
@@ -73,7 +87,10 @@ number_imaged_planes = 15
 number_reps_plane_consective = 2
 relevant_cs = np.concatenate([range(5,35), range(45,75)])
 
-extra_border = 50  # pixels
+motion_thr_from_trial_average = 5
+
+correlation_map_sigma = 2
+voxel_bin_size = 5
 
 
 #! this is overwriting the one in my_general_variables.py
@@ -85,30 +102,20 @@ extra_border = 50  # pixels
 time_experiment_f = frame_id
 #endregion
 
-
-
-#region Paths
+#* Paths
+# %%
+# region Paths
 path_home = Path(r'E:\2024 03_Delay 2-P multiple planes')
-
 
 # fish_names = [folder.stem for folder in path_home.iterdir() if folder.is_dir()]
 # fish_names.remove('Behavior')
-
 
 # for fish_name in fish_names:
 # fish_name = r'20240228_01_delay_2p-1_mitfaMinusMinus,elavl3H2BCaMP6s_7dpf'
 
 fish_name = r'20240415_02_delay_2p-2_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
-# '20240314_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf'
-# "20240404_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_7dpf"
-# '20240327_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_7dpf'
-
-# '20240313_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_5dpf'
-# '20240321_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf'
-# '20240311_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_5dpf'
 
 #! '20240304_01_delay_2p-1_mitfaMinusMinus,Gal4elavl3GCaMP6s_6dpf' is good
-
 
 # behavior_path = Path(r'D:\2024 02_Delay 2p\Behavior')
 # imaging_path = Path(r'D:\2024 02_Delay 2p') / fish_name / 'Imaging'
@@ -128,738 +135,90 @@ anatomy_1_path = path_home / fish_name / 'Anatomical stack 1.tif'
 anatomy_1_filtered_path = path_home / fish_name / 'Anatomical stack 1 binned and filtered.tif'
 #endregion
 
-
-
-#region Functions
-def get_bytes_header_and_image(images_path):
+#* Classes
+# %%
+# region Classes
+@dataclass
+class Trial:
 	
-	byte_number = 0
+	trial_number : int
 
-	# byte_order = np.fromfile(images_path, dtype=np.uint16, count=1, offset=byte_number)[0]
-	byte_number += 2
+	# position_anatomical_stack : int
+	# reference_image : np.ndarray
 
-	# arbitrary = np.fromfile(images_path, dtype=np.uint16, count=1, offset=byte_number)[0]
-	byte_number += 2
+	protocol : pd.DataFrame
+	behavior : pd.DataFrame
+	images : xr.DataArray
 
-	# IGD1off = np.fromfile(images_path, dtype=np.uint32, count=1, offset=byte_number)[0]
-	byte_number += 4
+	def get_stim_index(self, cs_us: str):
 
-	number_fields = np.fromfile(images_path, dtype=np.uint16, count=1, offset=byte_number)[0].byteswap()
-	byte_number += 2
+		#* Get the indices of the CS in the images of the trials.
 
-	# tag = np.fromfile(images_path, dtype=np.uint16, count=1, offset=byte_number)[0]
-	byte_number += 2
+		# self = self.trials[trial_number]
 
-	# field_data = np.fromfile(images_path, dtype=np.uint8, count=6, offset=byte_number)
-	byte_number += 6
+		protocol = self.protocol
 
-	width = np.fromfile(images_path, dtype=np.uint32, count=1, offset=byte_number)[0].byteswap()
-	byte_number += 4	
+		cs_beg, cs_end = protocol.loc[protocol[cs_us] != 0, 'Time (ms)'].values[[0,-1]]
 
-	# tag = np.fromfile(images_path, dtype=np.uint16, count=1, offset=byte_number)[0]
-	byte_number += 2
+		a = self.images.time.values < cs_beg
+		cs_beg_index = np.where(np.diff(a))[0][0]
 
-	# field_data = np.fromfile(images_path, dtype=np.uint8, count=6, offset=byte_number)
-	byte_number += 6
+		b = self.images.time.values > cs_end
+		cs_end_index = np.where(np.diff(b))[0][0]
 
-	height = np.fromfile(images_path, dtype=np.uint32, count=1, offset=byte_number)[0].byteswap()
-	byte_number += 4
-
-	for n in range(number_fields - 2):
-		# np.fromfile(images_path, dtype=np.uint8, count=12, offset=byte_number)
-		byte_number += 12
-
-	# next_offset = np.fromfile(images_path, dtype=np.uint32, count=1, offset=byte_number)[0].byteswap()
-	byte_number += 4
-
-	# skip resolution data
-	# np.fromfile(images_path, dtype=np.uint8, count=16, offset=byte_number)
-	byte_number += 16
-
-	# number_pixels = height * width
-
-	# All bytes up to here subatracted by the 2 bytes used to store the byte order.
-	bytes_header = number_fields*12+2+4+16
-
-	# Because images are uint16.
-	# bytes_image = number_pixels * 2
-
-	# print('bytes_header', bytes_header)
-
-	return bytes_header, height, width
-
-def get_image_from_tiff(images_path, image_i, bytes_header, height, width):
-
-	# 2 comes from the 2 bytes used to store the byte order.
-	offset_image = 2 + (image_i) * (bytes_header + height * width * 2) + bytes_header
-
-	image_data = np.fromfile(images_path, dtype=np.uint16, count=height*width, offset=offset_image).byteswap().reshape((height, width))
-
-	return image_data
-
-def get_number_images(images_path, bytes_header_and_image):
-
-	total_tif_size = os.path.getsize(images_path)
-
-	number_images = (total_tif_size - 2) // bytes_header_and_image
-
-	return number_images
-
-
-
-
-def find_plane_in_anatomical_stack(anatomical_stack_images, the_plane_mean_subset_last_images, plane_where_we_are, x_dim, y_dim):
-
-	#* Handle to the multipage TIFF file with the plane being imaged.
-	# the_plane_tiff = tifffile.TiffFile(the_plane_path)
-
-#! explain
-	# the_plane_mean_of_last_images = the_plane_tiff.asarray(slice(-number_repetitions_of_the_plane_to_analyze-1,-1,step_between_repetitions_of_the_plane_to_analyze))
-	the_plane_mean_subset_last_images = the_plane_mean_subset_last_images[y_dim:-y_dim, x_dim:-x_dim]
+		return np.array([cs_beg_index, cs_end_index])
 	
-	if plane_where_we_are is not None:
+
+@dataclass
+class Plane:
+
+	trials : list['Trial']
+
+	# reference_image_position_anatomical_stack : int
+	# reference_image : np.ndarray
+
+	# order_planes_sequence : int
+
+	def get_reference_position(self):
+
+		return round(np.median([trial.position_anatomical_stack for trial in self.trials]))
+	
+	def get_all_images(self):
+
+		return np.concatenate([trial.images.values for trial in self.trials])
+
+@dataclass
+class Data:
+	
+	planes : list['Plane']
+	anatomical_stack : np.ndarray
+
+
+	def get_planes(self, plane_numbers: list[int]):
 		
-		if (first_plane_substack := plane_where_we_are - number_planes_around_the_plane) < 0:
+		return [self.planes[i] for i in plane_numbers]
+
+
+	def get_trials(self, plane_numbers: list[int] | str, trial_numbers: list[int]):
+		
+		if plane_numbers == 'all':
 			
-			first_plane_substack = 0
+			plane_numbers = range(len(self.planes))
 
-		if (last_plane_substack := plane_where_we_are + number_planes_around_the_plane + 1) > len(anatomical_stack_images):
+		return [self.planes[i].trials[j] for i in plane_numbers for j in trial_numbers]
+
+
+	# def get_images(self, plane_numbers: list[int] | str, trial_numbers: list[int]):
+		
+	# 	if plane_numbers is None:
 			
-			last_plane_substack = len(anatomical_stack_images)
+	# 		plane_numbers = len(self.planes)
 
-		anatomical_stack_images_ = anatomical_stack_images[first_plane_substack : last_plane_substack]
-		
-	else:
-		
-		anatomical_stack_images_ = anatomical_stack_images
+	# 	return [self.planes[i].trials[j].images for i in plane_numbers for j in trial_numbers]
 
-		first_plane_substack = 0
-		
-	template_matching_results = [cv2.matchTemplate(plane, the_plane_mean_subset_last_images, cv2.TM_CCOEFF_NORMED) for plane in anatomical_stack_images_]
 
-	# b = [np.array(x.flatten())[np.argpartition(x.flatten(), 3)[:3]] for x in template_matching_results]
+# endregion
 
-	# # [print(ii) for ii in b]
-
-	# a = np.mean(b, axis=1)
-
-	plane_i = np.argmax([x.max() for x in template_matching_results])
-	# np.argmax(a)
-
-	xy_in_plane = np.argmax(template_matching_results[plane_i][0]), np.argmax(template_matching_results[plane_i][1])
-	
-	plane_i += first_plane_substack
-
-	# Find the index of the maximum correlation value
-	return plane_i, xy_in_plane
-
-
-def read_camera(camera_path):
-
-	try:
-		# start = timer()
-		
-		# camera = pd.read_csv(str(camera_path), sep='\t', header=0, decimal='.', skiprows=[*range(1,number_frames_discard_beg)])
-		camera = pd.read_csv(camera_path, engine='pyarrow', sep=' ', header=0, decimal='.')
-		# , na_filter=False
-		# dtype={time_experiment_f : 'int64', abs_time : 'int64', ela_time : 'float64'})
-		# skipfooter=1
-		camera = camera.iloc[:-1,:]
-
-		camera.rename(columns={'FrameID' : frame_id, 'ID' : frame_id}, inplace=True)
-		
-		# print('Time to read cam.txt: {} (s)'.format(timer()-start))
-		
-		return camera
-
-	except:
-
-		print('Issues in the camera log file')
-		
-		return None
-
-def framerate_and_reference_frame(camera):
-
-	# first_frame_absolute_time = camera[abs_time].iloc[0]
-
-	camera = camera.drop(columns=abs_time, errors='ignore')
-
-	camera_diff = camera[ela_time].diff()
-
-	print('Max IFI: {} ms'.format(camera_diff.max()))
-	
-	# First estimate of the interframe interval, using the median
-	ifi = camera_diff.median()
-	# camera_diff.iloc[number_frames_discard_beg : ].median()
-	print('First estimate of IFI: {} ms'.format(ifi))
-
-
-	camera_diff_index_correct_IFI = np.where(abs(camera_diff - ifi) <= max_interval_between_frames)[0]
-
-	camera_diff_index_correct_IFI_diff = np.diff(camera_diff_index_correct_IFI)
-
-	reference_frame_id = 0
-	last_frame_id = 0
-
-	#* Find a region at the beginning where the IFI from frame to frame does not vary significantly and is similar to the first estimate of the true IFI (ifi).
-	for i in range(1, len(camera_diff_index_correct_IFI_diff)):
-
-		if camera_diff_index_correct_IFI_diff[i-1] == 1 and camera_diff_index_correct_IFI_diff[i] == 1:
-
-			reference_frame_id = camera[frame_id].iloc[camera_diff_index_correct_IFI[i] - 1]
-
-
-			# # first_frame_absolute_time is not None when there is absolute time in the cam file.
-			# if first_frame_absolute_time is not None:
-			# 	reference_frame_time = first_frame_absolute_time + camera[ela_time].iloc[camera_diff_index_correct_IFI[i] - 1] - camera[ela_time].iloc[0]
-			# else:
-			# 	reference_frame_time = None
-
-			break
-
-	#* Find a similar region but at the end of the experiment.
-	for i in range(len(camera_diff_index_correct_IFI_diff)-1, 0, -1):
-
-		if camera_diff_index_correct_IFI_diff[i-1] == 1 and camera_diff_index_correct_IFI_diff[i] == 1:
-			
-			last_frame_id = camera[frame_id].iloc[camera_diff_index_correct_IFI[i] - 1]
-			#last_frame_time = first_frame_absolute_time + camera[time].iloc[camera_diff_index_right_IFI[i] - 1] - camera[time].iloc[0]
-
-			break
-
-
-	#* Second estimate of the interframe interval, using the mean, and assuming there is no increasing accumulation of frames in the buffer during the experiment; Only the region between the two frames identified in the previous two for loops is considered.
-	ifi = camera_diff.iloc[reference_frame_id - camera[frame_id].iloc[0] : last_frame_id - camera[frame_id].iloc[0]].mean()
-
-	print('Second estimate of IFI: {} ms'.format(ifi))
-	predicted_framerate = 1000 / ifi
-	print('Estimated framerate: {} FPS'.format(predicted_framerate))
-
-
-	# Lost_frames = lost_frames(camera, camera_diff, ifi, fish_name, fig_camera_name)
-
-	return predicted_framerate, reference_frame_id
-
-def read_tail_tracking_data(data_path):
-
-	# Angles in data come in radians.
-
-	try:
-		
-		# start = timer()
-		
-		data = pd.read_csv(data_path, engine='pyarrow', sep=' ', usecols=cols_to_use_orig, header=0, decimal='.', na_filter=False, names=[frame_id]+data_cols)
-		# dtype=dict(zip(cols_to_use_orig, ['int64'] + ['float32']*len(cols_to_use_orig))))
-		# skipfooter=1
-		data = data.iloc[:-1,:]
-		
-		#* Right now, pyarrow engine ignores renaming when opening the csv.
-		data.rename(columns=dict(zip(cols_to_use_orig, [frame_id] + data_cols)), inplace=True)
-
-		# print('Time to read tail tracking .txt: {} (s)'.format(timer()-start))
-
-
-		#? maybe before this was necessary because "decimal" in pd.read_csv was set to ",".
-		#* Even if decimal separator is wrong, this will correct it.
-		# data.iloc[:,1:] = data.iloc[:,1:].astype('float32')
-
-		#* Convert tail tracking data from radian to degree
-		data.loc[:,angle_cols] *= (180/np.pi)
-		
-		return data
-
-	except:
-		
-		#TODO
-		# f.save_info(protocol_info_path, self.metadata.name, 'Tail tracking might be corrupted!')
-		print('Issues in tail tracking data')
-		return None
-
-def plot_behavior_overview(data, fish_name, fig_behavior_name):
-	# data containing tail_angle.
-
-	# mask_frames = np.ones(number_frames + round(60*framerate), dtype=bool)
-	# mask_frames[:: round(framerate * 0.5)] = False
-	# mask_frames[0] = False
-	
-	# rows_to_skip = np.arange(number_frames + round(60*framerate))
-	# rows_to_skip = rows_to_skip[mask_frames]
-
-	# start = timer()
-
-	# overall_data = pd.read_csv(data, sep=' ', header=0, usecols=cols, skiprows=rows_to_skip, decimal=',')
-	# overall_data = overall_data.astype('float32')
-
-	# print(timer() - start)
-	plt.figure(figsize=(30, 15))
-	plt.plot(data[frame_id]/expected_framerate/60/60, data[tail_angle], 'black')
-	plt.xlabel('Time (h)')
-	plt.ylabel('Tail end angle (deg)')
-	plt.suptitle('Behavior overview\n' + fish_name)
-	# plt.show()
-	# plt.legend(frameon=False, loc='upper center', ncol=2)
-	plt.savefig(fig_behavior_name, dpi=100, bbox_inches='tight')
-	plt.close()
-
-def tracking_errors(data, single_point_tracking_error_thr = single_point_tracking_error_thr):
-
-	if ((a := data.loc[:, angle_cols].abs().max()) > single_point_tracking_error_thr).any():
-		print('Possible tracking error; max(abs(angle of individual point)): ')
-		print(a)
-
-		return True
-
-	elif data.iloc[:,1:].isna().to_numpy().any():
-		print('Possible tracking failures; there are NAs in data')
-
-		return True
-
-	else:
-		return False
-
-def merge_camera_with_data(data, camera):
-
-	data = pd.merge_ordered(data, camera, on=frame_id, how='outer')
-
-	data[frame_id] -= data[frame_id].iat[0]
-
-	return data
-
-def interpolate_data(data, predicted_framerate, expected_framerate=expected_framerate):
-	# expected_framerate is the framerate to which data is interpolated. So, output data is as if it had been acquired at the expected_framerate (700 FPS when I wrote this).
-
-	data_ = data.copy()
-
-	#* Interpolate tail tracking data to the expected framerate.
-
-	data_[frame_id] *= expected_framerate/predicted_framerate
-
-	data_.rename(columns={frame_id : time_experiment_f}, inplace=True)
-
-	interp_function = interpolate.interp1d(data_[time_experiment_f], data_.drop(columns=time_experiment_f), kind='slinear', axis=0, assume_sorted=True, bounds_error=False, fill_value="extrapolate")
-
-	data = pd.DataFrame(np.arange(data_[time_experiment_f].iat[0], data_[time_experiment_f].iat[-1]), columns=[time_experiment_f])
-
-	data[data_.drop(columns=time_experiment_f).columns] = interp_function(data[time_experiment_f])
-
-	return data
-
-def read_protocol(protocol_path):
-
-	#* Read protocol file.
-	if Path(protocol_path).exists():
-		# protocol = pd.read_csv(str(protocol_path), sep=' ', header=0, names=['Type', beg, end], usecols=[0, 1, 2], index_col=0)
-		protocol = pd.read_csv(protocol_path, engine='pyarrow', sep=' ', header=0, decimal='.', names=['Type', beg, end])
-		# dtype={'Type' : 'str', beg : 'int', end : 'int'})
-
-	else:
-		print('The stim log file does not exist')
-		return None
-
-	#* Were the stimuli timings not saved?
-	if protocol.empty:
-		print('The stim log file is empty')
-		return None
-
-	if protocol.iloc[0,0] == 0:
-		print('The stim log file is currupted')
-		return None
-
-	#* Right now, pyarrow engine ignores renaming when opening the csv.
-	protocol.rename(columns={'Beg' : beg, 'End' : end}, inplace=True)
-	protocol['Type'] = protocol['Type'].replace({'Cycle' : cs, 'Reinforcer' : us})
-	protocol.sort_values(by=beg, inplace=True)
-	protocol = protocol.set_index('Type')
-
-	return protocol
-
-def lost_stim(number_cycles, number_reinforcers, expected_number_cs_trials, expected_number_us_trials):
-
-	if number_cycles < expected_number_cs_trials:
-
-		# save_info(protocol_info_path, fish_name, 'Not all CS! Stopped at CS {} ({}).'.
-		# format(number_cycles, id_debug))
-		print('Not all CS!')
-
-	if number_reinforcers < expected_number_us_trials:
-		
-		# save_info(protocol_info_path, fish_name, 'Not all US! Stopped at US {} ({}).'.format(number_reinforcers, id_debug))
-		print('Not all US!')
-			
-	if number_cycles < expected_number_cs_trials or number_reinforcers < expected_number_us_trials:
-
-		return True
-	
-	else:
-		return False
-
-def protocol_info(protocol):
-
-	#* Count the number of cycles, trials, blocks and bouts.
-	# Using len() just in case these is a single element.
-	# number_cs = len(protocol.loc['Cycle', beg])
-
-	if protocol.index.isin([us]).any():
-		# number_us = len(protocol.loc[us, beg])
-
-		us_beg = protocol.loc[us, beg]
-		us_end = protocol.loc[us, end]
-		us_dur = (us_end - us_beg).to_numpy() # in ms
-		us_isi = (us_beg[1:] - us_end[:-1]).to_numpy() / 1000 / 60 # min
-	else:
-		# number_us = 0
-
-		us_dur = None
-		us_isi = None
-
-	# habituation_duration = protocol.iloc[0,0] / 1000 / 60 # min
-
-	cs_beg = protocol.loc[cs, beg]
-	cs_end = protocol.loc[cs, end]
-	cs_dur = (cs_end - cs_beg).to_numpy() # in ms
-	cs_isi = (cs_beg[1:] - cs_end[:-1]).to_numpy() / 1000 / 60 # min
-
-
-	return cs_dur, cs_isi, us_dur, us_isi
-
-def plot_protocol(cs_dur, cs_isi, us_dur, us_isi, fish_name, fig_protocol_name):
-
-	plt.figure(figsize=(14,14))
-	plt.plot(np.arange(1, len(cs_isi) + 1), cs_isi, label='inter-cs interval\nmin int.=' + str(round(np.amin(cs_isi)*60,1)) + ' s\n' + 'cs min dur=' + str(round(np.amin(cs_dur)/1000,3)) + ' s\n' + 'cs max dur=' + str(round(np.amax(cs_dur)/1000,3)) + ' s')
-	
-	plt.plot(np.arange(5, 4+len(us_isi)+1), us_isi, label='inter-us interval\nmin int.=' + str(round(np.amin(us_isi)*60,1)) + ' s\n' + 'us min dur=' + str(round(np.amin(us_dur)/1000,3)) + 's\n' + 'us max dur='+ str(round(np.amax(us_dur)/1000,3)) + ' s')
-	plt.xlabel('Trial number')
-	plt.ylabel('ISI (min)')
-	plt.ylim(0, 10)
-	plt.legend(frameon=False, loc='upper center', ncol=2)
-	plt.suptitle('Summary of protocol\n' + fish_name)
-	plt.savefig(fig_protocol_name, dpi=100, bbox_inches='tight')
-	plt.close()
-
-def identify_trials(data, protocol):
-
-	data[[cs, us]] = [0, 0]
-
-	for cs_us in [cs, us]:
-
-		protocol_sub = protocol.loc[cs_us, [beg, end]].to_numpy()
-
-		for i, p in enumerate(protocol_sub):
-			
-			data.loc[data[abs_time].between(p[0], p[1]), cs_us] = i + 1
-
-	data = data.set_index(abs_time)
-
-	try:
-		data.loc[:, data_cols] = data.loc[:, data_cols].interpolate(kind='slinear')
-	except:
-		print('HERE. FIX THIS')
-
-	#! data = data.reset_index(drop=True).dropna()
-	data = data.reset_index().dropna()
-
-	data[time_experiment_f] = data[time_experiment_f].astype('int64')
-
-	data[[cs, us]] = data[[cs, us]].astype('Sparse[int16]')
-
-	#* Fix dtypes.
-	# for cs_us in [cs, us]:
-
-	# 	data[cs_us] = data.loc[:, cs_us].astype(pd.CategoricalDtype(categories=data[cs_us].unique(), ordered=True))
-
-	return data
-
-
-
-
-def get_good_images_indices(images_subset):
-
-	top = np.nanmean(np.nanmean(images_subset[:, :top_bottom_frame_slice, :], axis=1), axis=1)
-	bottom = np.nanmean(np.nanmean(images_subset[:, -top_bottom_frame_slice:, :], axis=1), axis=1)
-	front = np.nanmean(np.nanmean(images_subset[:, :, -front_back_frame_slice:], axis=1), axis=1)
-	back = np.nanmean(np.nanmean(images_subset[:, :, :front_back_frame_slice], axis=1), axis=1)
-
-	all = np.nanmean(np.nanmean(images_subset, axis=1), axis=1)
-	all_mean = np.nanmean(all)
-
-	light_percentage_change = (np.abs(all - all_mean) / all_mean) * 100
-
-	#* Discard based on overall light (too low or too high)
-	mask_good_images = light_percentage_change < light_percentage_increase_thr
-
-	#* And also discard based on the derivative
-	mask_good_images = mask_good_images & ([True] + list((np.abs(np.diff(top)) < average_light_derivative_thr) & (np.abs(np.diff(bottom)) < average_light_derivative_thr) & (np.abs(np.diff(front)) < average_light_derivative_thr) & (np.abs(np.diff(back)) < average_light_derivative_thr) & (np.abs(np.diff(all) < average_light_derivative_thr))))
-
-	plt.plot(top-np.nanmedian(top))
-	plt.plot(bottom-np.nanmedian(bottom))
-	plt.plot(front-np.nanmedian(front))
-	plt.plot(back-np.nanmedian(back))
-	plt.plot(all-np.nanmedian(all))
-	plt.plot(light_percentage_change)
-	plt.plot(np.where(mask_good_images, mask_good_images, np.nan)*(-10), lw=3)
-	plt.legend(['Top', 'Bottom', 'Front', 'Back', 'Whole', r'Whole % change', r'Good images'], loc='center left', bbox_to_anchor=(1, 0.5))
-	plt.show()
-	
-	return mask_good_images
-
-
-def get_fixed_number_good_last_images(images_subset):
-
-	mask_good_images = get_good_images_indices(images_subset)
-
-	#* Discard the first and last frames
-	mask_good_images[:3] = False
-	mask_good_images[-3:] = False
-
-	#* Find consecutive True regions
-	new_mask = np.zeros_like(mask_good_images, dtype=bool)
-	consecutive_count = 0
-	for i, value in enumerate(mask_good_images[::-1]):
-
-		if value:
-			consecutive_count += 1
-			if consecutive_count >= number_repetitions_the_plane_consecutively_stable:
-				new_mask[i - number_repetitions_the_plane_consecutively_stable + 1 : i + 1] = True
-				break
-		else:
-			consecutive_count = 0
-	mask_good_images = new_mask[::-1]
-	
-
-	images_subset = images_subset[mask_good_images,:,:]
-
-	# plt.plot(mask_good_images)
-	# # plt.axvspan(np.diff(mask_good_images)==1, np.diff(mask_good_images)==-1)
-	# plt.legend([r'Good images'], loc='center left', bbox_to_anchor=(1, 0.5))
-	# plt.show()
-
-	return images_subset
-
-
-def get_maximum_number_good_last_images(images_subset):
-
-	mask_good_images = get_good_images_indices(images_subset)
-
-	#* Discard the first and last frames
-	mask_good_images[:3] = False
-	mask_good_images[-3:] = False
-
-	#* Find consecutive True regions
-	new_mask = np.zeros_like(mask_good_images, dtype=bool)
-	consecutive_count = 0
-	for i, value in enumerate(mask_good_images[::-1]):
-
-		if value:
-			consecutive_count += 1
-			# if consecutive_count >= number_repetitions_the_plane_consecutively_stable:
-			# 	new_mask[i - number_repetitions_the_plane_consecutively_stable + 1 : i + 1] = True
-			# 	break
-		else:
-			if consecutive_count > 0 and consecutive_count > number_repetitions_the_plane_consecutively_stable:
-				new_mask[i - consecutive_count : i] = True
-				break
-			else:
-				consecutive_count = 0
-			
-	mask_good_images = new_mask[::-1]
-	
-
-	images_subset = images_subset[mask_good_images,:,:]
-
-	plt.plot(mask_good_images)
-	# plt.axvspan(np.diff(mask_good_images)==1, np.diff(mask_good_images)==-1)
-	plt.legend([r'Good images'], loc='center left', bbox_to_anchor=(1, 0.5))
-	plt.show()
-
-	return images_subset
-
-
-def get_template_image(frames):
-
-	template_image = ndimage.median_filter(np.nanmean(frames, axis=0), size=median_filter_kernel)
-	# np.mean(ndimage.median_filter(frames, size=median_filter_kernel, axes=(1,2)), axis=0)
-
-	plt.imshow(template_image)
-	plt.colorbar()
-	plt.title('Anatomy')
-	plt.show()
-
-	return template_image
-
-
-
-def measure_motion(frames, anatomy, normalization=None):
-
-	x_motion=np.zeros(np.shape(frames)[0])
-	y_motion=np.zeros(np.shape(frames)[0])
-	for j in range(frames.shape[0]):
-		X=phase_cross_correlation(anatomy, frames[j,:,:], upsample_factor=10, space='real', normalization=normalization, overlap_ratio=0.9)
-		x_motion[j]=X[0][0]
-		y_motion[j]=X[0][1]
-
-	return np.column_stack([x_motion, y_motion])
-
-
-def get_total_motion(motion):
-	# total_motion=np.zeros(np.shape(frames)[0])
-	total_motion = np.linalg.norm(motion, axis=1)
-
-	# plt.show()
-	fig, axs = plt.subplots(1, 2)
-	fig.suptitle('Motion of each frame')
-	axs[0].plot(total_motion)
-	axs[1].scatter(motion[:,0]-0.01+0.02*np.random.rand(motion[:,0].shape[0]),motion[:,1]-0.01+0.02*np.random.rand(motion[:,1].shape[0]),s=0.5)
-	# fig.show()
-	plt.show()
-
-	return total_motion
-
-
-
-def align_frames(frames, motion, total_motion_thr=None):
-
-	total_motion = get_total_motion(motion)
-
-	##* Discard frames with too much motion.
-	if total_motion_thr is not None:
-		frames_indices_ignore = np.where(total_motion > total_motion_thr)[0]
-	else:
-		frames_indices_ignore = []
-	
-	aligned_frames=np.zeros(frames.shape)
-
-	for j in range(frames.shape[0]):
-		if j not in frames_indices_ignore:
-			aligned_frames[j,:,:]=shift(frames[j,:,:], motion[j], output=None, order=3, mode='constant', cval=0.0, prefilter=True)
-		#   the commented lines below check that the shift was performed in the correct direction	
-			# X=phase_cross_correlation(original_anatomy, frames[j,:,:] ,upsample_factor=10, space='real')
-			# print(X)
-			# Y=phase_cross_correlation(original_anatomy, aligned_frames[j,:,:] ,upsample_factor=10, space='real')
-			# print(Y)
-   
-	return aligned_frames
-
-
-
-
-
-# def correct_motion(images_trial_, template_image_, Average_for_template, number_iterations=5):
-
-# 	#* 1.1. Motion correction relative to trials average.
-
-# 	##* Measure motion of each frame using phase cross-correlation.
-# 	motion = measure_motion(images_trial_[:, 5:-5, 5:-5], template_image_[5:-5, 5:-5], normalization=None)
-# 	# total_motion = get_total_motion(motion)
-
-# 	##* Align the frames to their average.
-# 	aligned_frames = align_frames(images_trial_, motion, 5)
-
-
-# 	for _ in range(number_iterations-1):
-# 		#* 1.2. Motion correction relative to trials average.
-		
-# 		##* Measure motion of each frame using phase cross-correlation.
-# 		total_motion = get_total_motion(motion)
-
-# 		# Use half of the frames to get the template image.
-# 		motion_thr = np.median(total_motion)
-# 		if Average_for_template:
-# 			template_image_ = get_template_image(aligned_frames[np.where(total_motion <= motion_thr)[0]])
-
-# 		##* Measure motion of each frame using phase cross-correlation.
-# 		motion_thr = int(np.ceil(motion_thr))
-# 		motion_thr = motion_thr if motion_thr > 5 else 5
-# 		motion = measure_motion(images_trial_[:, motion_thr:-motion_thr, motion_thr:-motion_thr], template_image_[motion_thr:-motion_thr, motion_thr:-motion_thr], normalization=None)
-
-# 		##* Align the frames to their average.
-# 		aligned_frames = align_frames(images_trial_, motion, 5)
-
-# 	plt.imshow(ndimage.median_filter(np.mean(aligned_frames, axis=0), size=median_filter_kernel))
-# 	# plt.imshow(np.mean(ndimage.median_filter(aligned_frames, size=median_filter_kernel, axes=(1,2)), axis=0))
-
-
-# 	#* Final template image.
-
-# 	##* Measure motion of each frame using phase cross-correlation.
-# 	total_motion = get_total_motion(motion)
-
-# 	#* Use half of the frames to get the template image.
-# 	motion_thr = np.median(total_motion)
-# 	template_image_ = get_template_image(aligned_frames[np.where(total_motion <= motion_thr)[0]])
-
-
-# 	#* Identify the plane number of the trial.
-# 	plane_number, motion = find_plane_in_anatomical_stack(anatomical_stack_images, template_image_.astype('float32'), None, x_dim, y_dim)
-# 	plt.imshow(anatomical_stack_images[plane_number])
-
-
-# 	return aligned_frames, template_image_, plane_number
-
-
-
-
-
-
-def correct_motion(images_trial_, template_image_, Average_for_template, number_iterations=5):
-
-	motion_thr = 5
-
-	for _ in range(number_iterations):
-
-		motion_thr = int(np.ceil(motion_thr))
-		motion_thr = motion_thr if motion_thr > 5 else 5
-		
-		#* Measure motion of each frame using phase cross-correlation.
-		motion = measure_motion(images_trial_[:, motion_thr:-motion_thr, motion_thr:-motion_thr], template_image_[motion_thr:-motion_thr, motion_thr:-motion_thr], normalization=None)
-
-		#* Align the frames to their average.
-		aligned_frames = align_frames(images_trial_, motion, 5)
-
-		#* Measure motion of each frame using phase cross-correlation.
-		total_motion = get_total_motion(motion)
-
-		# Use half of the frames to get the template image.
-		motion_thr = np.median(total_motion)
-		
-		#* Motion correction relative to trials average.
-		if Average_for_template:
-			template_image_ = get_template_image(aligned_frames[np.where(total_motion <= motion_thr)[0]])
-
-
-	plt.imshow(ndimage.median_filter(np.mean(aligned_frames, axis=0), size=median_filter_kernel))
-	# plt.imshow(np.mean(ndimage.median_filter(aligned_frames, size=median_filter_kernel, axes=(1,2)), axis=0))
-
-
-	#* Final template image.
-
-	##* Measure motion of each frame using phase cross-correlation.
-	total_motion = get_total_motion(motion)
-
-	#* Use half of the frames to get the template image.
-	motion_thr = np.median(total_motion)
-	template_image_ = get_template_image(aligned_frames[np.where(total_motion <= motion_thr)[0]])
-
-
-	#* Identify the plane number of the trial.
-	plane_number, motion = find_plane_in_anatomical_stack(anatomical_stack_images, template_image_.astype('float32'), None, x_dim, y_dim)
-
-	return aligned_frames, template_image_, plane_number
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#endregion			
 
 
 
@@ -871,10 +230,9 @@ else:
 	Summer_time = False
 
 
-
-
-#region Behavior camera
-
+#* Read the behavior camera data and preprocess it.
+# %%
+# region Behavior camera
 data = read_camera(camera_path)
 data[abs_time] = data[abs_time].astype('float64')
 
@@ -915,13 +273,11 @@ data[abs_time] = np.linspace(data[abs_time].iat[0], data[abs_time].iat[0] + len(
 #! Need to join with galvo before doing this.
 #! #* Interpolate data to the expected framerate.
 # data = interpolate_data(data, predicted_framerate)
-
 #endregion
 
-
-
-
-#region Stim log and merge it with the behavior camera data
+#* Read the stim log and merge it with the behavior camera data.
+# %%
+# region Stim log
 
 #* Open the stim log.
 protocol = read_protocol(protocol_path)
@@ -937,17 +293,9 @@ data = identify_trials(data, protocol)
 # data[cs].unique()
 #endregion
 
-# AA = data.loc[data[cs] == 10, :]
-# (data.loc[data[cs] == 10, abs_time].iloc[-1] - data.loc[data[cs] == 10, abs_time].iloc[0])
-
-# plt.plot(AA[abs_time], AA[cs])
-
-# AA[cs].min()
-
-
-
+#* Read the galvo signal and find the peaks.
+# %%
 #region Galvo signal
-#* Read the galvo signal.
 galvo = pd.read_csv(galvo_path, sep='\t', decimal=',', usecols=[0,1], names=[abs_time, 'GalvoValue'], dtype={'GalvoValue':'float64'}, parse_dates=[abs_time], date_format=r'%d/%m/%Y  %H:%M:%S,%f', skip_blank_lines=True, skipinitialspace=True, nrows=nrows).dropna(axis=0)
 galvo = galvo.reset_index(drop=True)
 #* Convert the time in galvo to unixtime in ms
@@ -1006,10 +354,6 @@ interframe_interval = interframe_interval_array.median()
 
 print('The median of the interframe interval is:', interframe_interval)
 print('Min and max interframe interval:', interframe_interval_array.min(), interframe_interval_array.max())
-
-
-
-
 
 
 #* Discard a few images at the beginning where the imaging is not good or we are unsure of the true beginning of the images.
@@ -1081,42 +425,29 @@ ax.plot(interframe_interval_array, 'k.')
 ax.set_xlabel('Interframe interval (ms)')
 ax.set_ylabel('Galvo value')
 fig.show()
-
 #endregion
 
+#* Read the behavior data.
+# %%
+# region Behavior data
+#! reverse data_cols to what we want
+data_cols = x_cols + y_cols + angle_cols
+behavior = read_tail_tracking_data(tracking_path).astype('float32')
 
+# behavior.dtypes
+# if (tail := read_tail_tracking_data(data_path)) is None: # type: ignore
+# 	return None
 
+# plot_behavior_overview(tail, fish_name, fig_behavior_name)
 
+# #* Look for possible tail tracking errors.
+# if tracking_errors(tail, single_point_tracking_error_thr):
+# 	return None
+# endregion
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#region Image data
-
-
-#endregion
-
-
-#region Merge galvo signal, stim log and behavior camera data
-
-
+#* Merge the galvo signal, stim log, behavior camera data and behavior data.
+# %%
+# region Merge of galvo signal, stim log and behavior camera data
 #* Discard imaging before the tracking started (in some cases, the tracking might start after the imaging).
 if (first_timepoint_galvo := galvo[abs_time].iat[0]) <= (first_timepoint_data := data[abs_time].iat[0]):
 
@@ -1141,8 +472,6 @@ if (first_timepoint_galvo := galvo[abs_time].iat[0]) <= (first_timepoint_data :=
 	plt.plot(galvo[abs_time])
 	plt.plot(data[abs_time])
 
-
-
 first_timepoint = galvo[abs_time].iat[0]
 
 data[abs_time] -= first_timepoint
@@ -1152,31 +481,9 @@ data = data[data[abs_time] >= 0]
 galvo = galvo[galvo[abs_time] <= data[abs_time].iat[-1]]
 
 
-
-
-
-
-
-
 #* Update the number of images.
 # Discard all images after the tracking is over.
 number_images = len(galvo.loc[galvo['Frame beg'].notna(),:])
-
-
-#* Get the images and align them to data.
-#! Do not forget to discard the first images.
-#!!!!! images = np.array([get_image_from_tiff(images_path, image_i, bytes_header, height, width) for image_i in range(number_images_before_first_image_to_consider, len(peaks))])
-# images_subset_mean = [np.mean(image[-30:-10][-30:-10]).astype('float32') for image in images]
-images = np.array([get_image_from_tiff(images_path, image_i, bytes_header, height, width).astype('float32') for image_i in tqdm(range(number_images))])
-
-images.shape
-
-images_mean = [image.mean() for image in images]
-
-
-
-
-
 
 
 #* Merge galvo with data.
@@ -1185,6 +492,35 @@ data = pd.merge_ordered(data, galvo, on=abs_time, how='outer')
 
 del galvo, protocol
 
+# Cannot use pd.merge_ordered because of NANs
+# data = pd.merge_ordered(data, behavior, on=frame_id, how='left')
+
+data = pd.merge(data, behavior, on=frame_id, how='left')
+
+del behavior
+
+data.reset_index(drop=True, inplace=True)
+data.rename(columns={abs_time : 'Time (ms)'}, inplace=True)
+abs_time = 'Time (ms)'
+data[abs_time] -= data[abs_time].iat[0]
+# endregion
+
+#* Read the imaging data.
+# %%
+# region Imaging data
+#* Get the images and align them to data.
+#! Do not forget to discard the first images.
+#!!!!! images = np.array([get_image_from_tiff(images_path, image_i, bytes_header, height, width) for image_i in range(number_images_before_first_image_to_consider, len(peaks))])
+# images_subset_mean = [np.mean(image[-30:-10][-30:-10]).astype('float32') for image in images]
+images = np.array([get_image_from_tiff(images_path, image_i, bytes_header, height, width).astype('float32') for image_i in tqdm(range(number_images))])
+
+images.shape
+# endregion
+
+#* Check whether the different pieces of data are aligned.
+# %%
+# region Confirmation of data alingment
+images_mean = [image.mean() for image in images]
 
 # Remove all colummns where there is no tracking data and no frame started.
 # Really need to convert to dense...
@@ -1196,9 +532,6 @@ data = data.dropna(subset=[frame_id, 'Frame beg', cs, us], how='all')
 
 # data[abs_time] -= data[abs_time].iat[0]
 
-
-
-
 # first_timepoint = galvo[abs_time].iat[0]
 
 # galvo[abs_time] -= first_timepoint
@@ -1207,11 +540,7 @@ data = data.dropna(subset=[frame_id, 'Frame beg', cs, us], how='all')
 # data[abs_time] -= first_timepoint
 # data = data[data[abs_time] >= 0]
 
-
 # galvo = galvo[galvo[abs_time] <= data[abs_time].iat[-1]]
-
-
-
 
 # fig, axs = plt.subplots(2, 1, figsize=(10, 8))
 # axs[0].plot(galvo[abs_time])
@@ -1224,28 +553,15 @@ data = data.dropna(subset=[frame_id, 'Frame beg', cs, us], how='all')
 # plt.plot(data[abs_time].to_numpy())
 # plt.plot(galvo[abs_time].to_numpy())
 
-
-
 # data[abs_time] -= data[abs_time].iat[0]
 
 # del galvo
 # data = pd.merge_ordered(data, galvo, on=abs_time, how='outer')
 
-
-
-
 data['Image mean'] = np.nan
-
-
-
 
 data.loc[data['Frame beg'].notna(), 'Image mean'] = images_mean[:len(data.loc[data['Frame beg'].notna(), 'Image mean'])]
 # data.loc[data['Frame beg'].notna(), 'Image mean'] = images_subset_mean_top[:len(data[data['Frame beg'].notna()])]
-
-#endregion
-
-
-#region Check whether the different pieces of data are aligned.
 
 data = data.reset_index(drop=True)
 
@@ -1254,7 +570,6 @@ data[[cs, us]] = data[[cs, us]].fillna(0)
 
 # data[cs].cat.remove_unused_categories()
 # data[us].cat.remove_unused_categories()
-
 
 x0 = 2500
 x1 = 2500
@@ -1267,6 +582,8 @@ fig, axs = plt.subplots(stim_numbers.size-1, 1, figsize=(10, 50), sharex=True, s
 # fig, axs = plt.subplots(3, 1, figsize=(10, 50))
 
 # fig, axs = plt.subplots(1, 1, figsize=(10, 10), squeeze=False)
+
+# ! SHOULD PLOT AS WELL THE BEHAVIOR DATA
 
 for stim_number_i, stim_number in enumerate(stim_numbers[1:]):
 
@@ -1305,59 +622,15 @@ fig.show()
 
 del data_, data_plot
 
-
-
-#endregion
-
-
 # data.loc[data['Frame beg'].notna()]
 
 data.drop(columns=['Image mean', 'GalvoValue'], inplace=True)
 
+#endregion
 
-
-
-
-#!!!!!!!!!!!! read the behavior here
-
-
-#! reverse data_cols to what we want
-#! #* Open tail tracking data.
-data_cols = x_cols + y_cols + angle_cols
-behavior = read_tail_tracking_data(tracking_path).astype('float32')
-
-# behavior.dtypes
-# if (tail := read_tail_tracking_data(data_path)) is None: # type: ignore
-# 	return None
-
-# plot_behavior_overview(tail, fish_name, fig_behavior_name)
-
-# #* Look for possible tail tracking errors.
-# if tracking_errors(tail, single_point_tracking_error_thr):
-# 	return None
-
-
-
-
-
-
-
-
-
-# Cannot use pd.merge_ordered because of NANs
-# data = pd.merge_ordered(data, behavior, on=frame_id, how='left')
-all_data = data.copy()
-data = all_data.copy()
-
-data = pd.merge(data, behavior, on=frame_id, how='left')
-
-data.reset_index(drop=True, inplace=True)
-data.rename(columns={abs_time : 'Time (ms)'}, inplace=True)
-abs_time = 'Time (ms)'
-data[abs_time] -= data[abs_time].iat[0]
-
-
-
+#* Separate the different pieces of data in different dataframes.
+# %%
+# region Separation of different pieces of data
 protocol = data[[abs_time, cs, us]].copy()
 protocol = protocol[((protocol[cs]!=0) | (protocol[us]!=0))]
 
@@ -1368,86 +641,11 @@ behavior = data[[abs_time] + data_cols].dropna().rename(columns={frame_id : 'Fra
 imaging = xr.DataArray(images, coords={'index': ('time', data.loc[data['Frame beg'].notna(), :].index), 'time': data.loc[data['Frame beg'].notna(), abs_time].to_numpy(), 'x': range(images.shape[1]), 'y': range(images.shape[2])}, dims=['time', 'x', 'y'])
 
 imaging.name = 'Imaging data'
+# endregion
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#region Label the planes.
-
-#* Read the anatomical stack.
-anatomical_stack_images = tifffile.imread(anatomy_1_path).astype('float32')
-# anatomical_stack_images = tifffile.imread(anatomy_1_filtered_path).astype('float32')
-
-anatomical_stack_images = ndimage.median_filter(anatomical_stack_images, size=median_filter_kernel, axes=(1,2))
-
-
-# anatomical_stack_images.shape
-
-
-#ToDo this should involve the pixel spacing!!!
-
-
-_, y_dim, x_dim = np.array(anatomical_stack_images.shape)
-
-x_dim = int(x_dim * xy_movement_allowed/2)
-y_dim = int(y_dim * xy_movement_allowed/2)
-
-
-
-
-@dataclass
-class Trial:
-	
-	trial_number : int
-
-	# position_anatomical_stack : int
-	# reference_image : np.ndarray
-
-	protocol : pd.DataFrame
-	behavior : pd.DataFrame
-	images : xr.DataArray
-
-
-@dataclass
-class Plane:
-
-	trials : list[Trial]
-
-	# reference_image_position_anatomical_stack : int
-	# reference_image : np.ndarray
-
-	# order_planes_sequence : int
-
-	def get_reference_position(self):
-
-		return round(np.median([trial.position_anatomical_stack for trial in self.trials]))
-
-@dataclass
-class Imaging:
-	
-	plane : list[Plane]
-
-
-
-
-
-
-
-
-
+#* Arrange the data in planes data.
+# %%
+# region Planes data
 
 cs_onset_index = np.array([protocol.loc[protocol[cs] == relevant_cs[i], :].index[0] for i in range(len(relevant_cs))])
 
@@ -1460,12 +658,12 @@ planes_cs_onset_indices = [cs_onset_index[[j for j in i]] for i in index_list]
 del cs_onset_index, index_list
 
 
-trials_list = [0 for _ in range(len(planes_cs_onset_indices[0]))]
-planes_list = [0 for _ in range(len(planes_cs_onset_indices))]
+all_data = []
 
 i = 0
 for plane_i, plane_cs_onset_indices in tqdm(enumerate(planes_cs_onset_indices)):
 
+	trials_list = []
 	for trial_i, trial_cs_onset_index in enumerate(plane_cs_onset_indices):
 
 		time_start = protocol.loc[trial_cs_onset_index, abs_time] - 45000
@@ -1473,12 +671,16 @@ for plane_i, plane_cs_onset_indices in tqdm(enumerate(planes_cs_onset_indices)):
 
 		# index = protocol[protocol[abs_time].between(time_start, time_end)].index
 
-		images_trial = imaging.loc[time_start : time_end,:,:]
+		trial_images = imaging.loc[time_start : time_end,:,:]
 
-		# images_average = ndimage.median_filter(np.mean(get_good_last_images(images_trial), axis=0), size=median_filter_kernel)
-		# # images_average = ndimage.median_filter(np.mean(images_trial[i], axis=0), size=median_filter_kernel)
+		# plt.imshow(np.mean(trial_images.values, axis=0))
+		# plt.show()
 
-		# if images_trial[i] is not None:
+
+		# images_average = ndimage.median_filter(np.mean(get_good_last_images(trial_images), axis=0), size=median_filter_kernel)
+		# # images_average = ndimage.median_filter(np.mean(trial_images[i], axis=0), size=median_filter_kernel)
+
+		# if trial_images[i] is not None:
 
 		# 	planes_numbers[i] = find_plane_in_anatomical_stack(anatomical_stack_images, images_average.astype('float32'), None, x_dim, y_dim)[0]
 
@@ -1495,750 +697,633 @@ for plane_i, plane_cs_onset_indices in tqdm(enumerate(planes_cs_onset_indices)):
 		# 	continue
 
 
-		trials_list[trial_i] = Trial(i, protocol[protocol[abs_time].between(time_start, time_end)], behavior[behavior[abs_time].between(time_start, time_end)], images_trial)
+		trials_list.append(Trial(i, protocol[protocol[abs_time].between(time_start, time_end)], behavior[behavior[abs_time].between(time_start, time_end)], trial_images))
 
 		i += 1
 
-	planes_list[plane_i] = Plane(trials_list)
+	all_data.append(Plane(trials_list))
 
-	break
+	# break
 
 del trials_list
 
+for i in range(len(all_data)):
+	plt.imshow(np.mean(all_data[i].trials[0].images.values, axis=0))
+	plt.show()
+
+#endregion
+
+#* Read the anatomical stack.
+# %%
+# region Anatomical stack
+anatomical_stack_images = tifffile.imread(anatomy_1_path).astype('float32')
+# anatomical_stack_images = tifffile.imread(anatomy_1_filtered_path).astype('float32')
+
+anatomical_stack_images = ndimage.median_filter(anatomical_stack_images, size=median_filter_kernel, axes=(1,2))
 
 
-for plane in tqdm(planes_list):
+#ToDo this should take the pixel spacing into account!!!
+
+_, y_dim, x_dim = np.array(anatomical_stack_images.shape)
+
+x_dim = int(x_dim * xy_movement_allowed/2)
+y_dim = int(y_dim * xy_movement_allowed/2)
+# endregion
+
+#* Save the data.
+# %%
+# region Save the data
+path_pkl = path_home / fish_name / (fish_name + '.pkl')
+
+all_data = Data(all_data, anatomical_stack_images)
+
+with open(path_pkl, 'wb') as f:
+	pickle.dump(all_data, f)
+# endregion
+
+#* Correct motion within and across trials.
+# %%
+# region Correct motion
+
+no final, ha valores negativos de pixels
+
+for plane_i, plane in tqdm(enumerate(all_data)):
+	# break
+
+	print('Plane: ', plane_i)
+
+	motions = [_ for _ in range(4)]
+	template_images = np.zeros((len(plane.trials), plane.trials[0].images.shape[1], plane.trials[0].images.shape[2]))
+	plane_numbers = np.zeros(len(plane.trials), dtype='int32')
 
 	#* Motion correction within trial.
 	for trial_i, trial in enumerate(plane.trials):
 
-	# 	break
-	# break
-
-
-		images_trial = trial.images.to_numpy()
-
-
 		#* 1.1. Motion correction relative to trials average.
 
 		##* Discard bad frames due to motion, gating of the PMT or plane change when making a template image for the trial.
-	#? USE ONLY THE LAST GOOD IMAGES???
-	#? Filter?
-		template_image = get_template_image(get_maximum_number_good_last_images(images_trial))
+		# plane.trials[trial_i].images.values, plane.trials[trial_i].template_image, plane.trials[trial_i].position_anatomical_stack 
+		motions[trial_i], template_images[trial_i], plane_numbers[trial_i] = correct_motion_within_trial(trial, 5)
 
-		plane.trials[trial_i].images.values, plane.trials[trial_i].template_image, plane.trials[trial_i].position_anatomical_stack = correct_motion(images_trial, template_image, True)
-
-		plt.imshow(anatomical_stack_images[plane.trials[trial_i].position_anatomical_stack])
-
-		
-		# ##* Measure motion of each frame using phase cross-correlation.
-		# motion = measure_motion(images_trial[:, 5:-5, 5:-5], template_image[5:-5, 5:-5], normalization=None)
-		# # total_motion = get_total_motion(motion)
-
-		# ##* Align the frames to their average.
-		# aligned_frames = align_frames(images_trial, motion, 5)
+		plt.imshow(anatomical_stack_images[plane_numbers[trial_i]])
+		plt.show()
 
 
-		# for _ in range(4):
-		# 	#* 1.2. Motion correction relative to trials average.
-			
-		# 	##* Measure motion of each frame using phase cross-correlation.
-		# 	total_motion = get_total_motion(motion)
+		#* Frames to ignore due to too much motion (or gating of the PMT, which causes a huge "motion").
+		trial_images = trial.images.values
 
-		# 	# Use half of the frames to get the template image.
-		# 	motion_thr = np.median(total_motion)
-		# 	template_image = get_template_image(aligned_frames[np.where(total_motion <= motion_thr)[0]])
+		# Mask with True where the frames are bad (due to gating of the PMT or motion).
+		mask_bad_frames = (~get_good_images_indices(trial_images)) | (np.where(get_total_motion(motions[trial_i]) > motion_thr_from_trial_average, True, False))
 
-		# 	##* Measure motion of each frame using phase cross-correlation.
-		# 	motion_thr = int(np.ceil(motion_thr))
-		# 	motion_thr = motion_thr if motion_thr > 5 else 5
-		# 	motion = measure_motion(images_trial[:, motion_thr:-motion_thr, motion_thr:-motion_thr], template_image[motion_thr:-motion_thr, motion_thr:-motion_thr], normalization=None)
-
-		# 	##* Align the frames to their average.
-		# 	aligned_frames = align_frames(images_trial, motion, 5)
-	
-		# plt.imshow(ndimage.median_filter(np.mean(aligned_frames, axis=0), size=median_filter_kernel))
-		# # plt.imshow(np.mean(ndimage.median_filter(aligned_frames, size=median_filter_kernel, axes=(1,2)), axis=0))
-
-
-		# #* Final template image.
-
-		# ##* Measure motion of each frame using phase cross-correlation.
-		# total_motion = get_total_motion(motion)
-
-		# #* Use half of the frames to get the template image.
-		# motion_thr = np.median(total_motion)
-		# template_image = get_template_image(aligned_frames[np.where(total_motion <= motion_thr)[0]])
-
-
-		# #* Identify the plane number of the trial.
-		# plane_number, motion = find_plane_in_anatomical_stack(anatomical_stack_images, template_image.astype('float32'), None, x_dim, y_dim)
-		# plt.imshow(anatomical_stack_images[plane_number])
-
-		# trial.images.values = aligned_frames
-		# trial.template_image = template_image
-		# trial.position_anatomical_stack = plane_number
+		all_data[plane_i].trials[trial_i].mask_bad_frames = mask_bad_frames
 
 
 	#* Motion correction across trials of the same plane.
-	trial_reference = plane.trials[0]
-
-	for trial_i, trial in enumerate(plane.trials[1:]):
+	for trial_i, trial in enumerate(plane.trials):
 		
-		trial_i += 1
+		if trial_i > 0:
+			#* Measure motion of each frame using phase cross-correlation.
+			motion = measure_motion(np.expand_dims(template_images[trial_i][5:-5, 5:-5], axis=0), template_images[0][5:-5, 5:-5], normalization=None)[0]
+
+			motions[trial_i] += motion
+
+		#* Measure motion of each frame using phase cross-correlation.
+		total_motion = get_total_motion(motions[trial_i])
+		# Use half of the frames to get the template image.
+		motion_thr = np.median(total_motion)
+
 		
-		# trial.images.values, template_image, trial.position_anatomical_stack = 
-		plane.trials[trial_i].images.values, plane.trials[trial_i].template_image, plane.trials[trial_i].position_anatomical_stack = correct_motion(trial.images.to_numpy(), trial_reference.template_image, False, 3)
-
-
-HAS THE POSITION IN THE ANATOMICAL STACK CHANGED?
-
-COMPARE THE TEMPLATE IMAGES OF THE TRIALS. HAVE THEY BEEN CORRECTED?
-
-
-
-
-		break
-	break
-
-
-	trial.__dict__.keys()
-
-
-	[trial.position_anatomical_stack for trial in plane.trials]
-
- 
-
-	break
-
-
-		# #* 2.1. Motion correction relative to reference plane in anatomical stack.
 		
-		# template_image = anatomical_stack_images[plane_number]
-		
-		# ##* Measure motion of each frame using phase cross-correlation.
-		# motion = measure_motion(images_trial, template_image, normalization=None)
-		# total_motion = get_total_motion(motion)
+		#* Align the frames to their average.
+		aligned_frames = align_frames(trial.images.to_numpy(), motions[trial_i], total_motion, [5,10,30,35][trial_i])
 
-		# ##* Align the frames to their reference plane.
-		# aligned_frames = align_frames(images_trial, motion)
-		# # total_motion_thr=max(x_dim, y_dim)
+		template_image = get_template_image(aligned_frames[np.where(total_motion <= motion_thr)[0]])
 
-		# plt.imshow(np.mean(images_trial[10:30], 0))
 
-		# plt.imshow(np.mean( ndimage.median_filter(images_trial[10], size=median_filter_kernel), 0))
+		#* Identify the plane number of the trial.
+		plane_number, _ = find_plane_in_anatomical_stack(anatomical_stack_images, template_image.astype('float32'), None, x_dim, y_dim)
 
 
+		plt.imshow(ndimage.median_filter(np.mean(aligned_frames, axis=0), size=median_filter_kernel))
+		plt.colorbar(shrink=0.5)
+		plt.show()
 
-		# plt.imshow(np.sum(ndimage.median_filter(images_trial, size=median_filter_kernel, axes=(0,1,2)), axis=0))
+		all_data[plane_i].trials[trial_i].images.values = aligned_frames
+		all_data[plane_i].trials[trial_i].template_image = template_image
+		all_data[plane_i].trials[trial_i].position_anatomical_stack = plane_number
 
-		# plt.imshow(ndimage.median_filter(np.mean(images_trial, axis=0), size=median_filter_kernel))
-
-
-
-		# motion = measure_motion(aligned_frames[:,50:-50,50:-50], template_image[50:-50,50:-50])
-
-		# # motion = measure_motion(images_trial, template_image)
-		# total_motion = get_total_motion(motion)
-
-		# ##* Align the frames to their reference plane.
-		# aligned_frames = align_frames(aligned_frames, motion)
-		# # total_motion_thr=max(x_dim, y_dim)
-
-
-		# plt.imshow(get_template_image(aligned_frames[np.where(total_motion <= total_motion_thr)[0]]))
-		# plt.imshow(np.nanmean(np.where(aligned_frames==np.nan, aligned_frames, np.mean(aligned_frames)), axis=0))
-		# plt.imshow(np.nanmean(get_maximum_number_good_last_images(aligned_frames), axis=0))
-		
-
-		#! del aligned_frames, motion, total_motion, template_image
-
-
-
-
-
-
-
-
-
-
-
-		break
-	break
-
-
-
-
-
-
-#!!!!!!!!!!! REGISTRATION USING TEMPLATE MATCHING
-
-# the_plane_mean_subset_last_images = template_image.astype('float32')
-
-# plt.imshow(the_plane_mean_subset_last_images)
-
-
-# # the_plane_mean_of_last_images = the_plane_tiff.asarray(slice(-number_repetitions_of_the_plane_to_analyze-1,-1,step_between_repetitions_of_the_plane_to_analyze))
-# the_plane_mean_subset_last_images = the_plane_mean_subset_last_images[y_dim:-y_dim, x_dim:-x_dim]
-
-# anatomical_stack_images_ = anatomical_stack_images
-
-# first_plane_substack = 0
-	
-# template_matching_results = [cv2.matchTemplate(plane, the_plane_mean_subset_last_images, cv2.TM_CCOEFF_NORMED) for plane in anatomical_stack_images_]
-
-# # b = [np.array(x.flatten())[np.argpartition(x.flatten(), 3)[:3]] for x in template_matching_results]
-
-# # # [print(ii) for ii in b]
-
-# # a = np.mean(b, axis=1)
-
-# plane_i = np.argmax([x.max() for x in template_matching_results])
-# # np.argmax(a)
-
-# xy_in_plane = np.argmax(template_matching_results[plane_i][0]), np.argmax(template_matching_results[plane_i][1])
-
-
-
-# # Assume `template` is your template and `image` is your image
-# template = the_plane_mean_subset_last_images
-# image = anatomical_stack_images[plane_number]
-
-# # Perform template matching
-# result = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
-
-# # # Perform template matching
-# # result = template_matching_results[plane_i]
-
-# # Find the location of the best match
-# min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
-
-# result.shape
-
-# # Calculate the shift needed to align the template with the image
-# shift_x = max_loc[0] - template.shape[1] // 2
-# shift_y = max_loc[1] - template.shape[0] // 2
-
-
-# encontrar o 0,0 da recortada
-
-# shift_by  = np.array([x_dim, y_dim])-np.array(max_loc)
-
-
-
-
-
-
-
-
-# shifted_image = shift(template, shift_by[::-1], mode='constant', cval=0.0)
-
-# plt.imshow(anatomical_stack_images[plane_number] - shifted_image)
-# plt.imshow(shifted_image)
-
-
-
-# w, h = template.shape[::-1]
-
-
-
-
-# template_matching_results[plane_i].shape
-# template_matching_results[0].shape
-# import cv2 as cv
-
-# _,_, min_loc, max_loc = cv.minMaxLoc(template_matching_results[plane_i])
-
-
-# image = np.mean(images_trial, axis=0)
-
-# plt.imshow(image)
-
-
-# plt.imshow(anatomical_stack_images[plane_number] - image)
-
-
-# new_image = shift(image, np.array(motion)[::-1], output=None, order=3, mode='constant', cval=0.0, prefilter=True)
-
-# # plt.imshow(new_image)
-
-# # np.array([image[crop:-crop,crop:-crop] for image in images_trial])
-
-# plt.imshow(anatomical_stack_images[plane_number] - new_image)
-
-
-
-# plt.imshow(anatomical_stack_images[plane_number])
-
-
-
-
-
-# 	crop = 25
-# 	# int(extra_border/2)
-
-# 	template_image = anatomical_stack_images[plane_number][crop:-crop,crop:-crop]
-# 	# template_image = np.pad(anatomical_stack_images[plane_number][crop:-crop,crop:-crop], pad_width=extra_border, mode='constant', constant_values=0).astype('float32')
-
-# 	plt.imshow(template_image)
-
-# 	new_images_trial = np.array([image[crop:-crop,crop:-crop] for image in images_trial])
-# 	# new_images_trial = np.array([np.pad(image[crop:-crop,crop:-crop], pad_width=extra_border, mode='constant', constant_values=0).astype('float32') for image in images_trial])
-
-# 	plt.imshow(np.mean(new_images_trial, axis=0))
-
-
-# 	##* Measure motion of each frame using phase cross-correlation.
-# 	motion = measure_motion(new_images_trial, template_image)
-# 	total_motion = get_total_motion(motion)
-
-# 	##* Align the frames to their average.
-# 	aligned_frames = align_frames(new_images_trial, motion, 1000)
-
-# 	plt.imshow(np.mean(aligned_frames, axis=0))
-
-
-# images_trial.max()
-
-
-
-
-
-
-# 	total_motion = get_total_motion(motion)
-# 	template_image = get_template_image(get_maximum_number_good_last_images(aligned_frames[np.where(total_motion <= total_motion_thr)[0]]))
-# 	del aligned_frames
-
-# 	##* Measure motion of each frame using phase cross-correlation.
-# 	motion = measure_motion(images_trial, template_image)
-
-# 	##* Align the frames to their average.
-# 	images_trial = align_frames(images_trial, motion, template_image, total_motion_thr)
-
-
-
-
-
-
-# plt.imshow(anatomical_stack_images[plane_number])
-# plt.imshow(np.mean(aligned_frames, axis=0))
-# plt.imshow(anatomical_stack_images[plane_number]-np.mean(aligned_frames, axis=0))
-# plt.imshow(anatomical_stack_images[plane_number]-template_image)
-
-
-
-
-
-
-	trial.images.values = images_trial
-
-
-
-
-
-
-
-
-
-
-planes_numbers = np.zeros(len(relevant_cs), dtype='int32')
-reference_images = np.zeros((relevant_cs.shape[0], anatomical_stack_images.shape[1], anatomical_stack_images.shape[2]), dtype='float32')
-
-
-for plane in tqdm(planes_list):
-	for trial in plane.trials:
-
-	# 	break
+		# break
 	# break
+	print('Plane:', plane_i, plane_numbers)
+#endregion
 
-	images_average = ndimage.median_filter(np.nanmean(get_maximum_number_good_last_images(frames), axis=0), size=median_filter_kernel)
+#* Plot the position in the anatomical stack.
+# region Position in the anatomical stack
 
-	#* Identify the plane number of the trial.
-	planes_numbers[i] = find_plane_in_anatomical_stack(anatomical_stack_images, images_average.astype('float32'), None, x_dim, y_dim)[0]
+A = []
+B = []
 
+C = []
+D = []
 
+for i in range(len(all_data)):
 
+	for j in range(2):
 
+		A.append(all_data[i].trials[j].position_anatomical_stack)
 
+		C.append(all_data[i].trials[j].template_image)
 
+	for l in range(2,4):
 
+		B.append(all_data[i].trials[l].position_anatomical_stack)
 
-
-
-
-
-
-
-
-
-plt.plot(planes_numbers)
-plt.show()
-
-plt.plot(planes_numbers[:int(len(planes_numbers)/2)])
-plt.plot(planes_numbers[int(len(planes_numbers)/2):])
-plt.show()
-
-a = planes_numbers[int(len(planes_numbers)/2):] - planes_numbers[:int(len(planes_numbers)/2)]
-plt.plot(a)
-plt.show()
+		D.append(all_data[i].trials[l].template_image)
 
 
+A = np.array(A)
+B = np.array(B)
 
-plane = planes_list[0]
-plt.plot(plane.get_reference_position())
-plt.show()
-
-
-
-
-#!!!!!!!!!!!!!!!!!!!!! MOTION CORRECTION
+C = np.array(C)
+D = np.array(D)
 
 
-SAVE TO HDF
+import seaborn as sns
+sns.set_style('whitegrid')
+
+
+plt.xlabel('Trial before or after initial train')
+plt.ylabel('Plane number in anatomical stack')
+plt.plot(A, 'blue')
+plt.plot(B, 'red')
+plt.legend(['Before initial train', 'After initial train'])
+plt.savefig(r'H:\My Drive\PhD\Lab meetings\A and B.png', dpi=300, bbox_inches='tight')
+
+
+plt.xlabel('Trial before or after initial train')
+plt.ylabel('Difference between planes imaged\n before and after initial train (μm)')
+plt.plot(A-B, 'k')
+plt.ylim(-6, 6)
+plt.savefig(r'H:\My Drive\PhD\Lab meetings\difference.png', dpi=300, bbox_inches='tight')
+
+
+
+
+sns.set_style('white')
+
+
+
+fig, axs = plt.subplots(15, 2, figsize=(10, 50))
+
+for i in range(30):
+	if i<=14:
+		im = axs[i,0].imshow(C[i*2], interpolation=None, cmap='RdBu_r', vmin=80, vmax=500)
+		axs[i,0].axis('off')
+
+	if i>14 and i<=29:
+		axs[i-15,1].imshow(C[(i-15)*2+1], interpolation=None, cmap='RdBu_r', vmin=80, vmax=500)
+		axs[i-15,1].axis('off')
+
+fig.tight_layout()
+# fig.suptitle('Templates Before Correction', fontsize=16)
+fig.savefig(r'H:\My Drive\PhD\Lab meetings\templates before.png', dpi=300, bbox_inches='tight')
+
+
+
+fig, axs = plt.subplots(15, 2, figsize=(10, 50))
+
+for i in range(30):
+	if i<=14:
+		axs[i,0].imshow(D[i*2], interpolation=None, cmap='RdBu_r', vmin=80, vmax=500)
+		axs[i,0].axis('off')
+
+	if i>14 and i<=29:
+		axs[i-15,1].imshow(D[(i-15)*2+1], interpolation=None, cmap='RdBu_r', vmin=80, vmax=500)
+		axs[i-15,1].axis('off')
+
+fig.tight_layout()
+# fig.suptitle('Templates After Correction', fontsize=16)
+fig.savefig(r'H:\My Drive\PhD\Lab meetings\templates after.png', dpi=300, bbox_inches='tight')
+
+#  endregion
+
+
+
+#* Load the data.
+path_pkl = path_home / fish_name / (fish_name + '.pkl')
+# path_pkl = r"E:\2024 03_Delay 2-P multiple planes\20240415_02_delay_2p-2_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf\20240415_02_delay_2p-2_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf.pkl"
+
+with open(path_pkl, 'rb') as file:
+	all_data = pickle.load(file)
+
+all_data.planes[0].trials[0].__dict__.keys()
+
+
+# compression_level = 4
+# compression_library = 'zlib'
+
+# with pd.HDFStore(path_pkl, complevel=compression_level, complib=compression_library) as store:
+	
+# 	store.append(fish_name, planes_list, data_columns=[cs, us], expectedrows=len(fish.raw_data), append=False)
+
+# 	store.get_storer(fish.dataset_key()).attrs['metadata'] = fish.metadata._asdict()
 
 
 
 
 
+#* For correlation map.
+
+##* Preparing the data for the correlation map.
+
+# for plane_i, plane in enumerate(Data.planes):
+# 	for trial_i, trial in enumerate(plane):
+
+# A = [Data.planes[plane_i].trials[trial_i].images.values for trial_i, trial in enumerate(plane.trials) for plane_i, plane in enumerate(Data.planes)]
+
+# B = np.sum([np.sum(x, axis=0) for x in A], axis=0)
+
+# plt.imshow(B)
 
 
-for plane in tqdm(planes_list):
-	for trial in plane.trials:
-	# 	break
+eye_mask = np.ones(all_data.planes[0].trials[0].images.shape[1:], dtype='bool')
+
+#!
+eye_mask[350:, 350:450] = False
+eye_mask[:50, 350:450] = False
+plt.imshow(eye_mask)
+
+# # A = ndimage.uniform_filter(plane_trials_good_images, size=(30, 30), axes=(1,2))
+# ndimage.gaussian_filter(plane_trials_good_images, sigma=gaussian_filter_sigma, axes=(1,2))
+
+# plt.imshow(np.mean(A, axis=0))
+# plt.colorbar()
+
+
+for plane_i, plane in enumerate(all_data.planes):
+
+	# if plane_i not in [0,1,3,6,8,9,10,13]:
+	# 	continue
 	# break
+#!
+	# plane.trials = plane.trials
+
+
+
+	#!!!!!!!!!!!!!!!!!!!!!!!!! DO ALL OF THIS FOR SINGLE TRIAL AND THEN CONCATENATE TO GET PLANE DATA
+
+
+
+
+	#* To get a correlation map for the whole plane data, we need to concatenate all the images of the trials.
+	# plane_trials_all_images = np.concatenate([t.images.values for t in plane.trials])
+	plane_trials_all_images = plane.get_all_images()
+
+	plt.title('All images from plane')
+	plt.imshow(np.mean(plane_trials_all_images, axis=0))
+	plt.colorbar
+	plt.show()
+
+
+	#* Get the number of images per trial.
+	plane_trials_number_images = np.array([t.images.shape[0] for t in plane.trials])
+
+
+	#* Get the indices of the CS in the images of the trials.
+	cs_indices = np.array([trial.get_stim_index(cs) for trial in plane.trials])
+
+	cs_indices[1:,0] += np.cumsum(plane_trials_number_images[:-1])
+	cs_indices[1:,1] += np.cumsum(plane_trials_number_images[:-1])
+
+
+
+
+
+
+
+
+
+	#* Discard bad frames due to motion, gating of the PMT or plane change.
+	plane_trials_mask_bad_frames = np.concatenate([t.mask_bad_frames for t in plane.trials])
+	plane_bad_frames_index = np.where(plane_trials_mask_bad_frames)[0]
+	plane_trials_good_images = plane_trials_all_images[~plane_trials_mask_bad_frames].copy()
+
+	plt.title('All good images from plane')
+	plt.imshow(np.mean(plane_trials_good_images, axis=0))
+	plt.colorbar
+	plt.show()
+
+
+
+
+
+
+
+
+
+
+	#* Filter in space.
+	plane_trials_good_images_filtered = ndimage.gaussian_filter(plane_trials_good_images, sigma=gaussian_filter_sigma, axes=(1,2))
+
+	plt.title('All good images from plane filtered')
+	plt.imshow(np.mean(plane_trials_good_images_filtered, axis=0))
+	plt.colorbar
+
+#!!!!!!!!!!!!!!!!! move it further down
+	#* Calcultate the correlation map.
+	# Inspired in Suit2p. There, the function that computes the correlation map is celldetect2.getVmap.
+	correlation_map = np.linalg.norm(ndimage.gaussian_filter(plane_trials_good_images, sigma=correlation_map_sigma, axes=(1,2)), axis=0)**2 / ndimage.gaussian_filter(np.linalg.norm(plane_trials_good_images, axis=0), sigma=correlation_map_sigma)**2
+
+	plt.figure('Correlation map')
+	plt.imshow(correlation_map)
+	plt.colorbar(shrink=0.5)
+	plt.show()
+
+
+
+
+
+
+	#* Subtract the background.
+	# Pixel values equal to 0 are ignored to discard the artificial edges of the images that were introduced during the motion correction.
+	images_mean = np.nanmean(np.where(plane_trials_good_images == 0, np.nan, plane_trials_good_images), axis=(1,2))
+
+	images_mean = np.nanmean(plane_trials_good_images, axis=(1,2))
+	for image_i in range(plane_trials_good_images.shape[0]):
+		plane_trials_good_images[image_i] -= images_mean[image_i]
+
+	del images_mean
+
+	#* Mask the background.
+	plane_images_mask_fish = np.where(np.median(plane_trials_good_images, axis=0) <= 0, 0, 1).astype(dtype='bool')
+
+	plane_images_mask_fish_without_eyes = plane_images_mask_fish & eye_mask
+
+	#* Set to 0 the pixels that are not part of the fish in the images. Also, mask the eyes.
+	plane_trials_good_images = np.where(plane_images_mask_fish_without_eyes, plane_trials_good_images, 0)
+
+	plt.title('All good images from plane masked background')
+	plt.imshow(np.mean(plane_trials_good_images, axis=0))
+	plt.colorbar(shrink=0.5)
+	plt.show()
+
+
+
+
+	# region Voxel analysis
+	#* Voxel analysis
+
+	#* Bin the 2D images.
 	
-	# trial = trials_list[]
+
+	plane_trials_good_images_binned = block_reduce(plane_trials_good_images, block_size=(1, voxel_bin_size, voxel_bin_size), func=np.mean, cval=0)
+
+	plt.imshow(np.mean(plane_trials_good_images_binned, axis=0), interpolation='none')
 
 
-	#* Drift correction relative to the average of the frames.
+	plane_trials_good_images_binned_ = np.empty(tuple([plane_trials_all_images.shape[0]] + list(plane_trials_good_images_binned.shape[1:]))) * np.nan
+	plane_trials_good_images_binned_[~plane_trials_mask_bad_frames, :, :] = plane_trials_good_images_binned
 
-	frames = trial.images.to_numpy()
+	plane_trials_good_images_binned = plane_trials_good_images_binned_.copy()
 
+	del plane_trials_good_images_binned_
 
-#TODO discard bad frames due to motion, gating of the PMT or plane change.
-
-
-
-
-	##* Measure motion of each frame using phase cross-correlation.
-	template_image = ndimage.median_filter(np.nanmean(frames, axis=0), size=median_filter_kernel)
-	# np.nanmean([ndimage.median_filter(frame, size=median_filter_kernel) for frame in frames], axis=0)
-	# np.nanmean(frames, axis=0)
-
-	plt.figure('1')
-	plt.imshow(template_image, cmap='gray')
-	plt.title('Anatomy 1')
-	plt.show()
-
-	x_motion=np.zeros(np.shape(frames)[0])
-	y_motion=np.zeros(np.shape(frames)[0])
-	total_motion=np.zeros(np.shape(frames)[0])
-	for j in range(frames.shape[0]):
-		X=phase_cross_correlation(template_image, frames[j,:,:], upsample_factor=10, space='real')
-		x_motion[j]=X[0][0]
-		y_motion[j]=X[0][1]
-		total_motion[j]=math.sqrt(x_motion[j]*x_motion[j]+y_motion[j]*y_motion[j])
-
-	plt.figure()
-	# plt.title('1. Motion of each frame. CS {}'.format(i))
-	# plt.subplot(1,2,1)
-	plt.plot(total_motion)
-	# plt.subplot(1,2,2)
-	# plt.scatter(x_motion-0.01+0.02*np.random.rand(x_motion.shape[0]),y_motion-0.01+0.02*np.random.rand(x_motion.shape[0]),s=0.5)
-	plt.show()
-
-
-	##* Align the frames to their average.
-	aligned_frames=np.zeros(frames.shape)
-
-	for j in range(frames.shape[0]):
-		aligned_frames[j,:,:]=shift(frames[j,:,:], (x_motion[j],y_motion[j]), output=None, order=3, mode='constant', cval=0.0, prefilter=True)
-	#   the commented lines below check that the shift was performed in the correct direction	
-		# X=phase_cross_correlation(original_anatomy, frames[j,:,:] ,upsample_factor=10, space='real')
-		# print(X)
-		# Y=phase_cross_correlation(original_anatomy, aligned_frames[j,:,:] ,upsample_factor=10, space='real')
-		# print(Y)
-
-	# aligned_anatomy=np.sum(aligned_frames,0)
-	# plt.figure()
-	# plt.imshow(aligned_anatomy)
-
-
-	##* Phase cross-correlation to measure motion of each frame after aligning them to their average.
-	frames = aligned_frames
-
-	x_motion=np.zeros(np.shape(frames)[0])
-	y_motion=np.zeros(np.shape(frames)[0])
-	total_motion=np.zeros(np.shape(frames)[0])
-	for j in range(frames.shape[0]):
-		X=phase_cross_correlation(template_image, frames[j,:,:], upsample_factor=10, space='real')
-		x_motion[j]=X[0][0]
-		y_motion[j]=X[0][1]
-		total_motion[j]=math.sqrt(x_motion[j]*x_motion[j]+y_motion[j]*y_motion[j])
-
-	plt.figure()
-	# plt.title('2. Motion of each frame. CS {}'.format(i))
-	# plt.subplot(1,2,1)
-	plt.plot(total_motion)
-	# plt.subplot(1,2,2)
-	# plt.scatter(x_motion-0.01+0.02*np.random.rand(x_motion.shape[0]),y_motion-0.01+0.02*np.random.rand(x_motion.shape[0]),s=0.5)
+	plt.title('All good images from plane binned')
+	plt.imshow(np.mean(plane_trials_good_images_binned, axis=0))
+	plt.colorbar(shrink=0.5)
 	plt.show()
 
 
 
+	deltaF = []
+	deltaF_SR = []
+
+	for i in range(len(cs_indices)):
+
+		baseline = np.nanmean(plane_trials_good_images_binned[[cs_indices[i, 0] - 20, cs_indices[i, 0]]], axis=0)
+		
+		during_cs = np.nanmean(plane_trials_good_images_binned[[cs_indices[i, 0], cs_indices[i, 1]]], axis=0)
+
+		deltaF_SR.append((during_cs - baseline) / baseline)
+
+		if i == 0:
+			
+			deltaF.append((plane_trials_good_images_binned[ : plane_trials_number_images[0]] - baseline) / baseline)
+
+		elif i < len(cs_indices)-1:
+
+			deltaF.append((plane_trials_good_images_binned[np.cumsum(plane_trials_number_images)[i-1] : np.cumsum(plane_trials_number_images)[i]] - baseline) / baseline)
+
+		else:
+			deltaF.append((plane_trials_good_images_binned[np.cumsum(plane_trials_number_images)[i-1] : ] - baseline) / baseline)
+
+	deltaF = np.concatenate(deltaF)
+
+	deltaF = np.where(np.isnan(deltaF), 0, deltaF)
+
+	deltaF_SR = np.array(deltaF_SR)
+
+
+	for i in range(len(cs_indices)):
+		plt.imshow(deltaF_SR[i], interpolation='none', vmin=-10, vmax=10, cmap='RdBu_r')
+		plt.colorbar(shrink=0.5)
+		plt.title('DeltaF_SR')
+		plt.show()
+
+
+	A = np.mean(np.array([deltaF_SR[0], deltaF_SR[1]]), axis=0)
+	B = np.mean(np.array([deltaF_SR[2], deltaF_SR[3]]), axis=0)
 
 
 
-	##* Discard frames with too much motion.
-	frames[np.where(total_motion > total_motion_thr)[0],:,:] = np.empty(frames.shape[1:])
-	# * np.nan
-
-
-
-
-
-
-
-
-	
-
-	#* Second iteration of the drift correction, now relative to the new average of the frames.
-
-	##* Phase cross-correlation to measure motion of each frame.
-	template_image = ndimage.median_filter(np.nanmean(frames, axis=0), size=median_filter_kernel)
-	# np.nanmean([ndimage.median_filter(frame, size=median_filter_kernel) for frame in frames], axis=0)
-	# np.nanmean(frames, axis=0)
- 
-	plt.figure('2')
-	plt.title('Anatomy 2')
-	plt.imshow(template_image, cmap='gray')
+	plt.imshow(A, interpolation='none', vmin=-10, vmax=10, cmap='RdBu_r')
+	plt.colorbar(shrink=0.5)
+	plt.title('DeltaF_SR A')
 	plt.show()
 
-	x_motion=np.zeros(np.shape(frames)[0])
-	y_motion=np.zeros(np.shape(frames)[0])
-	total_motion=np.zeros(np.shape(frames)[0])
-	for j in range(frames.shape[0]):
-		X=phase_cross_correlation(template_image, frames[j,:,:], upsample_factor=10, space='real')
-		x_motion[j]=X[0][0]
-		y_motion[j]=X[0][1]
-		total_motion[j]=math.sqrt(x_motion[j]*x_motion[j]+y_motion[j]*y_motion[j])
-
-	plt.figure()
-	# plt.title('1. Motion of each frame. CS {}'.format(i))
-	# plt.subplot(1,2,1)
-	plt.plot(total_motion)
-	# plt.subplot(1,2,2)
-	# plt.scatter(x_motion-0.01+0.02*np.random.rand(x_motion.shape[0]),y_motion-0.01+0.02*np.random.rand(x_motion.shape[0]),s=0.5)
+	plt.imshow(B, interpolation='none', vmin=-10, vmax=10, cmap='RdBu_r')
+	plt.colorbar(shrink=0.5)
+	plt.title('DeltaF_SR B')
 	plt.show()
 
-
-	##* Align the frames to their average.
-	aligned_frames=np.zeros(frames.shape)
-
-	for j in range(frames.shape[0]):
-		aligned_frames[j,:,:]=shift(frames[j,:,:], (x_motion[j],y_motion[j]), output=None, order=3, mode='constant', cval=0.0, prefilter=True)
-	#   the commented lines below check that the shift was performed in the correct direction	
-		# X=phase_cross_correlation(original_anatomy, frames[j,:,:] ,upsample_factor=10, space='real')
-		# print(X)
-		# Y=phase_cross_correlation(original_anatomy, aligned_frames[j,:,:] ,upsample_factor=10, space='real')
-		# print(Y)
-
-	# aligned_anatomy=np.sum(aligned_frames,0)
-	# plt.figure()
-	# plt.imshow(aligned_anatomy)
-
-	##* Phase cross-correlation to measure motion of each frame after aligning them to their average.
-	frames = aligned_frames
-
-	x_motion=np.zeros(np.shape(frames)[0])
-	y_motion=np.zeros(np.shape(frames)[0])
-	total_motion=np.zeros(np.shape(frames)[0])
-	for j in range(frames.shape[0]):
-		X=phase_cross_correlation(template_image, frames[j,:,:], upsample_factor=10, space='real')
-		x_motion[j]=X[0][0]
-		y_motion[j]=X[0][1]
-		total_motion[j]=math.sqrt(x_motion[j]*x_motion[j]+y_motion[j]*y_motion[j])
-
-	plt.figure()
-	# plt.title('2. Motion of each frame. CS {}'.format(i))
-	# plt.subplot(1,2,1)
-	plt.plot(total_motion)
-	# plt.subplot(1,2,2)
-	# plt.scatter(x_motion-0.01+0.02*np.random.rand(x_motion.shape[0]),y_motion-0.01+0.02*np.random.rand(x_motion.shape[0]),s=0.5)
+	plt.imshow(B/A, interpolation='none', vmin=-100, vmax=100, cmap='RdBu_r')
+	plt.colorbar(shrink=0.5)
+	plt.title('DeltaF_SR B / DeltaF_SR A')
+	plt.savefig(path_home /  fish_name / (fish_name + '_deltaF_SR_voxels_plane ' + str(plane_i) + '.tif'))
 	plt.show()
 
+	deltaF_SR = np.concatenate(deltaF_SR)
 
-	##* Discard frames with too much motion.
-	# frames[np.where(total_motion > total_motion_thr)[0],:,:] = np.empty(frames.shape[1:])
-	# * np.nan
+#!!!
+	# deltaF_ = np.empty(tuple([plane_trials_all_images.shape[0]] + list(deltaF.shape[1:]))) * np.nan
+	# deltaF_[~plane_trials_mask_bad_frames, :, :] = deltaF
 
-	template_image = ndimage.median_filter(np.nanmean(frames, axis=0), size=median_filter_kernel)
-	# np.nanmean([ndimage.median_filter(frame, size=median_filter_kernel) for frame in frames], axis=0)
-	# np.nanmean(frames, axis=0)
-	plt.figure('3')
-	plt.title('Anatomy 3')
-	plt.imshow(template_image, cmap='gray')
+	# deltaF = deltaF_.copy()
+
+	# del deltaF_
+
+	for i in range(len(cs_indices)):
+		deltaF[cs_indices[i,0]:cs_indices[i,1],:20,-20:] = -100
+
+	plt.imshow(np.nanmean(deltaF, axis=0))
+	plt.colorbar(shrink=0.5)
+
+	#* Save rois_zscore_over_time as a TIFF file.
+	tifffile.imwrite(path_home /  fish_name / (fish_name + '_deltaF_voxels_plane ' + str(plane_i) + '.tif'), deltaF.astype('float32'))
+
+	# endregion
+
+
+
+
+
+
+
+	# region ROI analysis for the whole plane
+
+	#* Set to 0 the pixels that are not part of the fish in the correlation map.
+	correlation_map = np.where(plane_images_mask_fish_without_eyes, correlation_map, 0)
+
+	plt.title('Correlation map masked background')
+	plt.imshow(np.where(plane_images_mask_fish_without_eyes, correlation_map, 0))
+	plt.colorbar(shrink=0.5)
 	plt.show()
 
 
 
 
 
+	#* ROIs for the all the trials of the same plane.
+	#TODO need to rewrite all this part, using Mike's and Ruben's code
+	all_traces, all_rois, used_pixels, correlation_map_ = get_ROIs(Nrois=100, correlation_map=correlation_map, images=plane_trials_good_images_filtered, threshold=0.3, max_pixels=60)
 
-
-
-
-
-
-
-#!!!!!!!! then, motion correction with the mean image
-
-	#* Phase cross-correlation to measure motion of each frame
-	template_image = frames.mean(axis=0)
-	
-	x_motion=np.zeros(np.shape(frames)[0])
-	y_motion=np.zeros(np.shape(frames)[0])
-	total_motion=np.zeros(np.shape(frames)[0])
-	for j in range(frames.shape[0]):
-		X=phase_cross_correlation(template_image, frames[j,:,:], upsample_factor=10, space='real')
-		x_motion[j]=X[0][0]
-		y_motion[j]=X[0][1]
-		total_motion[j]=math.sqrt(x_motion[j]*x_motion[j]+y_motion[j]*y_motion[j])
-
-		# if j == 100:
-		# 	break
-
-	# plt.figure()
-	# plt.title('1. Motion of each frame. CS {}'.format(i))
-	# plt.subplot(1,2,1)
-	# plt.plot(total_motion)
-	# plt.subplot(1,2,2)
-	# plt.scatter(x_motion-0.01+0.02*np.random.rand(x_motion.shape[0]),y_motion-0.01+0.02*np.random.rand(x_motion.shape[0]),s=0.5)
-	# plt.show()
-
-
-
-
-
-	aligned_frames=np.zeros(frames.shape)
-
-	for j in range(frames.shape[0]):
-		aligned_frames[j,:,:]=shift(frames[j,:,:], (x_motion[j],y_motion[j]), output=None, order=3, mode='constant', cval=0.0, prefilter=True)
-	#   the commented lines below check that the shift was performed in the correct direction	
-		# X=phase_cross_correlation(original_anatomy, frames[j,:,:] ,upsample_factor=10, space='real')
-		# print(X)
-		# Y=phase_cross_correlation(original_anatomy, aligned_frames[j,:,:] ,upsample_factor=10, space='real')
-		# print(Y)
-
-	# aligned_anatomy=np.sum(aligned_frames,0)
-	# plt.figure()
-	# plt.imshow(aligned_anatomy)
-
-
-
-
-
-	frames = aligned_frames
-
-	x_motion=np.zeros(np.shape(frames)[0])
-	y_motion=np.zeros(np.shape(frames)[0])
-	total_motion=np.zeros(np.shape(frames)[0])
-	for j in range(frames.shape[0]):
-
-
-#!!!!!!!!!!!!!!!
-		# frames[j,:,:][np.isnan(frames[j,:,:])] = 0
-
-		X=phase_cross_correlation(template_image, frames[j,:,:], upsample_factor=10, space='real')
-		x_motion[j]=X[0][0]
-		y_motion[j]=X[0][1]
-		total_motion[j]=math.sqrt(x_motion[j]*x_motion[j]+y_motion[j]*y_motion[j])
-
-
-
-
-	# plt.figure()
-	# plt.title('2. Motion of each frame. CS {}'.format(i))
-	# plt.subplot(1,2,1)
-	# plt.subplot(1,2,2)
-	# plt.scatter(x_motion-0.01+0.02*np.random.rand(x_motion.shape[0]),y_motion-0.01+0.02*np.random.rand(x_motion.shape[0]),s=0.5)
-	# plt.show()
-
-	plt.plot(total_motion)
+	plt.imshow(zscore(all_traces, 1), aspect="auto", cmap="RdBu_r")
+	plt.savefig(path_home / fish_name / (fish_name + 'zscore ' + str(plane_i) + '.tif'))
 	plt.show()
-
-	trials_list[i].images.values = frames
-
-
-	#!!!!!* Discard frames with too much motion
-	# frames[np.where(total_motion > total_motion_thr)[0]] = np.empty(frames.shape[1:]) * np.nan
-	
-	
-	aligned_anatomy=np.nansum(frames,0)
-	plt.figure()
-	plt.imshow(aligned_anatomy)
-
-	# break
-
-
-
-
-
-
-for i, trial in enumerate(trials_list):
-	
-	print(i)
-
-	frames = trial.images.to_numpy().copy()
-
-	template_image = frames.mean(axis=0)
-
-	#* Calculate total motion of each frame to then discard bad frames.
-	x_motion=np.zeros(np.shape(frames)[0])
-	y_motion=np.zeros(np.shape(frames)[0])
-	total_motion=np.zeros(np.shape(frames)[0])
-	for j in range(frames.shape[0]):
-		X=phase_cross_correlation(template_image, frames[j,:,:], upsample_factor=10, space='real')
-		x_motion[j]=X[0][0]
-		y_motion[j]=X[0][1]
-		total_motion[j]=math.sqrt(x_motion[j]*x_motion[j]+y_motion[j]*y_motion[j])
-
-	plt.plot(total_motion)
-
-	#* Discard bad frames.
-	frames[np.where(total_motion > total_motion_thr)[0]] = np.empty(frames.shape[1:]) * np.nan
-
-	final_anatomy = np.nanmean(frames, 0)
-
-	plt.imshow(final_anatomy)
+	plt.imshow(all_rois)
+	plt.colorbar()
 	plt.show()
-
-# trial.__dict__.keys()
-# trial.position_anatomical_stack
-	final_anatomy = final_anatomy[25:375,50:300]
-	final_frames = frames[:,25:375,50:300].copy()
-	# np.array([ndimage.median_filter(frame, size=median_filter_kernel) for frame in frames[:,25:375,50:300]])
-
-
-	correlation_map=np.zeros(final_anatomy.shape)
-	for i in tqdm(range(final_anatomy.shape[0])):
-		if i>0 and i<(final_anatomy.shape[0]-1):
-			for j in range(final_anatomy.shape[1]):
-				if j>0 and j<(final_anatomy.shape[1]-1):
-					this_pixel=np.squeeze(final_frames[:,i,j])
-					surr_pixels=np.squeeze(np.sum(np.sum(np.squeeze(final_frames[:,i-1:i+2,j-1:j+2]),2),1))-this_pixel
-					C, _ = pearsonr(this_pixel, surr_pixels)
-					correlation_map[i,j]=C
-	original_correlation_map=np.copy(correlation_map)   
-
-	plt.figure()
-	plt.subplot(1,2,1)
-	plt.imshow(final_anatomy)
-	plt.subplot(1,2,2)
+	plt.imshow(correlation_map_)
+	plt.show()
+	plt.imshow(np.sum(plane_trials_all_images, axis=0))
+	plt.show()
 	plt.imshow(correlation_map)
 	plt.show()
 
-	break
+
+
+	#* Create array to then make movie.
+	all_rois = all_rois.astype('int')
+
+	rois_zscore_over_time = np.zeros_like(plane_trials_all_images)
+
+
+	#* Consider the periods of bad frames in the array with the Z score of the ROI traces.
+	all_traces_z_score = zscore(all_traces, 1)
+
+	all_traces_z_score_ = np.empty((all_traces.shape[0], len(plane_trials_all_images))) * np.nan
+	all_traces_z_score_[:, ~plane_trials_mask_bad_frames] = all_traces_z_score
+
+	plt.imshow(all_traces_z_score_, aspect="auto", cmap="RdBu_r", vmin=-3, vmax=3)
+
+	all_traces_z_score = all_traces_z_score_
+	del all_traces_z_score_
+
+	rois_mask = np.zeros(rois_zscore_over_time.shape, dtype='bool')
+
+	#* Get mask of the ROIs.
+	for roi_i in range(1, all_rois.max()):
+		# break
+		rois_mask[roi_i] = all_rois == roi_i
+
+		# roi_mask = rois_mask[roi_i]
+		# [np.newaxis, :, :]
+
+		for t in range(rois_zscore_over_time.shape[0]):
+			# break
+			rois_zscore_over_time[t,:,:] += np.where(rois_mask[roi_i], all_traces_z_score[roi_i, t], 0)
+
+			rois_zscore_over_time[t,:,:]
+
+	for i in range(len(cs_indices)):
+		rois_zscore_over_time[cs_indices[i,0]:cs_indices[i,1],:50,-50:] = -100
+
+	# plt.imshow(np.mean(plane_trials_all_images, axis=0))
+	plt.imshow(np.nansum(rois_zscore_over_time, axis=0), aspect="auto", cmap="RdBu_r", interpolation='none')
+	plt.colorbar()
+
+	#* Save rois_zscore_over_time as a TIFF file.
+	tifffile.imwrite(path_home / fish_name / (fish_name + 'rois_zscore_over_time ' + str(plane_i) + '.tif'), rois_zscore_over_time.astype('float32'))
+
+	# endregion
+
+
+
+	# region ROI analysis for each trial
+
+	for trial in plane.trials:
+
+		#!
+		# break
+		trial = plane.trials[3]
+	# break
+		# trial.images = trial.images
+
+
+		#* Discard bad frames due to motion, gating of the PMT or trial change.
+		trial_good_images = trial.images.values[~trial.mask_bad_frames]
+		trial_bad_frames_index = np.where(trial.mask_bad_frames)[0]
+
+		plt.title('All images from trial')
+		plt.imshow(np.mean(trial_good_images, axis=0))
+		plt.colorbar(shrink=0.5)
+		plt.show()
+
+		#* Subtract the background.
+		# Pixel values equal to 0 are ignored to discard the artificial edges of the images that were introduced during the motion correction.
+		images_mean = np.nanmean(np.where(trial_good_images == 0, np.nan, trial_good_images), axis=(1,2))
+
+		images_mean = np.nanmean(trial_good_images, axis=(1,2))
+		for image_i in range(trial_good_images.shape[0]):
+			trial_good_images[image_i] -= images_mean[image_i]
+
+		del images_mean
+
+		#* Mask the background.
+		trial.images_mask_fish = np.where(np.median(trial_good_images, axis=0) <= 0, 0, 1).astype(dtype='bool')
+
+		trial.images_mask_fish_without_eyes = trial.images_mask_fish & eye_mask
+
+		#* Set to 0 the pixels that are not part of the fish in the images. Also, mask the eyes.
+		trial_good_images = np.where(trial.images_mask_fish_without_eyes, trial_good_images, 0)
+
+		plt.title('All good images from trial masked background')
+		plt.imshow(np.mean(trial_good_images, axis=0))
+		plt.colorbar(shrink=0.5)
+		plt.show()
+
+
+
+#!!!!!!!!!!! Voxel analysis per trial
+		#* Bin the 2D images.
+		trial_good_images_binned = block_reduce(trial_good_images, block_size=(1, voxel_bin_size, voxel_bin_size), func=np.mean, cval=0)
+
+		plt.imshow(np.mean(trial_good_images_binned, axis=0), interpolation='none')
+
+
+		trial_good_images_binned_ = np.empty(tuple([trial.images.shape[0]] + list(trial_good_images_binned.shape[1:]))) * np.nan
+		trial_good_images_binned_[~trial.mask_bad_frames, :, :] = trial_good_images_binned
+
+		trial_good_images_binned = trial_good_images_binned_.copy()
+
+		del trial_good_images_binned_
+
+		plt.title('All good images from trial binned')
+		plt.imshow(np.mean(trial_good_images_binned, axis=0))
+		plt.colorbar(shrink=0.5)
+		plt.show()
+
+	
 
 
 
@@ -2248,6 +1333,475 @@ for i, trial in enumerate(trials_list):
 
 
 
+
+
+
+
+
+
+
+
+		#* Filter in space.
+		trial_images_filtered = ndimage.gaussian_filter(trial_images, sigma=gaussian_filter_sigma, axes=(1,2))
+		trial_images_good_images_filtered = trial_images_filtered[~trial.mask_bad_frames].copy()
+
+
+
+
+		#* Correlation map
+		# In Suit2p, the function that computes the correlation map is celldetect2.getVmap.
+		correlation_map = np.linalg.norm(ndimage.gaussian_filter(trial_images_good_images, sigma=correlation_map_sigma, axes=(1,2)), axis=0)**2 / ndimage.gaussian_filter(np.linalg.norm(trial_images_good_images, axis=0), sigma=correlation_map_sigma)**2
+
+		plt.figure('Correlation map')
+		plt.imshow(correlation_map)
+		plt.colorbar(shrink=0.5)
+		plt.show()
+
+		#* Subtract the background.
+	#! Here I should take the average ignoring the sharp edges of the images.
+		images_mean = np.mean(trial_images_good_images, axis=(1,2))
+
+		for image_i in range(trial_images_good_images.shape[0]):
+			trial_images_good_images[image_i] -= images_mean[image_i]
+
+		del images_mean
+
+		#* Mask the background.
+		trial_images_mask_fish = np.where(np.median(trial_images_good_images, axis=0) <= 0, 0, 1).astype(dtype='bool')
+		
+		#* Mask the background and the eyes.
+		trial_images_mask_fish_without_eyes = trial_images_mask_fish & eye_mask
+
+
+		#* Set to 0 the pixels that are not part of the fish in the images.
+		trial_images_good_images = np.where(trial_images_mask_fish_without_eyes, trial_images_good_images, 0)
+
+		plt.title('All good images from plane masked background')
+		plt.imshow(np.mean(trial_images_good_images, axis=0))
+		plt.colorbar(shrink=0.5)
+		plt.show()
+
+		#* Set to 0 the pixels that are not part of the fish in the correlation map.
+		correlation_map = np.where(trial_images_mask_fish_without_eyes, correlation_map, 0)
+
+		plt.title('Correlation map masked background')
+		plt.imshow(np.where(trial_images_mask_fish_without_eyes, correlation_map, 0))
+		plt.colorbar(shrink=0.5)
+		plt.show()
+
+
+
+
+
+		#* ROIs
+
+		all_traces, all_rois, used_pixels, correlation_map_ = get_ROIs(Nrois=100, correlation_map=correlation_map, images=trial_images_good_images_filtered, threshold=0.3, max_pixels=60)
+
+		images_times = trial_images.time.values
+
+
+		trial_time_ref = images_times[0]
+
+		trial_protocol = trial.protocol
+
+		cs_times = trial_protocol[trial_protocol[cs]!=0]
+		cs_times = cs_times.iloc[[0,-1]] if cs_times.shape[0] > 1 else cs_times
+
+		us_times = trial_protocol[trial_protocol[us]!=0]
+		us_times = us_times.iloc[[0,-1]] if us_times.shape[0] > 1 else us_times
+
+
+		images_times = images_times - trial_time_ref
+		cs_times = cs_times['Time (ms)'].values - trial_time_ref
+		us_times = us_times['Time (ms)'].values - trial_time_ref
+
+
+		number_traces = 50
+
+		fig, axs = plt.subplots(number_traces, 1, sharex=True)
+		# figsize=(10, 8)
+
+		for i in range(number_traces):
+
+#!
+			axs[i].plot(images_times[:110], all_traces[i+50][:110])
+
+			if cs_times.shape[0] > 0:
+				axs[i].axvline(x=cs_times[0], color='g', linestyle='-')
+				axs[i].axvline(x=cs_times[1], color='g', linestyle='--')
+			
+			if us_times.shape[0] > 0:
+				axs[i].axvline(x=us_times[0], color='r', linestyle='-')
+				axs[i].axvline(x=us_times[1], color='r', linestyle='--')
+
+		fig.show()
+
+
+		plt.imshow(zscore(all_traces, 1), aspect="auto", vmin=-3, vmax=3, cmap="RdBu_r")
+
+		plt.show()
+		plt.imshow(all_rois)
+		plt.show()
+		plt.imshow(correlation_map_)
+		plt.show()
+		plt.imshow(np.sum(trial_images_good_images, axis=0))
+		plt.show()
+		plt.imshow(correlation_map)
+		plt.show()
+
+
+
+
+
+
+		#* Create array to then make movie.
+		all_rois = all_rois.astype('int')
+
+		rois_zscore_over_time = np.zeros_like(trial_images)
+
+
+		#* Consider the periods of bad frames in the array with the Z score of the ROI traces.
+		all_traces_z_score = zscore(all_traces, 1)
+
+		all_traces_z_score_ = np.empty((all_traces.shape[0], len(trial_images))) * np.nan
+		all_traces_z_score_[:, ~trial.mask_bad_frames] = all_traces_z_score
+
+		plt.imshow(all_traces_z_score_, aspect="auto", cmap="RdBu_r", vmin=-3, vmax=3)
+
+		all_traces_z_score = all_traces_z_score_
+		del all_traces_z_score_
+
+		rois_mask = np.zeros(rois_zscore_over_time.shape, dtype='bool')
+
+		#* Get mask of the ROIs.
+		for roi_i in range(1, all_rois.max()):
+			# break
+			rois_mask[roi_i] = all_rois == roi_i
+
+			# roi_mask = rois_mask[roi_i]
+			# [np.newaxis, :, :]
+
+			for t in range(rois_zscore_over_time.shape[0]):
+				# break
+				rois_zscore_over_time[t,:,:] += np.where(rois_mask[roi_i], all_traces_z_score[roi_i, t], 0)
+
+				rois_zscore_over_time[t,:,:]
+
+		for i in range(len(cs_indices)):
+			rois_zscore_over_time[cs_indices[i,0]:cs_indices[i,1],:50,-50:] = -100
+
+		# plt.imshow(np.mean(plane_trials_all_images, axis=0))
+		plt.imshow(np.nansum(rois_zscore_over_time, axis=0), aspect="auto", cmap="RdBu_r")
+		plt.colorbar()
+
+		#* Save rois_zscore_over_time as a TIFF file.
+		tifffile.imwrite(path_home / fish_name / (fish_name + 'trial_rois_zscore_over_time' + '.tif'), rois_zscore_over_time.astype('float32'))
+
+		# endregion
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#* Discard bad frames due to motion, gating of the PMT or plane change.
+trial_images_good_images = trial_images[~trial.mask_bad_frames].copy()
+
+#* Filter in space.
+trial_images_good_images_filtered = ndimage.gaussian_filter(trial_images_good_images, sigma=gaussian_filter_sigma, axes=(1,2))
+
+
+# #* Subtract the background.
+# images_mean = np.mean(trial_images_good_images, axis=(1,2))
+
+# for image_i in range(trial_images_good_images.shape[0]):
+# 	trial_images_good_images[image_i] -= images_mean[image_i]
+	
+# # # signal.detrend(trial_images_good_images, axis=0, type='constant', bp=0, overwrite_data=True)
+
+# # # for image_i in range(trial_images_good_images.shape[0]):
+# # # 	trial_images_good_images[image_i] -= np.mean(trial_images_good_images[image_i,-50:-5,-50:-5])
+
+# # images_mean = np.mean(trial_images_good_images, axis=(1,2))
+# # images_filtered_mean = np.mean(trial_images_good_images_filtered, axis=(1,2))
+
+# # for image_i in range(trial_images_good_images.shape[0]):
+# # 	trial_images_good_images[image_i] -= images_mean[image_i]
+# # 	trial_images_good_images_filtered[image_i] -= images_filtered_mean[image_i]
+
+# # #* Clip values below the mean background.
+# # np.clip(trial_images_good_images, 0, None, out=trial_images_good_images)
+
+# #* Mask the background.
+# trial_images_mask_fish = np.where(np.median(trial_images_good_images, axis=0) < 0, 0, 1).astype(dtype='bool')
+# # plt.imshow(np.sum(np.where(trial_images_good_images<0,0,trial_images_good_images), axis=0))
+# # plt.colorbar(shrink=0.5)
+# # plt.show()
+
+# plt.imshow(np.where(trial_images_mask_fish, np.sum(trial_images_good_images, axis=0), 0))
+# plt.colorbar(shrink=0.5)
+# plt.show()
+# plt.imshow(np.sum(trial_images_good_images_filtered, axis=0))
+# plt.colorbar(shrink=0.5)
+# plt.show()
+
+
+
+
+#* Actual correlation map.
+
+# imag = trial_images_good_images[:,100:300, 150:250].copy()
+imag = trial_images_good_images[:,:, :].copy()
+
+correlation_map=np.zeros(imag.shape[1:])
+
+for i in tqdm(range(imag.shape[1])):
+	if i>0 and i<(imag.shape[1]-1):
+		for j in range(imag.shape[2]):
+
+			if j>0 and j<(imag.shape[2]-1):
+
+				this_pixel=np.squeeze(imag[:,i,j])
+				surr_pixels=np.squeeze(np.sum(np.sum(np.squeeze(imag[:,i-1:i+2,j-1:j+2]),2),1))-this_pixel
+				C, _ = pearsonr(this_pixel, surr_pixels)
+				correlation_map[i,j]=C
+
+
+
+import numpy as np
+from scipy.stats import pearsonr
+from tqdm import tqdm
+
+# Assuming 'imag' is your 3D image data with shape (time, height, width)
+correlation_map = np.zeros(imag.shape[1:])
+
+# Precompute the sum of the surrounding pixels
+surr_sum = np.zeros_like(imag)
+for t in range(imag.shape[0]):
+    surr_sum[t,:,:] = np.pad(imag[t, :, :], ((1, 1), (1, 1)), 'constant', constant_values=0)[1:-1, 1:-1]
+
+
+import numpy as np
+from scipy.signal import convolve2d
+
+# Assuming 'image' is your 2D image data
+kernel = np.ones((3, 3))
+kernel[1, 1] = 0  # Exclude the center pixel if you don't want to include it in the sum
+
+# Convolve the image with the kernel
+surr_sum = np.zeros_like(imag)
+
+for t in range(imag.shape[0]):
+	surr_sum[] = convolve2d(imag[t, :, :], kernel, mode='same')
+
+
+
+
+surr_sum.shape
+
+
+
+
+
+# Calculate the correlation using vectorized operations
+for i in tqdm(range(1, imag.shape[1] - 1)):
+    for j in range(1, imag.shape[2] - 1):
+        this_pixel = imag[:, i, j]
+        surr_pixels = np.sum(surr_sum[:, i-1:i+2, j-1:j+2], axis=(1,2)) - this_pixel
+        C, _ = pearsonr(this_pixel, surr_pixels)
+        correlation_map[i, j] = C
+
+
+
+
+
+
+
+original_correlation_map=np.copy(correlation_map)
+
+MAP = original_correlation_map.copy()
+
+plt.imshow(MAP, vmin=0.3)
+plt.colorbar(shrink=0.5)
+
+
+
+correlation_map = np.copy(original_correlation_map)
+correlation_map = ndimage.gaussian_filter(correlation_map, sigma=3)
+
+plt.imshow(correlation_map)
+plt.colorbar(shrink=0.5)
+
+
+
+
+
+#* Correlation map
+
+# Assuming trial_images_good_images, trial_images_good_images_filtered, and gausswidth are defined
+
+# In Suit2p, the function that computes the correlation map is celldetect2.getVmap.
+
+# trial_images_good_images_mean = np.mean(trial_images_good_images**2, axis=0)
+# trial_images_good_images_filtered_mean = np.mean(trial_images_good_images_filtered**2, axis=0)
+
+trial_images_good_images_mean = np.linalg.norm(trial_images_good_images, axis=0)
+trial_images_good_images_filtered_mean = np.linalg.norm(trial_images_good_images_filtered, axis=0)
+
+trial_images_good_images_mean = ndimage.gaussian_filter(trial_images_good_images_mean, sigma=gaussian_filter_sigma)
+
+trial_images_good_images_mean = trial_images_good_images_mean**2
+trial_images_good_images_filtered_mean = trial_images_good_images_filtered_mean**2
+
+correlation_map = trial_images_good_images_filtered_mean / trial_images_good_images_mean
+# correlation_map = trial_images_good_images_filtered_mean / trial_images_good_images_mean
+# correlation_map = 1 - trial_images_good_images_filtered_mean / trial_images_good_images_mean
+# correlation_map -= np.nanmean(correlation_map[-50:-20,-50:-20])
+# np.clip(correlation_map, 0, None, out=correlation_map)
+
+plt.imshow(correlation_map)
+plt.colorbar(shrink=0.5)
+
+plt.imshow(np.mean(trial_images_good_images, axis=0))
+plt.colorbar(shrink=0.5)
+
+plt.imshow(np.mean(trial_images_good_images_filtered, axis=0))
+plt.colorbar(shrink=0.5)
+
+plt.imshow(correlation_map, vmin=0.4, vmax=0.8)
+plt.colorbar(shrink=0.5)
+
+
+
+#* Subtract the background.
+images_mean = np.mean(trial_images_good_images, axis=(1,2))
+
+for image_i in range(trial_images_good_images.shape[0]):
+	trial_images_good_images[image_i] -= images_mean[image_i]
+
+#* Mask the background.
+plane_images_mask_fish = np.where(np.median(trial_images_good_images, axis=0) < 0, 0, 1).astype(dtype='bool')
+# plt.imshow(np.sum(np.where(trial_images_good_images<0,0,trial_images_good_images), axis=0))
+# plt.colorbar(shrink=0.5)
+# plt.show()
+
+plt.imshow(np.where(plane_images_mask_fish, np.sum(trial_images_good_images, axis=0), 0))
+plt.colorbar(shrink=0.5)
+plt.show()
+plt.imshow(np.sum(trial_images_good_images_filtered, axis=0))
+plt.colorbar(shrink=0.5)
+plt.show()
+
+
+#* Set to 0 the pixels that are not part of the fish in the correlation map.
+correlation_map = np.where(plane_images_mask_fish, correlation_map, 0)
+
+plt.imshow(np.where(plane_images_mask_fish,correlation_map,0))
+# , vmin=0.4, vmax=0.8
+plt.colorbar(shrink=0.5)
+
+
+
+
+#! Careful with border. think now it is fine.
+
+
+
+
+
+# for i in tqdm(range(1, imag.shape[1]-1)):
+# 	for j in range(1, imag.shape[2]-1):
+# 		this_pixel = np.squeeze(imag[:, i, j])
+# 		surr_pixels = np.squeeze(np.sum(np.sum(np.squeeze(imag[:, i-1:i+2, j-1:j+2]), 2), 1)) - this_pixel
+# 		C, _ = pearsonr(this_pixel, surr_pixels)
+# 		correlation_map[i, j] = C
+
+# original_correlation_map = np.copy(correlation_map)
+
+
+
+				# imag_background = trial_images_good_images[:,-50:-5,-50:-5].copy()
+
+				# correlation_map_background = np.empty(imag_background.shape[1:])*np.nan
+
+				# for i in tqdm(range(imag_background.shape[1])):
+				# 	if i>0 and i<(imag_background.shape[1]-1):
+				# 		for j in range(imag_background.shape[2]):
+
+				# 			if j>0 and j<(imag_background.shape[2]-1):
+
+				# 				this_pixel=np.squeeze(imag_background[:,i,j])
+				# 				surr_pixels=np.squeeze(np.sum(np.sum(np.squeeze(imag_background[:,i-1:i+2,j-1:j+2]),2),1))-this_pixel
+				# 				C, _ = pearsonr(this_pixel, surr_pixels)
+				# 				correlation_map_background[i,j]=C
+
+				# original_correlation_map_background=np.copy(correlation_map_background)
+
+
+				# original_correlation_map -= np.nanmean(original_correlation_map_background)
+
+# A=original_correlation_map.copy()
+
+plt.imshow(np.sum(imag, axis=0))
+plt.show()
+plt.imshow(original_correlation_map)
+plt.colorbar(shrink=0.5)
+plt.show()
+
+
+
+# plt.figure()
+# plt.subplot(1,2,1)
+# plt.imshow(template_image)
+# plt.subplot(1,2,2)
+# plt.imshow(correlation_map_background)
+# plt.show()
+
+
+plt.figure()
+plt.subplot(1,2,1)
+plt.imshow(np.mean(imag, axis=0))
+plt.colorbar(shrink=0.5)
+plt.subplot(1,2,2)
+# plt.imshow(np.where((original_correlation_map>0.75) & (original_correlation_map<0.9), original_correlation_map, 0))
+# plt.imshow(np.where((original_correlation_map>0.9), original_correlation_map, 0))
+plt.imshow(np.sum(imag, axis=0))
+
+plt.imshow(original_correlation_map)
+plt.colorbar(shrink=0.5)
+plt.show()
+
+
+
+# plt.figure()
+# plt.subplot(1,2,1)
+# plt.imshow(np.mean(imag_background, axis=0))
+# plt.colorbar(shrink=0.5)
+# plt.subplot(1,2,2)
+# # plt.imshow(np.where(correlation_map_background>0.3, correlation_map_background, np.nan))
+# plt.imshow(correlation_map_background)
+# plt.colorbar(shrink=0.5)
+# plt.show()
+
+
+imag = trial_images_good_images_filtered
+
+
+
+#* ROIs
 
 def next_roi(Vcorrelation_map, Vframes, corr_thresh, Vsize):
     
@@ -2262,7 +1816,6 @@ def next_roi(Vcorrelation_map, Vframes, corr_thresh, Vsize):
     this_roi[I,J]=1;
     this_correlation_map=np.copy(Vcorrelation_map)
     this_correlation_map[I,J]=0;
-    from skimage import morphology
 
     added=1
     while (np.sum(np.sum(this_roi,1),0)<Vsize and added==1):
@@ -2287,12 +1840,13 @@ def next_roi(Vcorrelation_map, Vframes, corr_thresh, Vsize):
     return this_roi, this_roi_trace, np.sum(np.sum(this_roi,1),0), this_correlation_map
 
 
+correlation_map_ = correlation_map.copy()
 
+original_correlation_map = correlation_map_
 
-aligned_frames = final_frames.copy()
+aligned_frames = imag.copy()
 
-
-Nrois=50
+Nrois=100
 all_traces=np.zeros((Nrois,aligned_frames.shape[0]))
 all_rois=np.zeros(original_correlation_map.shape)
 used_pixels=np.zeros(original_correlation_map.shape)
@@ -2300,642 +1854,55 @@ original_correlation_map[:5,:]=0
 original_correlation_map[:,:5]=0
 original_correlation_map[-5:,:]=0
 original_correlation_map[:,-5:]=0
-correlation_map=np.copy(original_correlation_map)
 
+correlation_map_=np.copy(original_correlation_map)
+# correlation_map_ = np.where((original_correlation_map<0.9), original_correlation_map, 0)
 
 for i in tqdm(range(Nrois)):
-    this_roi3,this_roi_trace,N,this_correlation_map=next_roi(correlation_map, final_frames, 0.4,150)
+    this_roi3,this_roi_trace,N,this_correlation_map=next_roi(correlation_map_, aligned_frames, 0.4, 100)
     all_traces[i,:]=this_roi_trace
     all_rois=all_rois+(i+1)*this_roi3
     used_pixels=used_pixels+this_roi3
-    correlation_map[all_rois>0]=0
+    correlation_map_[all_rois>0]=0
 
-
-from scipy.stats import zscore
-
-fig,(ax1,ax2,ax3,ax4)= plt.subplots(1,4)
-
-ax1 = plt.subplot(121)
-img=ax1.imshow(zscore(all_traces, 1), aspect="auto", vmin=-3, vmax=3, cmap="RdBu_r")
-ax1.set_ylabel("trace ROI number")
-ax1.set_xlabel("frame number")
-fig.colorbar(img,ax=ax1)
-ax2 = plt.subplot(322)
-ax2.imshow(all_rois)
-ax3 = plt.subplot(324)
-ax3.imshow(correlation_map)
-ax4 = plt.subplot(326)
-ax4.imshow(original_correlation_map)
-# plt.show()
-fig.tight_layout()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#! group trials in planes
-
-
-
-
-planes_numbers = [planes_numbers[i:i+2] for i in range(0, len(planes_numbers), 2)]
-
-planes_numbers = np.array(planes_numbers).flatten()
-
-
-reference_positions = [round(np.median([np.concatenate([planes_numbers[i : i+2], planes_numbers[i+int(planes_numbers.shape[0]/2) : i+int(planes_numbers.shape[0]/2) + 2]])])) for i in range(0, int(planes_numbers.shape[0]/2), 2)]
-
-
-
-plt.plot(reference_positions)
+plt.imshow(zscore(all_traces, 1), aspect="auto", vmin=-3, vmax=3, cmap="RdBu_r")
 plt.show()
+plt.imshow(all_rois)
+plt.show()
+plt.imshow(correlation_map_)
+plt.show()
+plt.imshow(np.sum(imag, axis=0))
+plt.show()
+plt.imshow(original_correlation_map)
+plt.show()
+# fig,(ax1,ax2,ax3,ax4)= plt.subplots(1,4)
+# ax1 = plt.subplot(121)
+# img=ax1.imshow(zscore(all_traces, 1), aspect="auto", vmin=-3, vmax=3, cmap="RdBu_r")
+# ax1.set_ylabel("trace ROI number")
+# ax1.set_xlabel("frame number")
+# fig.colorbar(img,ax=ax1)
+# ax2 = plt.subplot(322)
+# ax2.imshow(all_rois)
+# ax3 = plt.subplot(324)
+# ax3.imshow(correlation_map_)
+# ax4 = plt.subplot(326)
+# ax4.imshow(original_correlation_map)
+# # plt.show()
+# fig.tight_layout()
 
 
+a = Data.planes[0].trials[0].images.values
 
+plt.imshow(np.mean(a, axis=0))
 
-planes_list = [Plane(trials_list[i:i+2] + trials_list[i+int(planes_numbers.shape[0]/2) : i+int(planes_numbers.shape[0]/2) + 2], reference_images[i], reference_positions[i]) for i in range(0, int(planes_numbers.shape[0]/2), 2)]
 
+b = Data.planes[0].trials[3].images.values
 
-[Plane(trials_list[i:i+2] + trials_list[i+int(planes_numbers.shape[0]/2) : i+int(planes_numbers.shape[0]/2) + 2], reference_positions[i], reference_images[i], int(i/2)) for i in range(0, int(planes_numbers.shape[0]/2), 2)]
+plt.imshow(np.mean(b, axis=0))
 
-len(reference_images)
 
-i = 28
+plt.imshow(np.mean(a, axis=0) - np.mean(b, axis=0), cmap='viridis')
+plt.colorbar(shrink=0.5)
 
 
-
-
-
-for i, cs_onset_index in tqdm(enumerate(relevant_cs_onset[int(len(relevant_cs)/2):])):
-	# break
-# for i, cs_onset in tqdm(enumerate(zip(relevant_cs_onset - 60000, relevant_cs_onset + 15000))):
-
-	# data_sub = data.loc[data[abs_time].between(exp_period[0], exp_period[1]), :]
-
-	# images_sub = images[data_sub['Frame number (imaging)'].iat[0] : data_sub['Frame number (imaging)'].iat[-1]].copy()
-	
-	
-	#!!!!!!!!!!!!! REMOVE?
-	# images_sub = ndimage.median_filter(images_sub, size=median_filter_kernel)
-
-	# images_sub.shape
- 
-	i += 30
-
-
-	for l in [0,1]:
-
-		# break
-
-		#* Phase cross-correlation to measure motion of each frame
-		template_image = reference_images[i].copy()
-		
-
-		
-		#!!!!!!!!!!!!!!!!!!!!!!!!!!
-		frames = ndimage.median_filter(images_sub[i][l], size=median_filter_kernel).copy()
-		
-		x_motion=np.zeros(np.shape(frames)[0])
-		y_motion=np.zeros(np.shape(frames)[0])
-		total_motion=np.zeros(np.shape(frames)[0])
-		for j in range(frames.shape[0]):
-			X=phase_cross_correlation(template_image, frames[j,:,:], upsample_factor=10, space='real')
-			x_motion[j]=X[0][0]
-			y_motion[j]=X[0][1]
-			total_motion[j]=math.sqrt(x_motion[j]*x_motion[j]+y_motion[j]*y_motion[j])
-
-			# if j == 100:
-			# 	break
-
-		# plt.figure()
-		# plt.title('1. Motion of each frame. CS {}'.format(i))
-		# plt.subplot(1,2,1)
-		# plt.plot(total_motion)
-		# plt.subplot(1,2,2)
-		# plt.scatter(x_motion-0.01+0.02*np.random.rand(x_motion.shape[0]),y_motion-0.01+0.02*np.random.rand(x_motion.shape[0]),s=0.5)
-		# plt.show()
-
-
-
-
-
-		aligned_frames=np.zeros(frames.shape)
-
-		for j in range(frames.shape[0]):
-			aligned_frames[j,:,:]=shift(frames[j,:,:], (x_motion[j],y_motion[j]), output=None, order=3, mode='constant', cval=0.0, prefilter=True)
-		#   the commented lines below check that the shift was performed in the correct direction	
-			# X=phase_cross_correlation(original_anatomy, frames[j,:,:] ,upsample_factor=10, space='real')
-			# print(X)
-			# Y=phase_cross_correlation(original_anatomy, aligned_frames[j,:,:] ,upsample_factor=10, space='real')
-			# print(Y)
-
-		# aligned_anatomy=np.sum(aligned_frames,0)
-		# plt.figure()
-		# plt.imshow(aligned_anatomy)
-
-
-
-
-
-#!!!!!!!!!!! need to implement this part
-		frames = aligned_frames
-
-		x_motion=np.zeros(np.shape(frames)[0])
-		y_motion=np.zeros(np.shape(frames)[0])
-		total_motion=np.zeros(np.shape(frames)[0])
-		for j in range(frames.shape[0]):
-
-
-#!!!!!!!!!!!!!!!
-			# frames[j,:,:][np.isnan(frames[j,:,:])] = 0
-
-			X=phase_cross_correlation(template_image, frames[j,:,:], upsample_factor=10, space='real')
-			x_motion[j]=X[0][0]
-			y_motion[j]=X[0][1]
-			total_motion[j]=math.sqrt(x_motion[j]*x_motion[j]+y_motion[j]*y_motion[j])
-
-
-
-
-		# plt.figure()
-		# plt.title('2. Motion of each frame. CS {}'.format(i))
-		# plt.subplot(1,2,1)
-		# plt.plot(total_motion)
-		# plt.subplot(1,2,2)
-		# plt.scatter(x_motion-0.01+0.02*np.random.rand(x_motion.shape[0]),y_motion-0.01+0.02*np.random.rand(x_motion.shape[0]),s=0.5)
-		# plt.show()
-
-
-
-
-		aligned_frames[np.isnan(aligned_frames)] = 0
-		images_sub[i][l] = aligned_frames.copy()
-
-		
-		
-
-		#* Discard frames with too much motion
-		images_sub[i][l][np.where(total_motion > 10)[0]] = np.empty(images_sub[i][l].shape[1:]) * np.nan
-		
-
-
-
-	# break
-
-	print(i)
-
-
-
-	# plt.imshow(np.nanmean(np.concatenate(images_sub[i], axis=0), axis=0))
-	# plt.imshow(np.nanmean(images_sub[i][1], axis=0))
-	# plt.show()
-
-
-	A = np.nanmean(images_sub[i][0][-18:], axis=0)
-	B = np.nanmean(images_sub[i][1][:18], axis=0)
-
-	
-	# plt.imshow(B)
-	plt.imshow((B-A)/(A+B))
-	plt.show()
-	plt.close()
-
-	# break
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-for i, cs_ in enumerate(relevant_cs_onset):
-	# break
-
-
-	a = (data.loc[data['Frame beg'], abs_time] < cs_)
-	
-	index_beg = a[a][:-120].index
-	index_end = a[a][-120:].index
-
-	a.loc[index_beg] = False
-	
-	index_images_group_in_data[i] = a[a].index.to_numpy()
-	
-	# data.loc[a, :]
-
-	a = a.to_numpy()
-	
-	
-	images_ = images[:len(a)][a]
-
-	get_good_images_indices(images_)
-
-
-	#* Find the plane number for each group of images.
-	planes_numbers1 = find_plane_in_anatomical_stack(anatomical_stack_images, images_.astype('float32'), None, x_dim, y_dim)[0]
-
-
-	
-
-
-
-
-
-
-first_relevant_cs = 5
-
-relevant_cs_onset = data.loc[data[cs] == first_relevant_cs, abs_time].iat[0]
-
-time_beg = relevant_cs_onset - 60000
-
-number_images_not_consider = (data.loc[data['Frame beg'], abs_time] < time_beg).sum()
-
-
-
-number_images_not_consider = number_images_not_consider - number_images_not_consider % images_bin_size
-
-
-
-
-
-#! Do not like this approach. Should be smarter. We do not care about all of these images.
-images_considered = images[:images.shape[0]-im+-0ages.shape[0] % images_bin_size]
-
-# images_considered.shape
-
-
-#* Split the images array into groups of frames.
-images_groups_frames = np.array([images[i:i+images_bin_size] for i in range(number_images_not_consider, images_considered.shape[0], images_bin_size)])
-
-#! images_groups_frames_ = images_groups_frames.copy()
-#! images_groups_frames = images_groups_frames_.copy()
-# images_groups_frames.shape
-
-#* Find the groups of images where there was no movement.
-images_groups_frames = [get_good_images_indices(image) for image in images_groups_frames]
-
-# images_groups_frames_mean[0].shape
-
-#* Calculate the mean of each group of frames.
-#* Filter the images with a median filter.
-for i, images_group in tqdm(enumerate(images_groups_frames)):
-
-	if images_group is not None:
-		images_groups_frames[i] = ndimage.median_filter(np.mean(images_group, axis=0), size=median_filter_kernel)
-
-# images_groups_frames[i].shape
-# len(images_groups_frames)
-
-
-
-
-#* Read the anatomical stack.
-anatomical_stack_images = tifffile.imread(anatomy_1_path).astype('float32')
-# anatomical_stack_images = tifffile.imread(anatomy_1_filtered_path).astype('float32')
-
-# anatomical_stack_images.shape
-
-
-xy_movement_allowed = 0.1  # fraction of the real image
-
-
-_, y_dim, x_dim = np.array(anatomical_stack_images.shape)
-
-x_dim = int(x_dim * xy_movement_allowed/2)
-y_dim = int(y_dim * xy_movement_allowed/2)
-
-
-
-
-# ONLY DO THIS FOR THE IMAGES THAT MATTER
-
-planes_numbers = np.array([find_plane_in_anatomical_stack(anatomical_stack_images, image.astype('float32'), None, x_dim, y_dim)[0] if image is not None else np.nan for image in tqdm(images_groups_frames)])
-
-
-# planes_numbers = [plane[0] if plane is not None else np.nan for plane in planes_numbers]
-
-# planes_numbers_ = [0 for _ in images_groups_frames]
-
-# for i, image in tqdm(enumerate(images_groups_frames)):
-# 	if image is not None:
-# 		plane_number, _ = find_plane_in_anatomical_stack(anatomical_stack_images, image.astype('float32'), None, x_dim, y_dim)
-# 		planes_numbers_[i] = plane_number
-
-# 		# break
-# 	else:
-# 		planes_numbers_[i] = None
-
-
-planes_numbers_ = [plane for plane in planes_numbers[~np.isnan(planes_numbers)]]
-edges = np.linspace(min(planes_numbers_), max(planes_numbers_), 15, endpoint=True)
-edges[-1] += 0.00000000001
-
-
-planes_numbers__ = np.digitize(planes_numbers, edges).astype('float')
-
-planes_numbers__[np.isnan(planes_numbers)] = np.nan
-
-plt.plot(planes_numbers__)
-
-# planes_numbers[~np.isnan(planes_numbers)]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#* Add the plane number to data.
-data['Plane'] = np.nan
-
-index = data.loc[data['Frame beg'], 'Plane'].index
-
-
-
-data.loc[index[number_images_not_consider : len(images_considered)], 'Plane'] = np.array([np.ones(images_bin_size)*plane for plane in planes_numbers__]).flatten()
-
-
-
-plt.plot(data['Plane'], '.')
-
-
-
-
-
-#* Fill in the gaps in the plane numbers in data, when the edges of the gaps are the same.
-A = data['Plane'].fillna(method='ffill')
-B = data['Plane'].fillna(method='bfill')
-
-#TODO set a limit...
-mask = A == B
-
-data.loc[mask, 'Plane'] = A[mask]
-
-plt.plot(data['Plane'].to_numpy(), '.')
-plt.plot(np.digitize(planes_numbers__, edges))
-
-
-
-
-
-
-#endregion
-
-#!!!!!!!!!!!!!!!!!!!!!!!!!
-
-
-
-
-#TODO
-
-NEED TO DO THE MOTION CORRECTION... FOR SIMILAR PLANES
-
-
-
-
-
-
-
-
-
-
-#TODO plot where CS and position in the anatomical stack
-
-
-
-
-
-
-
-
-
-
-#TODO in data, select the regions of interest based on the protocol
-
-
-bef_stim_onset = 25000
-aft_stim_offset = 25000
-
-
-
-
-# cs_numbers = data.loc[data[us] != 0, us].unique()
-# data.loc[data[cs] != 0, cs].unique()
-cs_numbers = np.arange(5,75)
-# cs_numbers = data[us].unique()
-
-
-
-#!!!!!!!!!!!!!!!!!!!!!!!!!                 I THINK THE CS TIMES ARE WRONG
-
-
-
-fig, axs = plt.subplots(cs_numbers.size, 1, figsize=(10, 90), sharex=True, sharey=True)
-
-# fig, axs = plt.subplots(3, 1, figsize=(10, 50))
-
-# fig, axs = plt.subplots(1, 1, figsize=(10, 10), squeeze=False)
-
-for stim_number_i, stim_number in enumerate(cs_numbers):
-
-
-	data_ = data.loc[data[cs] == stim_number, abs_time]
-
-	cs_beg_ = data_.iat[0]
-	cs_end_ = data_.iat[-1]
-
-	#!!!!!!!!!! print(stim_number_i, cs_end_ - cs_beg_)
-
-
-	data_plot = data.loc[data[abs_time].between(cs_beg_-bef_stim_onset, cs_end_+aft_stim_offset)]
-
-
-	axs[stim_number_i].plot(data_plot[abs_time].to_numpy() - cs_beg_, data_plot['Plane'].to_numpy(), 'k.')
-	# axs[stim_number_i].plot(data_plot[abs_time].to_numpy() - cs_beg_, data_plot['Image mean'].to_numpy(), 'k.')
-	# axs[stim_number_i].plot(data_plot[abs_time].to_numpy() - cs_beg_, data_plot['Angle (deg) 14'].diff().to_numpy(), 'k.')
-	# axs[stim_number_i].plot(data_plot[abs_time].to_numpy() - cs_beg_, data_plot[galvo_value].to_numpy() + 100, 'bo')
-	#! axs[stim_number_i].plot(data__[abs_time].to_numpy() - cs_beg_, data__[galvo_value].to_numpy(), 'm')
-
-	axs[stim_number_i].axvline(x=cs_beg_ - cs_beg_, color='g', linestyle='-')
-	axs[stim_number_i].axvline(x=cs_end_ - cs_beg_, color='r', linestyle='-')
-	axs[stim_number_i].set_title(f"Stimulus Number: {stim_number}")
-	# plt.plot(time, data__[galvo_value]], 'k')
-	# plt.plot(time, data__['Frame beg'], 'bo')
-	# plt.plot(time, data__[cs], 'yo')
-	# plt.plot(time, data__[us_end], 'mo')
-
-	# data__.plot(x=abs_time, y=['Frame beg', 'Image mean', cs, us_end], ls='.')
-
-fig.show()
-
-del data_, data_plot
-
-
-
-
-
-
-
-
-
-
-
-plt.plot(planes_numbers)
-# plt.plot(planes_numbers_)
-
-
-a = np.array([plane for plane in planes_numbers if plane is not np.nan])
-
-plt.plot(a)
-plt.plot(a_diff)
-
-a_diff = np.diff(a)
-
-len(np.where(abs(a_diff) >= 3)[0])
-ind = np.where(abs(a_diff) >= 3)[0]
-plt.plot(a[ind])
-a
-# planes_numbers__ = planes_numbers_.copy()
-# planes_numbers_ = planes_numbers__.copy()
-
-
-#TODO 
-
-planes_numbers_ = np.array([np.nan if plane is None else plane for plane in planes_numbers])
-
-
-
-
-
-
-NOW FILL IN THE GAPS
-
-planes_numbers
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-planes_numbers_ = planes_numbers_.fillna(method='ffill')
-
-arr = planes_numbers_
-
-
-mask = np.isnan(arr)
-
-idx = np.where(~mask, np.arange(len(mask)), 0)
-
-
-
-arr[mask] = arr[np.nonzero(mask)[0], idx[mask]]
-
-
-
-
-plt.plot(np.diff(planes_numbers_))
-
-
-np.diff(planes_numbers_)
-
-np.where(np.diff(planes_numbers_) > 3 )[0]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-save tiff 
-set to correct dtype
-
-
-
-
-
-
-
-
-import h5py
-import datetime
-
-with h5py.File(r"I:\20240314_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf\Data.hdf", "w") as file:
-	file.create_dataset("data", data=data, compression="gzip")
+__dict__.keys()

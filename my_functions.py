@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import plotly as py
+import xarray as xr
 from pandas.api.types import CategoricalDtype
 from plotly import graph_objs as go
 from plotly.subplots import make_subplots
@@ -1487,3 +1488,729 @@ def change_block_names (data, blocks_csus, blocks_csus_names):
 	data[block_name] = data[block_name].astype(CategoricalDtype(categories=blocks_csus_names, ordered=True))
 
 	return data
+
+
+
+
+
+#* Functions
+# %%
+# region Functions
+def get_bytes_header_and_image(images_path):
+	
+	byte_number = 0
+
+	# byte_order = np.fromfile(images_path, dtype=np.uint16, count=1, offset=byte_number)[0]
+	byte_number += 2
+
+	# arbitrary = np.fromfile(images_path, dtype=np.uint16, count=1, offset=byte_number)[0]
+	byte_number += 2
+
+	# IGD1off = np.fromfile(images_path, dtype=np.uint32, count=1, offset=byte_number)[0]
+	byte_number += 4
+
+	number_fields = np.fromfile(images_path, dtype=np.uint16, count=1, offset=byte_number)[0].byteswap()
+	byte_number += 2
+
+	# tag = np.fromfile(images_path, dtype=np.uint16, count=1, offset=byte_number)[0]
+	byte_number += 2
+
+	# field_data = np.fromfile(images_path, dtype=np.uint8, count=6, offset=byte_number)
+	byte_number += 6
+
+	width = np.fromfile(images_path, dtype=np.uint32, count=1, offset=byte_number)[0].byteswap()
+	byte_number += 4	
+
+	# tag = np.fromfile(images_path, dtype=np.uint16, count=1, offset=byte_number)[0]
+	byte_number += 2
+
+	# field_data = np.fromfile(images_path, dtype=np.uint8, count=6, offset=byte_number)
+	byte_number += 6
+
+	height = np.fromfile(images_path, dtype=np.uint32, count=1, offset=byte_number)[0].byteswap()
+	byte_number += 4
+
+	for n in range(number_fields - 2):
+		# np.fromfile(images_path, dtype=np.uint8, count=12, offset=byte_number)
+		byte_number += 12
+
+	# next_offset = np.fromfile(images_path, dtype=np.uint32, count=1, offset=byte_number)[0].byteswap()
+	byte_number += 4
+
+	# skip resolution data
+	# np.fromfile(images_path, dtype=np.uint8, count=16, offset=byte_number)
+	byte_number += 16
+
+	# number_pixels = height * width
+
+	# All bytes up to here subatracted by the 2 bytes used to store the byte order.
+	bytes_header = number_fields*12+2+4+16
+
+	# Because images are uint16.
+	# bytes_image = number_pixels * 2
+
+	# print('bytes_header', bytes_header)
+
+	return bytes_header, height, width
+
+def get_image_from_tiff(images_path, image_i, bytes_header, height, width):
+
+	# 2 comes from the 2 bytes used to store the byte order.
+	offset_image = 2 + (image_i) * (bytes_header + height * width * 2) + bytes_header
+
+	image_data = np.fromfile(images_path, dtype=np.uint16, count=height*width, offset=offset_image).byteswap().reshape((height, width))
+
+	return image_data
+
+def get_number_images(images_path, bytes_header_and_image):
+
+	total_tif_size = os.path.getsize(images_path)
+
+	number_images = (total_tif_size - 2) // bytes_header_and_image
+
+	return number_images
+
+
+
+
+def find_plane_in_anatomical_stack(anatomical_stack_images, the_plane_mean_subset_last_images, plane_where_we_are, x_dim, y_dim):
+
+	#* Handle to the multipage TIFF file with the plane being imaged.
+	# the_plane_tiff = tifffile.TiffFile(the_plane_path)
+
+#! explain
+	# the_plane_mean_of_last_images = the_plane_tiff.asarray(slice(-number_repetitions_of_the_plane_to_analyze-1,-1,step_between_repetitions_of_the_plane_to_analyze))
+	the_plane_mean_subset_last_images = the_plane_mean_subset_last_images[y_dim:-y_dim, x_dim:-x_dim]
+	
+	if plane_where_we_are is not None:
+		
+		if (first_plane_substack := plane_where_we_are - number_planes_around_the_plane) < 0:
+			
+			first_plane_substack = 0
+
+		if (last_plane_substack := plane_where_we_are + number_planes_around_the_plane + 1) > len(anatomical_stack_images):
+			
+			last_plane_substack = len(anatomical_stack_images)
+
+		anatomical_stack_images_ = anatomical_stack_images[first_plane_substack : last_plane_substack]
+		
+	else:
+		
+		anatomical_stack_images_ = anatomical_stack_images
+
+		first_plane_substack = 0
+		
+	template_matching_results = [cv2.matchTemplate(plane, the_plane_mean_subset_last_images, cv2.TM_CCOEFF_NORMED) for plane in anatomical_stack_images_]
+
+	# b = [np.array(x.flatten())[np.argpartition(x.flatten(), 3)[:3]] for x in template_matching_results]
+
+	# # [print(ii) for ii in b]
+
+	# a = np.mean(b, axis=1)
+
+	plane_i = np.argmax([x.max() for x in template_matching_results])
+	# np.argmax(a)
+
+	xy_in_plane = np.argmax(template_matching_results[plane_i][0]), np.argmax(template_matching_results[plane_i][1])
+	
+	plane_i += first_plane_substack
+
+	# Find the index of the maximum correlation value
+	return plane_i, xy_in_plane
+
+
+def read_camera(camera_path):
+
+	try:
+		# start = timer()
+		
+		# camera = pd.read_csv(str(camera_path), sep='\t', header=0, decimal='.', skiprows=[*range(1,number_frames_discard_beg)])
+		camera = pd.read_csv(camera_path, engine='pyarrow', sep=' ', header=0, decimal='.')
+		# , na_filter=False
+		# dtype={time_experiment_f : 'int64', abs_time : 'int64', ela_time : 'float64'})
+		# skipfooter=1
+		camera = camera.iloc[:-1,:]
+
+		camera.rename(columns={'FrameID' : frame_id, 'ID' : frame_id}, inplace=True)
+		
+		# print('Time to read cam.txt: {} (s)'.format(timer()-start))
+		
+		return camera
+
+	except:
+
+		print('Issues in the camera log file')
+		
+		return None
+
+def framerate_and_reference_frame(camera):
+
+	# first_frame_absolute_time = camera[abs_time].iloc[0]
+
+	camera = camera.drop(columns=abs_time, errors='ignore')
+
+	camera_diff = camera[ela_time].diff()
+
+	print('Max IFI: {} ms'.format(camera_diff.max()))
+	
+	# First estimate of the interframe interval, using the median
+	ifi = camera_diff.median()
+	# camera_diff.iloc[number_frames_discard_beg : ].median()
+	print('First estimate of IFI: {} ms'.format(ifi))
+
+
+	camera_diff_index_correct_IFI = np.where(abs(camera_diff - ifi) <= max_interval_between_frames)[0]
+
+	camera_diff_index_correct_IFI_diff = np.diff(camera_diff_index_correct_IFI)
+
+	reference_frame_id = 0
+	last_frame_id = 0
+
+	#* Find a region at the beginning where the IFI from frame to frame does not vary significantly and is similar to the first estimate of the true IFI (ifi).
+	for i in range(1, len(camera_diff_index_correct_IFI_diff)):
+
+		if camera_diff_index_correct_IFI_diff[i-1] == 1 and camera_diff_index_correct_IFI_diff[i] == 1:
+
+			reference_frame_id = camera[frame_id].iloc[camera_diff_index_correct_IFI[i] - 1]
+
+
+			# # first_frame_absolute_time is not None when there is absolute time in the cam file.
+			# if first_frame_absolute_time is not None:
+			# 	reference_frame_time = first_frame_absolute_time + camera[ela_time].iloc[camera_diff_index_correct_IFI[i] - 1] - camera[ela_time].iloc[0]
+			# else:
+			# 	reference_frame_time = None
+
+			break
+
+	#* Find a similar region but at the end of the experiment.
+	for i in range(len(camera_diff_index_correct_IFI_diff)-1, 0, -1):
+
+		if camera_diff_index_correct_IFI_diff[i-1] == 1 and camera_diff_index_correct_IFI_diff[i] == 1:
+			
+			last_frame_id = camera[frame_id].iloc[camera_diff_index_correct_IFI[i] - 1]
+			#last_frame_time = first_frame_absolute_time + camera[time].iloc[camera_diff_index_right_IFI[i] - 1] - camera[time].iloc[0]
+
+			break
+
+
+	#* Second estimate of the interframe interval, using the mean, and assuming there is no increasing accumulation of frames in the buffer during the experiment; Only the region between the two frames identified in the previous two for loops is considered.
+	ifi = camera_diff.iloc[reference_frame_id - camera[frame_id].iloc[0] : last_frame_id - camera[frame_id].iloc[0]].mean()
+
+	print('Second estimate of IFI: {} ms'.format(ifi))
+	predicted_framerate = 1000 / ifi
+	print('Estimated framerate: {} FPS'.format(predicted_framerate))
+
+
+	# Lost_frames = lost_frames(camera, camera_diff, ifi, fish_name, fig_camera_name)
+
+	return predicted_framerate, reference_frame_id
+
+def read_tail_tracking_data(data_path):
+
+	# Angles in data come in radians.
+
+	try:
+		
+		# start = timer()
+		
+		data = pd.read_csv(data_path, engine='pyarrow', sep=' ', usecols=cols_to_use_orig, header=0, decimal='.', na_filter=False, names=[frame_id]+data_cols)
+		# dtype=dict(zip(cols_to_use_orig, ['int64'] + ['float32']*len(cols_to_use_orig))))
+		# skipfooter=1
+		data = data.iloc[:-1,:]
+		
+		#* Right now, pyarrow engine ignores renaming when opening the csv.
+		data.rename(columns=dict(zip(cols_to_use_orig, [frame_id] + data_cols)), inplace=True)
+
+		# print('Time to read tail tracking .txt: {} (s)'.format(timer()-start))
+
+
+		#? maybe before this was necessary because "decimal" in pd.read_csv was set to ",".
+		#* Even if decimal separator is wrong, this will correct it.
+		# data.iloc[:,1:] = data.iloc[:,1:].astype('float32')
+
+		#* Convert tail tracking data from radian to degree
+		data.loc[:,angle_cols] *= (180/np.pi)
+		
+		return data
+
+	except:
+		
+		#TODO
+		# f.save_info(protocol_info_path, self.metadata.name, 'Tail tracking might be corrupted!')
+		print('Issues in tail tracking data')
+		return None
+
+def plot_behavior_overview(data, fish_name, fig_behavior_name):
+	# data containing tail_angle.
+
+	# mask_frames = np.ones(number_frames + round(60*framerate), dtype=bool)
+	# mask_frames[:: round(framerate * 0.5)] = False
+	# mask_frames[0] = False
+	
+	# rows_to_skip = np.arange(number_frames + round(60*framerate))
+	# rows_to_skip = rows_to_skip[mask_frames]
+
+	# start = timer()
+
+	# overall_data = pd.read_csv(data, sep=' ', header=0, usecols=cols, skiprows=rows_to_skip, decimal=',')
+	# overall_data = overall_data.astype('float32')
+
+	# print(timer() - start)
+	plt.figure(figsize=(30, 15))
+	plt.plot(data[frame_id]/expected_framerate/60/60, data[tail_angle], 'black')
+	plt.xlabel('Time (h)')
+	plt.ylabel('Tail end angle (deg)')
+	plt.suptitle('Behavior overview\n' + fish_name)
+	# plt.show()
+	# plt.legend(frameon=False, loc='upper center', ncol=2)
+	plt.savefig(fig_behavior_name, dpi=100, bbox_inches='tight')
+	plt.close()
+
+def tracking_errors(data, single_point_tracking_error_thr = single_point_tracking_error_thr):
+
+	if ((a := data.loc[:, angle_cols].abs().max()) > single_point_tracking_error_thr).any():
+		print('Possible tracking error; max(abs(angle of individual point)): ')
+		print(a)
+
+		return True
+
+	elif data.iloc[:,1:].isna().to_numpy().any():
+		print('Possible tracking failures; there are NAs in data')
+
+		return True
+
+	else:
+		return False
+
+def merge_camera_with_data(data, camera):
+
+	data = pd.merge_ordered(data, camera, on=frame_id, how='outer')
+
+	data[frame_id] -= data[frame_id].iat[0]
+
+	return data
+
+def interpolate_data(data, predicted_framerate, expected_framerate=expected_framerate):
+	# expected_framerate is the framerate to which data is interpolated. So, output data is as if it had been acquired at the expected_framerate (700 FPS when I wrote this).
+
+	data_ = data.copy()
+
+	#* Interpolate tail tracking data to the expected framerate.
+
+	data_[frame_id] *= expected_framerate/predicted_framerate
+
+	data_.rename(columns={frame_id : time_experiment_f}, inplace=True)
+
+	interp_function = interpolate.interp1d(data_[time_experiment_f], data_.drop(columns=time_experiment_f), kind='slinear', axis=0, assume_sorted=True, bounds_error=False, fill_value="extrapolate")
+
+	data = pd.DataFrame(np.arange(data_[time_experiment_f].iat[0], data_[time_experiment_f].iat[-1]), columns=[time_experiment_f])
+
+	data[data_.drop(columns=time_experiment_f).columns] = interp_function(data[time_experiment_f])
+
+	return data
+
+def read_protocol(protocol_path):
+
+	#* Read protocol file.
+	if Path(protocol_path).exists():
+		# protocol = pd.read_csv(str(protocol_path), sep=' ', header=0, names=['Type', beg, end], usecols=[0, 1, 2], index_col=0)
+		protocol = pd.read_csv(protocol_path, engine='pyarrow', sep=' ', header=0, decimal='.', names=['Type', beg, end])
+		# dtype={'Type' : 'str', beg : 'int', end : 'int'})
+
+	else:
+		print('The stim log file does not exist')
+		return None
+
+	#* Were the stimuli timings not saved?
+	if protocol.empty:
+		print('The stim log file is empty')
+		return None
+
+	if protocol.iloc[0,0] == 0:
+		print('The stim log file is currupted')
+		return None
+
+	#* Right now, pyarrow engine ignores renaming when opening the csv.
+	protocol.rename(columns={'Beg' : beg, 'End' : end}, inplace=True)
+	protocol['Type'] = protocol['Type'].replace({'Cycle' : cs, 'Reinforcer' : us})
+	protocol.sort_values(by=beg, inplace=True)
+	protocol = protocol.set_index('Type')
+
+	return protocol
+
+def lost_stim(number_cycles, number_reinforcers, expected_number_cs_trials, expected_number_us_trials):
+
+	if number_cycles < expected_number_cs_trials:
+
+		# save_info(protocol_info_path, fish_name, 'Not all CS! Stopped at CS {} ({}).'.
+		# format(number_cycles, id_debug))
+		print('Not all CS!')
+
+	if number_reinforcers < expected_number_us_trials:
+		
+		# save_info(protocol_info_path, fish_name, 'Not all US! Stopped at US {} ({}).'.format(number_reinforcers, id_debug))
+		print('Not all US!')
+			
+	if number_cycles < expected_number_cs_trials or number_reinforcers < expected_number_us_trials:
+
+		return True
+	
+	else:
+		return False
+
+def protocol_info(protocol):
+
+	#* Count the number of cycles, trials, blocks and bouts.
+	# Using len() just in case these is a single element.
+	# number_cs = len(protocol.loc['Cycle', beg])
+
+	if protocol.index.isin([us]).any():
+		# number_us = len(protocol.loc[us, beg])
+
+		us_beg = protocol.loc[us, beg]
+		us_end = protocol.loc[us, end]
+		us_dur = (us_end - us_beg).to_numpy() # in ms
+		us_isi = (us_beg[1:] - us_end[:-1]).to_numpy() / 1000 / 60 # min
+	else:
+		# number_us = 0
+
+		us_dur = None
+		us_isi = None
+
+	# habituation_duration = protocol.iloc[0,0] / 1000 / 60 # min
+
+	cs_beg = protocol.loc[cs, beg]
+	cs_end = protocol.loc[cs, end]
+	cs_dur = (cs_end - cs_beg).to_numpy() # in ms
+	cs_isi = (cs_beg[1:] - cs_end[:-1]).to_numpy() / 1000 / 60 # min
+
+
+	return cs_dur, cs_isi, us_dur, us_isi
+
+def plot_protocol(cs_dur, cs_isi, us_dur, us_isi, fish_name, fig_protocol_name):
+
+	plt.figure(figsize=(14,14))
+	plt.plot(np.arange(1, len(cs_isi) + 1), cs_isi, label='inter-cs interval\nmin int.=' + str(round(np.amin(cs_isi)*60,1)) + ' s\n' + 'cs min dur=' + str(round(np.amin(cs_dur)/1000,3)) + ' s\n' + 'cs max dur=' + str(round(np.amax(cs_dur)/1000,3)) + ' s')
+	
+	plt.plot(np.arange(5, 4+len(us_isi)+1), us_isi, label='inter-us interval\nmin int.=' + str(round(np.amin(us_isi)*60,1)) + ' s\n' + 'us min dur=' + str(round(np.amin(us_dur)/1000,3)) + 's\n' + 'us max dur='+ str(round(np.amax(us_dur)/1000,3)) + ' s')
+	plt.xlabel('Trial number')
+	plt.ylabel('ISI (min)')
+	plt.ylim(0, 10)
+	plt.legend(frameon=False, loc='upper center', ncol=2)
+	plt.suptitle('Summary of protocol\n' + fish_name)
+	plt.savefig(fig_protocol_name, dpi=100, bbox_inches='tight')
+	plt.close()
+
+def identify_trials(data, protocol):
+
+	data[[cs, us]] = [0, 0]
+
+	for cs_us in [cs, us]:
+
+		protocol_sub = protocol.loc[cs_us, [beg, end]].to_numpy()
+
+		for i, p in enumerate(protocol_sub):
+			
+			data.loc[data[abs_time].between(p[0], p[1]), cs_us] = i + 1
+
+	data = data.set_index(abs_time)
+
+	try:
+		data.loc[:, data_cols] = data.loc[:, data_cols].interpolate(kind='slinear')
+	except:
+		print('HERE. FIX THIS')
+
+	#! data = data.reset_index(drop=True).dropna()
+	data = data.reset_index().dropna()
+
+	data[time_experiment_f] = data[time_experiment_f].astype('int64')
+
+	data[[cs, us]] = data[[cs, us]].astype('Sparse[int16]')
+
+	#* Fix dtypes.
+	# for cs_us in [cs, us]:
+
+	# 	data[cs_us] = data.loc[:, cs_us].astype(pd.CategoricalDtype(categories=data[cs_us].unique(), ordered=True))
+
+	return data
+
+
+
+
+def get_good_images_indices(images_subset):
+
+
+	top = np.nanmean(images_subset[:, :top_bottom_frame_slice, :], axis=(1,2))
+	bottom = np.nanmean(images_subset[:, -top_bottom_frame_slice:, :], axis=(1,2))
+	front = np.nanmean(images_subset[:, :, -front_back_frame_slice:], axis=(1,2))
+	back = np.nanmean(images_subset[:, :, :front_back_frame_slice], axis=(1,2))
+
+	all = np.nanmean(images_subset, axis=(1,2))
+	all_median = np.nanmedian(all)
+
+	light_percentage_change = (np.abs(all - all_median) / all_median) * 100
+
+	#* Discard based on overall light (too low or too high)
+	mask_good_images = light_percentage_change < light_percentage_increase_thr
+
+	#* And also discard based on the derivative
+	mask_good_images = mask_good_images & ([True] + list((np.abs(np.diff(top)) < average_light_derivative_thr) & (np.abs(np.diff(bottom)) < average_light_derivative_thr) & (np.abs(np.diff(front)) < average_light_derivative_thr) & (np.abs(np.diff(back)) < average_light_derivative_thr) & (np.abs(np.diff(all) < average_light_derivative_thr))))
+
+	# plt.plot(top-np.nanmedian(top))
+	# plt.plot(bottom-np.nanmedian(bottom))
+	# plt.plot(front-np.nanmedian(front))
+	# plt.plot(back-np.nanmedian(back))
+	# plt.plot(all-np.nanmedian(all))
+	# plt.plot(light_percentage_change)
+	# plt.plot(np.where(mask_good_images, mask_good_images, np.nan)*(-10), lw=3)
+	# plt.legend(['Top', 'Bottom', 'Front', 'Back', 'Whole', r'Whole % change', r'Good images'], loc='center left', bbox_to_anchor=(1, 0.5))
+	# plt.show()
+	
+	return mask_good_images
+
+
+def get_fixed_number_good_last_images(images_subset):
+
+	mask_good_images = get_good_images_indices(images_subset)
+
+	#* Discard the first and last frames
+	mask_good_images[:3] = False
+	mask_good_images[-3:] = False
+
+	#* Find consecutive True regions
+	new_mask = np.zeros_like(mask_good_images, dtype=bool)
+	consecutive_count = 0
+	for i, value in enumerate(mask_good_images[::-1]):
+
+		if value:
+			consecutive_count += 1
+			if consecutive_count >= number_repetitions_the_plane_consecutively_stable:
+				new_mask[i - number_repetitions_the_plane_consecutively_stable + 1 : i + 1] = True
+				break
+		else:
+			consecutive_count = 0
+	mask_good_images = new_mask[::-1]
+	
+
+	images_subset = images_subset[mask_good_images,:,:]
+
+	# plt.plot(mask_good_images)
+	# # plt.axvspan(np.diff(mask_good_images)==1, np.diff(mask_good_images)==-1)
+	# plt.legend([r'Good images'], loc='center left', bbox_to_anchor=(1, 0.5))
+	# plt.show()
+
+	return images_subset
+
+
+def get_maximum_number_good_last_images(images_subset):
+
+	mask_good_images = get_good_images_indices(images_subset)
+
+	#* Discard the first and last frames
+	mask_good_images[:3] = False
+	mask_good_images[-3:] = False
+
+	#* Find consecutive True regions
+	new_mask = np.zeros_like(mask_good_images, dtype=bool)
+	consecutive_count = 0
+	for i, value in enumerate(mask_good_images[::-1]):
+
+		if value:
+			consecutive_count += 1
+			# if consecutive_count >= number_repetitions_the_plane_consecutively_stable:
+			# 	new_mask[i - number_repetitions_the_plane_consecutively_stable + 1 : i + 1] = True
+			# 	break
+		else:
+			if consecutive_count > 0 and consecutive_count > number_repetitions_the_plane_consecutively_stable:
+				new_mask[i - consecutive_count : i] = True
+				break
+			else:
+				consecutive_count = 0
+			
+	mask_good_images = new_mask[::-1]
+	
+
+	images_subset = images_subset[mask_good_images,:,:]
+
+	# plt.plot(mask_good_images)
+	# # plt.axvspan(np.diff(mask_good_images)==1, np.diff(mask_good_images)==-1)
+	# plt.legend([r'Good images'], loc='center left', bbox_to_anchor=(1, 0.5))
+	# plt.show()
+
+	return images_subset
+
+
+def get_template_image(frames):
+
+	template_image = ndimage.median_filter(np.nanmean(frames, axis=0), size=median_filter_kernel)
+	# np.mean(ndimage.median_filter(frames, size=median_filter_kernel, axes=(1,2)), axis=0)
+
+	# plt.figure(figsize=(20, 16))
+	# plt.imshow(template_image)
+	# plt.colorbar(shrink=0.5)
+	# plt.title('Anatomy')
+	# plt.show()
+
+	return template_image
+
+
+
+def measure_motion(frames, anatomy, normalization=None):
+
+	x_motion=np.zeros(np.shape(frames)[0])
+	y_motion=np.zeros(np.shape(frames)[0])
+	for j in range(frames.shape[0]):
+		X=phase_cross_correlation(anatomy, frames[j,:,:], upsample_factor=10, space='real', normalization=normalization, overlap_ratio=0.9)
+		x_motion[j]=X[0][0]
+		y_motion[j]=X[0][1]
+
+	return np.column_stack([x_motion, y_motion])
+
+
+def get_total_motion(motion):
+	# total_motion=np.zeros(np.shape(frames)[0])
+	total_motion = np.linalg.norm(motion, axis=1)
+
+	# plt.show()
+	# fig, axs = plt.subplots(1, 2)
+	# fig.suptitle('Motion of each frame')
+	# axs[0].plot(total_motion, 'k.')
+	# axs[1].scatter(motion[:,0]-0.01+0.02*np.random.rand(motion[:,0].shape[0]),motion[:,1]-0.01+0.02*np.random.rand(motion[:,1].shape[0]),s=0.5)
+	# # fig.show()
+	# plt.show()
+
+	return total_motion
+
+
+
+def align_frames(frames, motion, total_motion, total_motion_thr=None):
+
+	# total_motion = get_total_motion(motion)
+
+	##* Discard frames with too much motion.
+	if total_motion_thr is not None:
+		frames_indices_ignore = np.where(total_motion > total_motion_thr)[0]
+	else:
+		frames_indices_ignore = []
+	
+	aligned_frames=np.zeros(frames.shape)
+
+	for j in range(frames.shape[0]):
+		if j not in frames_indices_ignore:
+			aligned_frames[j,:,:]=shift(frames[j,:,:], motion[j], output=None, order=3, mode='constant', cval=0.0, prefilter=True)
+		#   the commented lines below check that the shift was performed in the correct direction	
+			# X=phase_cross_correlation(original_anatomy, frames[j,:,:] ,upsample_factor=10, space='real')
+			# print(X)
+			# Y=phase_cross_correlation(original_anatomy, aligned_frames[j,:,:] ,upsample_factor=10, space='real')
+			# print(Y)
+   
+	return aligned_frames
+
+
+def correct_motion_within_trial(trial, number_iterations=5):
+
+	images_trial_ = trial.images.to_numpy()
+
+	template_image_ = get_template_image(get_maximum_number_good_last_images(images_trial_))
+
+	motion_thr = 5
+
+	for _ in range(number_iterations):
+
+		motion_thr = int(np.ceil(motion_thr))
+		motion_thr = motion_thr if motion_thr > 5 else 5
+		
+		#* Measure motion of each frame using phase cross-correlation.
+		motion = measure_motion(images_trial_[:, motion_thr:-motion_thr, motion_thr:-motion_thr], template_image_[motion_thr:-motion_thr, motion_thr:-motion_thr], normalization=None)
+
+		#* Measure motion of each frame using phase cross-correlation.
+		total_motion = get_total_motion(motion)
+		# Use half of the frames to get the template image.
+		motion_thr = np.median(total_motion)
+
+		#* Align the frames to their average.
+		aligned_frames = align_frames(images_trial_, motion, total_motion, 5)
+		
+		#* Motion correction relative to trials average.
+		template_image_ = get_template_image(aligned_frames[np.where(total_motion <= motion_thr)[0]])
+
+
+	plt.imshow(ndimage.median_filter(np.mean(aligned_frames, axis=0), size=median_filter_kernel))
+	# plt.imshow(np.mean(ndimage.median_filter(aligned_frames, size=median_filter_kernel, axes=(1,2)), axis=0))
+
+	#* Identify the plane number of the trial.
+	plane_number, _ = find_plane_in_anatomical_stack(anatomical_stack_images, template_image_.astype('float32'), None, x_dim, y_dim)
+
+	return motion, template_image_, plane_number
+
+
+
+def correct_motion_across_trials():
+
+	return
+
+
+
+
+def next_roi(Vcorrelation_map, Vframes, corr_thresh, Vsize):
+	
+	this_max=np.max(Vcorrelation_map)
+	#print(this_max)
+	result = np.where(Vcorrelation_map== this_max)
+	coords=list(zip(result[0], result[1]))
+	I=coords[0][0]
+	J=coords[0][1]
+	this_roi_trace=np.squeeze(Vframes[:,I,J])
+	this_roi=np.zeros(Vcorrelation_map.shape)
+	this_roi[I,J]=1;
+	this_correlation_map=np.copy(Vcorrelation_map)
+	this_correlation_map[I,J]=0;
+
+	added=1
+	while (np.sum(np.sum(this_roi,1),0)<Vsize and added==1):
+		added=0
+		dilated=morphology.binary_dilation(this_roi, np.ones((3,3))).astype(np.uint8)
+		new_pixels=dilated-this_roi
+		result = np.where(new_pixels == 1)
+		coords=list(zip(result[0], result[1]))
+		coords2=np.asarray(coords, dtype=np.int32)
+		for a in range(coords2.shape[0]):
+			I=coords2[a][0]
+			J=coords2[a][1]
+			if not(this_correlation_map[I,J]==0):
+				Y=np.squeeze(Vframes[:,I,J])
+				C, _ = pearsonr(this_roi_trace, Y)
+				if C>corr_thresh:
+					this_roi[I,J]=1
+					this_correlation_map[I,J]=0
+					this_roi_trace=this_roi_trace+Y
+					added=1
+
+	return this_roi, this_roi_trace, np.sum(np.sum(this_roi,1),0), this_correlation_map
+
+
+
+
+def get_ROIs(Nrois, correlation_map, images, threshold, max_pixels):
+	all_traces = np.zeros((Nrois, images.shape[0]))
+	all_rois = np.zeros(correlation_map.shape)
+	used_pixels = np.zeros(correlation_map.shape)
+	correlation_map[:5, :] = 0
+	correlation_map[:, :5] = 0
+	correlation_map[-5:, :] = 0
+	correlation_map[:, -5:] = 0
+
+	correlation_map_ = np.copy(correlation_map)
+	images = images.copy()
+
+	for i in tqdm(range(Nrois)):
+		this_roi3, this_roi_trace, N, this_correlation_map = next_roi(correlation_map_, images, threshold, max_pixels)
+		all_traces[i, :] = this_roi_trace
+		all_rois = all_rois + (i + 1) * this_roi3
+		used_pixels = used_pixels + this_roi3
+		correlation_map_[all_rois > 0] = 0
+
+	return all_traces, all_rois, used_pixels, correlation_map_
+
+#endregion			
+
