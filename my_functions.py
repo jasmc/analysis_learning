@@ -1,23 +1,44 @@
+import math
+import os
+import pickle
 from copy import deepcopy
+from dataclasses import dataclass
+from importlib import reload
 from pathlib import Path
 from timeit import default_timer as timer
 
-# import seaborn as sns
+import cv2
+import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import plotly as py
+import plotly.io as pio
+import scipy.ndimage as ndimage
+import seaborn as sns
+import tifffile
 import xarray as xr
 from pandas.api.types import CategoricalDtype
 from plotly import graph_objs as go
 from plotly.subplots import make_subplots
-from scipy import interpolate
+from scipy import interpolate, signal
+from scipy.ndimage import shift
+from scipy.stats import pearsonr, zscore
+from skimage import morphology
+from skimage.measure import block_reduce
+from skimage.registration import phase_cross_correlation
+from tqdm import tqdm
 
+import my_classes as c
+import my_functions as f
+import my_parameters as p
 from my_general_variables import *
 
 # from my_experiment_specific_variables import expected_number_cs
 
 plt.style.use('classic')
+
+
 
 
 
@@ -147,26 +168,26 @@ def read_initial_abs_time(camera_path):
 
 		return None
 
-def read_camera(camera_path) -> pd.DataFrame:
+# def read_camera(camera_path) -> pd.DataFrame:
 
-	try:
-		start = timer()
+# 	try:
+# 		start = timer()
 		
-		# camera = pd.read_csv(str(camera_path), sep='\t', header=0, decimal='.', skiprows=[*range(1,number_frames_discard_beg)])
-		camera = pd.read_csv(str(camera_path), sep=' ', header=0, decimal='.', skiprows=[*range(1,number_frames_discard_beg)])
-		# {'FrameID' : 'int', ela_time : 'float', abs_time : 'int'}
-		print('Time to read cam.txt: {} (s)'.format(timer()-start))
+# 		# camera = pd.read_csv(str(camera_path), sep='\t', header=0, decimal='.', skiprows=[*range(1,number_frames_discard_beg)])
+# 		camera = pd.read_csv(str(camera_path), sep=' ', header=0, decimal='.', skiprows=[*range(1,number_frames_discard_beg)])
+# 		# {'FrameID' : 'int', ela_time : 'float', abs_time : 'int'}
+# 		print('Time to read cam.txt: {} (s)'.format(timer()-start))
 
-		camera.rename(columns={'TotalTime' : ela_time}, inplace=True)
-		camera.rename(columns={'ID' : frame_id}, inplace=True)
+# 		camera.rename(columns={'TotalTime' : ela_time}, inplace=True)
+# 		camera.rename(columns={'ID' : frame_id}, inplace=True)
 		
-		return camera
+# 		return camera
 
-	except:
+# 	except:
 
-		print('Cannot read camera file.')
+# 		print('Cannot read camera file.')
 		
-		return None
+# 		return None
 
 
 def read_sync_reader(sync_reader_path):
@@ -188,227 +209,227 @@ def read_sync_reader(sync_reader_path):
 		return None
 
 
-def framerate_and_reference_frame(camera, first_frame_absolute_time, protocol_info_path, stem_fish_path_orig, fig_camera_name):
+# def framerate_and_reference_frame(camera, first_frame_absolute_time, protocol_info_path, stem_fish_path_orig, fig_camera_name):
 	
-	camera.loc[:,[ela_time]] = camera.loc[:,[ela_time]].astype('float')
+# 	camera.loc[:,[ela_time]] = camera.loc[:,[ela_time]].astype('float')
 	
-	camera_diff = camera[ela_time].diff()
+# 	camera_diff = camera[ela_time].diff()
 
-	print('Max IFI: {} ms'.format(camera_diff.max()))
+# 	print('Max IFI: {} ms'.format(camera_diff.max()))
 	
-	# First estimate of the interframe interval, using the median
-	ifi = camera_diff.median()
-	# camera_diff.iloc[number_frames_discard_beg : ].median()
-	print('First estimate of IFI: {} ms'.format(ifi))
+# 	# First estimate of the interframe interval, using the median
+# 	ifi = camera_diff.median()
+# 	# camera_diff.iloc[number_frames_discard_beg : ].median()
+# 	print('First estimate of IFI: {} ms'.format(ifi))
 
 
-	camera_diff_index_right_IFI = np.where(abs(camera_diff - ifi) <= max_interval_between_frames)[0]
+# 	camera_diff_index_right_IFI = np.where(abs(camera_diff - ifi) <= max_interval_between_frames)[0]
 
-	camera_diff_index_right_IFI_diff = np.diff(camera_diff_index_right_IFI)
+# 	camera_diff_index_right_IFI_diff = np.diff(camera_diff_index_right_IFI)
 
-	#* Find a region at the beginning where the IFI from frame to frame does not vary significantly and is similar to the first estimate of the true IFI (ifi).
-	for i in range(1, len(camera_diff_index_right_IFI_diff)):
+# 	#* Find a region at the beginning where the IFI from frame to frame does not vary significantly and is similar to the first estimate of the true IFI (ifi).
+# 	for i in range(1, len(camera_diff_index_right_IFI_diff)):
 
-		if camera_diff_index_right_IFI_diff[i-1] == 1 and camera_diff_index_right_IFI_diff[i] == 1:
+# 		if camera_diff_index_right_IFI_diff[i-1] == 1 and camera_diff_index_right_IFI_diff[i] == 1:
 
-			reference_frame_id = camera[frame_id].iloc[camera_diff_index_right_IFI[i] - 1]
+# 			reference_frame_id = camera[frame_id].iloc[camera_diff_index_right_IFI[i] - 1]
 
-			# first_frame_absolute_time is not None when there is absolute time in the cam file.
-			if first_frame_absolute_time is not None:
-				reference_frame_time = first_frame_absolute_time + camera[ela_time].iloc[camera_diff_index_right_IFI[i] - 1] - camera[ela_time].iloc[0]
-			else:
-				reference_frame_time = None
+# 			# first_frame_absolute_time is not None when there is absolute time in the cam file.
+# 			if first_frame_absolute_time is not None:
+# 				reference_frame_time = first_frame_absolute_time + camera[ela_time].iloc[camera_diff_index_right_IFI[i] - 1] - camera[ela_time].iloc[0]
+# 			else:
+# 				reference_frame_time = None
 
-			break
+# 			break
 
-	#* Find a similar region but at the end of the experiment.
-	for i in range(len(camera_diff_index_right_IFI_diff)-1, 0, -1):
+# 	#* Find a similar region but at the end of the experiment.
+# 	for i in range(len(camera_diff_index_right_IFI_diff)-1, 0, -1):
 
-		if camera_diff_index_right_IFI_diff[i-1] == 1 and camera_diff_index_right_IFI_diff[i] == 1:
+# 		if camera_diff_index_right_IFI_diff[i-1] == 1 and camera_diff_index_right_IFI_diff[i] == 1:
 			
-			last_frame_id = camera[frame_id].iloc[camera_diff_index_right_IFI[i] - 1]
-			#last_frame_time = first_frame_absolute_time + camera[time].iloc[camera_diff_index_right_IFI[i] - 1] - camera[time].iloc[0]
+# 			last_frame_id = camera[frame_id].iloc[camera_diff_index_right_IFI[i] - 1]
+# 			#last_frame_time = first_frame_absolute_time + camera[time].iloc[camera_diff_index_right_IFI[i] - 1] - camera[time].iloc[0]
 
-			break
-
-
-	#* Second estimate of the interframe interval, using the mean, and assuming there is no increasing accumulation of frames in the buffer during the experiment; Only the region between the two frames identified in the previous two for loops is considered.
-	ifi = camera_diff.iloc[reference_frame_id - camera[frame_id].iloc[0] : last_frame_id - camera[frame_id].iloc[0]].mean()
-
-	print('Second estimate of IFI: {} ms'.format(ifi))
-	predicted_framerate = 1000 / ifi
-	print('Estimated framerate: {} FPS'.format(predicted_framerate))
+# 			break
 
 
-	def lost_frames(camera, camera_diff, ifi, protocol_info_path, stem_fish_path_orig, fig_camera_name):
+# 	#* Second estimate of the interframe interval, using the mean, and assuming there is no increasing accumulation of frames in the buffer during the experiment; Only the region between the two frames identified in the previous two for loops is considered.
+# 	ifi = camera_diff.iloc[reference_frame_id - camera[frame_id].iloc[0] : last_frame_id - camera[frame_id].iloc[0]].mean()
+
+# 	print('Second estimate of IFI: {} ms'.format(ifi))
+# 	predicted_framerate = 1000 / ifi
+# 	print('Estimated framerate: {} FPS'.format(predicted_framerate))
+
+
+# 	def lost_frames(camera, camera_diff, ifi, protocol_info_path, stem_fish_path_orig, fig_camera_name):
 		
-		return False
+# 		return False
 
-		# # Delay to capture frames by the computer
-		# delay = (camera_diff - ifi).cumsum().to_numpy()
-
-
-		# # Number of lost frames
-		# # More than one frame might be lost and number_frames_lost sometimes is not monotonically crescent (can go down when some ms are 'recovered').
-
-		# print(delay)
-		# print(ifi)
-		# number_frames_lost = np.floor(delay / (ifi * buffer_size))
-		# #TODO use this to speed up
-		# # number_frames_lost = np.max(number_frames_lost, 0, axis)
-		# number_frames_lost = np.where(number_frames_lost>=0, number_frames_lost, 0)
-
-		# number_frames_lost_diff = np.floor(np.diff(number_frames_lost))
-		# number_frames_lost_diff = np.where(number_frames_lost_diff>=0,number_frames_lost_diff,0)
+# 		# # Delay to capture frames by the computer
+# 		# delay = (camera_diff - ifi).cumsum().to_numpy()
 
 
-		# # Indices where frames were potentially lost
-		# where_frames_lost = np.where(number_frames_lost_diff > 0)[0]
+# 		# # Number of lost frames
+# 		# # More than one frame might be lost and number_frames_lost sometimes is not monotonically crescent (can go down when some ms are 'recovered').
+
+# 		# print(delay)
+# 		# print(ifi)
+# 		# number_frames_lost = np.floor(delay / (ifi * buffer_size))
+# 		# #TODO use this to speed up
+# 		# # number_frames_lost = np.max(number_frames_lost, 0, axis)
+# 		# number_frames_lost = np.where(number_frames_lost>=0, number_frames_lost, 0)
+
+# 		# number_frames_lost_diff = np.floor(np.diff(number_frames_lost))
+# 		# number_frames_lost_diff = np.where(number_frames_lost_diff>=0,number_frames_lost_diff,0)
 
 
-		# # Total number of missed frames
-		# if (Lost_frames := len(where_frames_lost) > 0):
-		# 	print('Total number of lost frames: ', len(where_frames_lost))
-		# 	print('Where: ', where_frames_lost)
-		# 	save_info(protocol_info_path, stem_fish_path_orig, 'Lost frames.')
-		# else:
-		# 	print('No frames were lost.')
-
-		# fig, axs = plt.subplots(5, 1, sharex=True, facecolor='white', figsize=(20, 40), constrained_layout=True)
-
-		# axs[0].plot(camera.iloc[:,1],'k')
-		# axs[0].set_ylabel('Elapsed time (ms)')
-		# axs[0].set_title('Estimated IFI: {} ms.    Estimated framerate: {} FPS'.format(round(ifi, 3), round(predicted_framerate, 3)))
-
-		# axs[1].plot(camera_diff,'k')
-		# axs[1].set_ylabel('IFI (ms)')
-
-		# axs[2].plot(delay,'k')
-		# axs[2].set_ylabel('Delay (ms)')
-
-		# axs[3].plot(number_frames_lost_diff.cumsum(),'k')
-		# axs[3].set_ylabel('Cumulative number of lost frames')
-
-		# axs[4].plot(number_frames_lost_diff,'black')
-		# # axs[4].set_xlabel('frame number')
-		# axs[4].set_ylabel('Lost frames')
-
-		# fig.supxlabel('Frame number')
-		# plt.suptitle('Analysis of lost frames\n' + stem_fish_path_orig)
-
-		# fig.savefig(fig_camera_name, dpi=100, facecolor='white')
-		# plt.close(fig)
+# 		# # Indices where frames were potentially lost
+# 		# where_frames_lost = np.where(number_frames_lost_diff > 0)[0]
 
 
-		# # Correct frame IDs in camera dataframe.
-		# # correctedID = np.zeros(len(camera))
+# 		# # Total number of missed frames
+# 		# if (Lost_frames := len(where_frames_lost) > 0):
+# 		# 	print('Total number of lost frames: ', len(where_frames_lost))
+# 		# 	print('Where: ', where_frames_lost)
+# 		# 	save_info(protocol_info_path, stem_fish_path_orig, 'Lost frames.')
+# 		# else:
+# 		# 	print('No frames were lost.')
 
-		# # for i in tqdm(where_frames_lost):
-		# # 	correctedID[i:number_frames_diff] += 1 # And not correctedID[i:] += 1 because, when the buffer is full, the Mako U29-B camera keeps what is already in the buffer and does not receive any new frames while the buffer is full.
+# 		# fig, axs = plt.subplots(5, 1, sharex=True, facecolor='white', figsize=(20, 40), constrained_layout=True)
 
-		# # del where_frames_lost, number_frames_lost_diff
+# 		# axs[0].plot(camera.iloc[:,1],'k')
+# 		# axs[0].set_ylabel('Elapsed time (ms)')
+# 		# axs[0].set_title('Estimated IFI: {} ms.    Estimated framerate: {} FPS'.format(round(ifi, 3), round(predicted_framerate, 3)))
 
-		# # camera['Corrected ID'] = camera['ID'] + correctedID
-		# # camera['Corrected ID'] = camera['Corrected ID'].astype('int')
+# 		# axs[1].plot(camera_diff,'k')
+# 		# axs[1].set_ylabel('IFI (ms)')
 
-		# # # Second estimate of the interframe interval, using the median, and after estimating where there are missing frames 
-		# # camera_diff = camera.loc[:,'ElapsedTime'].diff()
-		# # ifi = camera_diff.iloc[number_frames_discard_beg : -number_frames_discard_beg].median()
-		# # print('\nFirst estimate of IFI: {} ms'.format(ifi))
+# 		# axs[2].plot(delay,'k')
+# 		# axs[2].set_ylabel('Delay (ms)')
 
-		# return Lost_frames
+# 		# axs[3].plot(number_frames_lost_diff.cumsum(),'k')
+# 		# axs[3].set_ylabel('Cumulative number of lost frames')
+
+# 		# axs[4].plot(number_frames_lost_diff,'black')
+# 		# # axs[4].set_xlabel('frame number')
+# 		# axs[4].set_ylabel('Lost frames')
+
+# 		# fig.supxlabel('Frame number')
+# 		# plt.suptitle('Analysis of lost frames\n' + stem_fish_path_orig)
+
+# 		# fig.savefig(fig_camera_name, dpi=100, facecolor='white')
+# 		# plt.close(fig)
 
 
-	Lost_frames = lost_frames(camera, camera_diff, ifi, protocol_info_path, stem_fish_path_orig, fig_camera_name)
+# 		# # Correct frame IDs in camera dataframe.
+# 		# # correctedID = np.zeros(len(camera))
+
+# 		# # for i in tqdm(where_frames_lost):
+# 		# # 	correctedID[i:number_frames_diff] += 1 # And not correctedID[i:] += 1 because, when the buffer is full, the Mako U29-B camera keeps what is already in the buffer and does not receive any new frames while the buffer is full.
+
+# 		# # del where_frames_lost, number_frames_lost_diff
+
+# 		# # camera['Corrected ID'] = camera['ID'] + correctedID
+# 		# # camera['Corrected ID'] = camera['Corrected ID'].astype('int')
+
+# 		# # # Second estimate of the interframe interval, using the median, and after estimating where there are missing frames 
+# 		# # camera_diff = camera.loc[:,'ElapsedTime'].diff()
+# 		# # ifi = camera_diff.iloc[number_frames_discard_beg : -number_frames_discard_beg].median()
+# 		# # print('\nFirst estimate of IFI: {} ms'.format(ifi))
+
+# 		# return Lost_frames
+
+
+# 	Lost_frames = lost_frames(camera, camera_diff, ifi, protocol_info_path, stem_fish_path_orig, fig_camera_name)
 
 
 
 
-	return predicted_framerate, reference_frame_id, reference_frame_time, Lost_frames
+	# return predicted_framerate, reference_frame_id, reference_frame_time, Lost_frames
 
-def read_protocol(protocol_path:Path, reference_frame_time_or_id, protocol_info_path, stem_fish_path_orig) -> pd.DataFrame:
+# def read_protocol(protocol_path:Path, reference_frame_time_or_id, protocol_info_path, stem_fish_path_orig) -> pd.DataFrame:
 
 
-	#* Read protocol file.
-	if Path(protocol_path).exists():
-		# Discarding the last column, which contains the cumulative number of bouts identified in C#.
-		protocol = pd.read_csv(str(protocol_path), sep=' ', header=0, names=[experiment_type, beg, end], usecols=[0, 1, 2], index_col=0)
+# 	#* Read protocol file.
+# 	if Path(protocol_path).exists():
+# 		# Discarding the last column, which contains the cumulative number of bouts identified in C#.
+# 		protocol = pd.read_csv(str(protocol_path), sep=' ', header=0, names=[experiment_type, beg, end], usecols=[0, 1, 2], index_col=0)
 
-	else:
-		save_info(protocol_info_path, stem_fish_path_orig, 'stim control file does not exist.')
+# 	else:
+# 		save_info(protocol_info_path, stem_fish_path_orig, 'stim control file does not exist.')
 		
-		return None
+# 		return None
 
-	#* Were the stimuli timings not saved?
-	if protocol.empty:
-		save_info(protocol_info_path, stem_fish_path_orig, 'stim control file is empty.')
+# 	#* Were the stimuli timings not saved?
+# 	if protocol.empty:
+# 		save_info(protocol_info_path, stem_fish_path_orig, 'stim control file is empty.')
 		
-		return None
+# 		return None
 
 
-	if protocol.iloc[0,0] == 0:
+# 	if protocol.iloc[0,0] == 0:
 		
-		return None
+# 		return None
 	
-	# #* Is the first stimulus fake? This happened at some point. There was sometimes a line in protocol file in excess.
-	# if protocol.loc[:,beg].iloc[0] == 0 and len(protocol.loc[protocol.index.get_level_values(experiment_type) == 'Cycle&Bout']) == expected_number_cs+1:
-	# 	save_info(protocol_info_path, stem_fish_path_orig, 'Lost beginning of first cycle.')
+# 	# #* Is the first stimulus fake? This happened at some point. There was sometimes a line in protocol file in excess.
+# 	# if protocol.loc[:,beg].iloc[0] == 0 and len(protocol.loc[protocol.index.get_level_values(experiment_type) == 'Cycle&Bout']) == expected_number_cs+1:
+# 	# 	save_info(protocol_info_path, stem_fish_path_orig, 'Lost beginning of first cycle.')
 		
-	# 	return None
+# 	# 	return None
 	
-	# protocol.rename(index={'Cycle&Bout': 'Cycle'}, inplace=True)
-	protocol.sort_values(by=beg, inplace=True)
+# 	# protocol.rename(index={'Cycle&Bout': 'Cycle'}, inplace=True)
+# 	protocol.sort_values(by=beg, inplace=True)
 
-	# if reference_frame_time is not None:
-		# Getting here means that there is absolute time in the cam file.
-		# protocol = protocol - reference_frame_time
-	protocol = protocol - reference_frame_time_or_id
+# 	# if reference_frame_time is not None:
+# 		# Getting here means that there is absolute time in the cam file.
+# 		# protocol = protocol - reference_frame_time
+# 	protocol = protocol - reference_frame_time_or_id
 
-	return protocol
+# 	return protocol
 
-def protocol_info(protocol):
+# def protocol_info(protocol):
 
-	#* Count the number of cycles, trials, blocks and bouts.
-	# Using len() just in case these is a single element.
-	number_cycles = len(protocol.loc['Cycle', beg])
+# 	#* Count the number of cycles, trials, blocks and bouts.
+# 	# Using len() just in case these is a single element.
+# 	number_cycles = len(protocol.loc['Cycle', beg])
 
-	if protocol.index.isin(['Session']).any():
-		number_blocks = len(protocol.loc['Session', beg])
-	else:
-		number_blocks = number_cycles
+# 	if protocol.index.isin(['Session']).any():
+# 		number_blocks = len(protocol.loc['Session', beg])
+# 	else:
+# 		number_blocks = number_cycles
 
-	if protocol.index.isin([trial]).any():
-		number_trials = len(protocol.loc[trial, beg])
-	else:
-		number_trials = number_cycles
+# 	if protocol.index.isin([trial]).any():
+# 		number_trials = len(protocol.loc[trial, beg])
+# 	else:
+# 		number_trials = number_cycles
 
-	if protocol.index.isin([bout]).any():
-		number_bouts = len(protocol.loc[bout, beg])	  
-	else:
-		number_bouts = 0
+# 	if protocol.index.isin([bout]).any():
+# 		number_bouts = len(protocol.loc[bout, beg])	  
+# 	else:
+# 		number_bouts = 0
 		
-	if protocol.index.isin(['Reinforcer']).any():
-		number_reinforcers = len(protocol.loc['Reinforcer', beg])
+# 	if protocol.index.isin(['Reinforcer']).any():
+# 		number_reinforcers = len(protocol.loc['Reinforcer', beg])
 
-		us_beg = protocol.loc['Reinforcer', beg]
-		us_end = protocol.loc['Reinforcer', end]
-		us_dur = (us_end - us_beg).to_numpy() # in ms
-		us_isi = (us_beg[1:] - us_end[:-1]).to_numpy() / 1000 / 60 # min
-	else:
-		number_reinforcers = 0
+# 		us_beg = protocol.loc['Reinforcer', beg]
+# 		us_end = protocol.loc['Reinforcer', end]
+# 		us_dur = (us_end - us_beg).to_numpy() # in ms
+# 		us_isi = (us_beg[1:] - us_end[:-1]).to_numpy() / 1000 / 60 # min
+# 	else:
+# 		number_reinforcers = 0
 
-		us_dur = None
-		us_isi = None
+# 		us_dur = None
+# 		us_isi = None
 
-	habituation_duration = protocol.iloc[0,0] / 1000 / 60 # min
+# 	habituation_duration = protocol.iloc[0,0] / 1000 / 60 # min
 
-	cs_beg = protocol.loc['Cycle', beg]
-	cs_end = protocol.loc['Cycle', end]
-	cs_dur = (cs_end - cs_beg).to_numpy() # in ms
-	cs_isi = (cs_beg[1:] - cs_end[:-1]).to_numpy() / 1000 / 60 # min
+# 	cs_beg = protocol.loc['Cycle', beg]
+# 	cs_end = protocol.loc['Cycle', end]
+# 	cs_dur = (cs_end - cs_beg).to_numpy() # in ms
+# 	cs_isi = (cs_beg[1:] - cs_end[:-1]).to_numpy() / 1000 / 60 # min
 
 
-	return number_cycles, number_reinforcers, number_trials, number_blocks, number_bouts, habituation_duration, cs_dur, cs_isi, us_dur, us_isi
+# 	return number_cycles, number_reinforcers, number_trials, number_blocks, number_bouts, habituation_duration, cs_dur, cs_isi, us_dur, us_isi
 
 def map_abs_time_to_elapsed_time(camera, protocol):
 	
@@ -444,35 +465,35 @@ def map_abs_time_to_elapsed_time(camera, protocol):
 	return protocol[protocol.notna().all(axis=1)]
 
 
-def lost_stim(number_cycles, number_reinforcers, min_number_cs_trials, min_number_us_trials, protocol_info_path, stem_fish_path_orig, id_debug):
+# def lost_stim(number_cycles, number_reinforcers, min_number_cs_trials, min_number_us_trials, protocol_info_path, stem_fish_path_orig, id_debug):
 
-	if number_cycles < min_number_cs_trials:
+# 	if number_cycles < min_number_cs_trials:
 
-		save_info(protocol_info_path, stem_fish_path_orig, 'Not all CS! Stopped at CS {} ({}).'.format(number_cycles, id_debug))
+# 		save_info(protocol_info_path, stem_fish_path_orig, 'Not all CS! Stopped at CS {} ({}).'.format(number_cycles, id_debug))
 
-		return True
+# 		return True
 
-	elif number_reinforcers < min_number_us_trials:
+# 	elif number_reinforcers < min_number_us_trials:
 		
-		save_info(protocol_info_path, stem_fish_path_orig, 'Not all US! Stopped at US {} ({}).'.format(number_reinforcers, id_debug))
+# 		save_info(protocol_info_path, stem_fish_path_orig, 'Not all US! Stopped at US {} ({}).'.format(number_reinforcers, id_debug))
 
-		return True
-	else:
-		return False
+# 		return True
+# 	else:
+# 		return False
 
-def plot_protocol(cs_dur, cs_isi, us_dur, us_isi, stem_fish_path_orig, fig_protocol_name):
+# def plot_protocol(cs_dur, cs_isi, us_dur, us_isi, stem_fish_path_orig, fig_protocol_name):
 
-	plt.figure(figsize=(14,14))
-	plt.plot(np.arange(1, len(cs_isi) + 1), cs_isi, label='inter-cs interval\nmin int.=' + str(round(np.amin(cs_isi)*60,1)) + ' s\n' + 'cs min dur=' + str(round(np.amin(cs_dur)/1000,3)) + ' s\n' + 'cs max dur=' + str(round(np.amax(cs_dur)/1000,3)) + ' s')
+# 	plt.figure(figsize=(14,14))
+# 	plt.plot(np.arange(1, len(cs_isi) + 1), cs_isi, label='inter-cs interval\nmin int.=' + str(round(np.amin(cs_isi)*60,1)) + ' s\n' + 'cs min dur=' + str(round(np.amin(cs_dur)/1000,3)) + ' s\n' + 'cs max dur=' + str(round(np.amax(cs_dur)/1000,3)) + ' s')
 	
-	plt.plot(np.arange(5, 4+len(us_isi)+1), us_isi, label='inter-us interval\nmin int.=' + str(round(np.amin(us_isi)*60,1)) + ' s\n' + 'us min dur=' + str(round(np.amin(us_dur)/1000,3)) + 's\n' + 'us max dur='+ str(round(np.amax(us_dur)/1000,3)) + ' s')
-	plt.xlabel('Trial number')
-	plt.ylabel('ISI (min)')
-	plt.ylim(0, 10)
-	plt.legend(frameon=False, loc='upper center', ncol=2)
-	plt.suptitle('Summary of protocol\n' + stem_fish_path_orig)
-	plt.savefig(fig_protocol_name, dpi=100, bbox_inches='tight')
-	plt.close()
+# 	plt.plot(np.arange(5, 4+len(us_isi)+1), us_isi, label='inter-us interval\nmin int.=' + str(round(np.amin(us_isi)*60,1)) + ' s\n' + 'us min dur=' + str(round(np.amin(us_dur)/1000,3)) + 's\n' + 'us max dur='+ str(round(np.amax(us_dur)/1000,3)) + ' s')
+# 	plt.xlabel('Trial number')
+# 	plt.ylabel('ISI (min)')
+# 	plt.ylim(0, 10)
+# 	plt.legend(frameon=False, loc='upper center', ncol=2)
+# 	plt.suptitle('Summary of protocol\n' + stem_fish_path_orig)
+# 	plt.savefig(fig_protocol_name, dpi=100, bbox_inches='tight')
+# 	plt.close()
 
 def number_frames_discard(data_path, reference_frame_id):
 	# Consider the experiment starts only whith the first frame whose ID is both in tail tracking and camera files.
@@ -527,111 +548,111 @@ def number_frames_discard(data_path, reference_frame_id):
 
 
 
-def read_tail_tracking_data(data_path, reference_frame_id):
-# number_frames
-	# Angles in data come in radians.
+# def read_tail_tracking_data(data_path, reference_frame_id):
+# # number_frames
+# 	# Angles in data come in radians.
 
-	start = timer()
+# 	start = timer()
 
-	try:
+# 	try:
 
-		# na_filter=False to speed up.
-		# skipfooter=1 because in one file there were NaN's in, and only in, the last line.
-		data = pd.read_csv(data_path, sep=' ', header=0, usecols=cols_to_use_orig, decimal='.', engine='pyarrow') #, skipfooter=1)
-		# na_filter=False
-		# nrows=number_frames
-		data = data.iloc[:-1,:]
+# 		# na_filter=False to speed up.
+# 		# skipfooter=1 because in one file there were NaN's in, and only in, the last line.
+# 		data = pd.read_csv(data_path, sep=' ', header=0, usecols=cols_to_use_orig, decimal='.', engine='pyarrow') #, skipfooter=1)
+# 		# na_filter=False
+# 		# nrows=number_frames
+# 		data = data.iloc[:-1,:]
 
-		#! To correct a corrupted file (20220503_Tu_6dpf_delay_test_3-black_fish8).
-		# data = pd.read_csv(data_path, sep=' ', header=0, usecols=cols_to_use_orig, decimal='.', na_filter=False)
-		# data = data.iloc[:-1,:]
-		# for col in data.columns[1:]:
-		# 	data.loc[:,col] = data.loc[:,col].str.replace(',','.')
-		# data.iloc[:,1:] = data.iloc[:,1:].astype('float32')
+# 		#! To correct a corrupted file (20220503_Tu_6dpf_delay_test_3-black_fish8).
+# 		# data = pd.read_csv(data_path, sep=' ', header=0, usecols=cols_to_use_orig, decimal='.', na_filter=False)
+# 		# data = data.iloc[:-1,:]
+# 		# for col in data.columns[1:]:
+# 		# 	data.loc[:,col] = data.loc[:,col].str.replace(',','.')
+# 		# data.iloc[:,1:] = data.iloc[:,1:].astype('float32')
 
-	except:
-		try:
+# 	except:
+# 		try:
 			
-			data = pd.read_csv(data_path, sep=' ', header=0, usecols=cols_to_use_orig, decimal=',', engine='pyarrow')
+# 			data = pd.read_csv(data_path, sep=' ', header=0, usecols=cols_to_use_orig, decimal=',', engine='pyarrow')
 
-		except:
-			return None
+# 		except:
+# 			return None
 
-	print('Time to read tail tracking .txt: {} (s)'.format(timer()-start))
+# 	print('Time to read tail tracking .txt: {} (s)'.format(timer()-start))
 
-	# data.iloc[:,0] = data.iloc[:,0].astype('int')
-	data.loc[:,frame_id] = data.loc[:, frame_id] - reference_frame_id
-	data = data[data[frame_id] >= 0]
+# 	# data.iloc[:,0] = data.iloc[:,0].astype('int')
+# 	data.loc[:,frame_id] = data.loc[:, frame_id] - reference_frame_id
+# 	data = data[data[frame_id] >= 0]
 
-	#? maybe before this was necessary because "decimal" in pd.read_csv was set to ",".
-	#* Even if decimal separator is wrong, this will correct it.
-	data.iloc[:,1:] = data.iloc[:,1:].astype('float32')
+# 	#? maybe before this was necessary because "decimal" in pd.read_csv was set to ",".
+# 	#* Even if decimal separator is wrong, this will correct it.
+# 	data.iloc[:,1:] = data.iloc[:,1:].astype('float32')
 
-	# Convert tail tracking data from radian to degree
-	data.iloc[:,1:] = data.iloc[:,1:] * (180/np.pi)
+# 	# Convert tail tracking data from radian to degree
+# 	data.iloc[:,1:] = data.iloc[:,1:] * (180/np.pi)
 	
-	# Rename columns
-	data.rename(columns=dict(zip(cols_to_use_orig[1:], cols[1:])), inplace=True)
+# 	# Rename columns
+# 	data.rename(columns=dict(zip(cols_to_use_orig[1:], cols[1:])), inplace=True)
 
-	return data
-
-
+# 	return data
 
 
 
 
-def tracking_errors(data, single_point_tracking_error_thr):
-
-	errors = False
-
-	if ((a := data.iloc[:,1:].abs().max()) > single_point_tracking_error_thr).any():
-		print('Possible tracking error! Max(abs(angle of individual point)):')
-		print(a)
-
-		errors = True
-
-	if data.iloc[:,1:].isna().to_numpy().any():
-		print('Possible tracking failures. There are NAs in data!')
-
-		errors = True
-
-	return errors
-
-def interpolate_data(data, expected_framerate, predicted_framerate):
-	# expected_framerate is the framerate to which data is interpolated. So, output data is as if it had been acquired at the expected_framerate (700 FPS when I wrote this).
 
 
-	data.iloc[:,0] = data.iloc[:,0] * expected_framerate/predicted_framerate
+# def tracking_errors(data, single_point_tracking_error_thr):
+
+# 	errors = False
+
+# 	if ((a := data.iloc[:,1:].abs().max()) > single_point_tracking_error_thr).any():
+# 		print('Possible tracking error! Max(abs(angle of individual point)):')
+# 		print(a)
+
+# 		errors = True
+
+# 	if data.iloc[:,1:].isna().to_numpy().any():
+# 		print('Possible tracking failures. There are NAs in data!')
+
+# 		errors = True
+
+# 	return errors
+
+# def interpolate_data(data, expected_framerate, predicted_framerate):
+# 	# expected_framerate is the framerate to which data is interpolated. So, output data is as if it had been acquired at the expected_framerate (700 FPS when I wrote this).
+
+
+# 	data.iloc[:,0] = data.iloc[:,0] * expected_framerate/predicted_framerate
 	
-	interp_function = interpolate.interp1d(data.iloc[:,0], data.iloc[:,1:], kind='slinear', axis=0, assume_sorted=True, bounds_error=False, fill_value="extrapolate")
+# 	interp_function = interpolate.interp1d(data.iloc[:,0], data.iloc[:,1:], kind='slinear', axis=0, assume_sorted=True, bounds_error=False, fill_value="extrapolate")
 
-	data_ = pd.DataFrame(np.arange(data.iat[0,0], data.iat[-1,0]), columns=['Time (frame) [{} FPS]'.format(expected_framerate)])
-	data_[data.columns[1:]] = interp_function(data_.iloc[:,0])
+# 	data_ = pd.DataFrame(np.arange(data.iat[0,0], data.iat[-1,0]), columns=['Time (frame) [{} FPS]'.format(expected_framerate)])
+# 	data_[data.columns[1:]] = interp_function(data_.iloc[:,0])
 
-	# Old
-		# # data_['Original'] = True
+# 	# Old
+# 		# # data_['Original'] = True
 
-		# # # data.iloc[:,0] = (data.iloc[:,0] * 1000/predicted_framerate)  # ms
+# 		# # # data.iloc[:,0] = (data.iloc[:,0] * 1000/predicted_framerate)  # ms
 
-		# # Create a dataframe with what is going to be the index for interpolation.
-		# data_ = pd.DataFrame(np.nan((len(timepoints_at_expected_framerate), data.shape[1])), columns=data.columns.to_numpy(), dtype='float32')
-		# data_.iloc[:,0] = timepoints_at_expected_framerate
-		# data_['Original'] = False
+# 		# # Create a dataframe with what is going to be the index for interpolation.
+# 		# data_ = pd.DataFrame(np.nan((len(timepoints_at_expected_framerate), data.shape[1])), columns=data.columns.to_numpy(), dtype='float32')
+# 		# data_.iloc[:,0] = timepoints_at_expected_framerate
+# 		# data_['Original'] = False
 
-		# print('!!!!!!!!!!', data)
-		# pd.concat([data.set_index(data.columns[0]), data_.set_index(data.columns[0])], axis=0, join='outer', copy=False).sort_index().reset_index().drop_duplicates(subset=[data.columns[0]], inplace=True)
-		# print('????????????', data)
-
-
-		# data.interpolate(method='slinear', axis=0, inplace=True, copy=False, assume_sorted=True)
+# 		# print('!!!!!!!!!!', data)
+# 		# pd.concat([data.set_index(data.columns[0]), data_.set_index(data.columns[0])], axis=0, join='outer', copy=False).sort_index().reset_index().drop_duplicates(subset=[data.columns[0]], inplace=True)
+# 		# print('????????????', data)
 
 
-		# data.iloc[:,0] = np.arange(0, len(data))
+# 		# data.interpolate(method='slinear', axis=0, inplace=True, copy=False, assume_sorted=True)
 
-		#s Rename column with time.
-		# # data.rename(columns={data.columns[0]: 'Time (frame) [{} FPS]'.format(expected_framerate)}, inplace=True)
 
-	return data_
+# 		# data.iloc[:,0] = np.arange(0, len(data))
+
+# 		#s Rename column with time.
+# 		# # data.rename(columns={data.columns[0]: 'Time (frame) [{} FPS]'.format(expected_framerate)}, inplace=True)
+
+# 	return data_
 
 def rolling_window(a, window):
 
@@ -768,31 +789,31 @@ def stim_in_data(data, protocol):
 
 	return data
 
-def plot_behavior_overview(data, stem_fish_path_orig, fig_behavior_name):
-	# data containing tail_angle.
+# def plot_behavior_overview(data, stem_fish_path_orig, fig_behavior_name):
+# 	# data containing tail_angle.
 
-	# mask_frames = np.ones(number_frames + round(60*framerate), dtype=bool)
-	# mask_frames[:: round(framerate * 0.5)] = False
-	# mask_frames[0] = False
+# 	# mask_frames = np.ones(number_frames + round(60*framerate), dtype=bool)
+# 	# mask_frames[:: round(framerate * 0.5)] = False
+# 	# mask_frames[0] = False
 	
-	# rows_to_skip = np.arange(number_frames + round(60*framerate))
-	# rows_to_skip = rows_to_skip[mask_frames]
+# 	# rows_to_skip = np.arange(number_frames + round(60*framerate))
+# 	# rows_to_skip = rows_to_skip[mask_frames]
 
-	# start = timer()
+# 	# start = timer()
 
-	# overall_data = pd.read_csv(data, sep=' ', header=0, usecols=cols, skiprows=rows_to_skip, decimal=',')
-	# overall_data = overall_data.astype('float32')
+# 	# overall_data = pd.read_csv(data, sep=' ', header=0, usecols=cols, skiprows=rows_to_skip, decimal=',')
+# 	# overall_data = overall_data.astype('float32')
 
-	# print(timer() - start)
-	plt.figure(figsize=(28, 14))
-	plt.plot(data.iloc[:,0]/expected_framerate/60/60, data.iloc[:,1	+chosen_tail_point], 'black')
-	plt.xlabel('Time (h)')
-	plt.ylabel('Tail end angle (deg)')
-	plt.suptitle('Behavior overview\n' + stem_fish_path_orig)
-	# plt.show()
-	# plt.legend(frameon=False, loc='upper center', ncol=2)
-	plt.savefig(fig_behavior_name, dpi=100, bbox_inches='tight')
-	plt.close()
+# 	# print(timer() - start)
+# 	plt.figure(figsize=(28, 14))
+# 	plt.plot(data.iloc[:,0]/expected_framerate/60/60, data.iloc[:,1	+chosen_tail_point], 'black')
+# 	plt.xlabel('Time (h)')
+# 	plt.ylabel('Tail end angle (deg)')
+# 	plt.suptitle('Behavior overview\n' + stem_fish_path_orig)
+# 	# plt.show()
+# 	# plt.legend(frameon=False, loc='upper center', ncol=2)
+# 	plt.savefig(fig_behavior_name, dpi=100, bbox_inches='tight')
+# 	plt.close()
 
 def extract_data_around_stimuli(data, protocol_frame, time_bef_frame, time_aft_frame, time_bcf_window, time_max_window, time_min_window):
 
@@ -1143,73 +1164,74 @@ def clean_data(data):
 
 	# return data
 
-def identify_trials(data, time_bef_frame, time_aft_frame):
+# def identify_trials(data, time_bef_frame, time_aft_frame):
 
-	trials_list = []
+# 	trials_list = []
 
-	for cs_us in ['CS', 'US']:
+# 	for cs_us in ['CS', 'US']:
 
-		cs_us_beg = cs_us + ' beg'
+# 		cs_us_beg = cs_us + ' beg'
 
-		trials_csus = data.loc[data[cs_us_beg] != 0, cs_us_beg].unique()
-		# trials_csus = data.loc[data[cs_us_beg] > 0, cs_us_beg].unique()
+# 		trials_csus = data.loc[data[cs_us_beg] != 0, cs_us_beg].unique()
+# 		# trials_csus = data.loc[data[cs_us_beg] > 0, cs_us_beg].unique()
 
-		for t in trials_csus:
+# 		for t in trials_csus:
 
-			# trial_beg = trial_reference + time_bef_frame# time_bef_ms / 1000
-			# # trial_end in relation to cs_us_beg also because stimuli duration may slightly differ from number_trial to number_trial.
-			# trial_end = trial_reference + time_aft_frame # time_aft_ms / 1000 
-			trial_reference = data.loc[data[cs_us_beg] == t, data.columns[0]].to_numpy()[0]
+# 			# trial_beg = trial_reference + time_bef_frame# time_bef_ms / 1000
+# 			# # trial_end in relation to cs_us_beg also because stimuli duration may slightly differ from number_trial to number_trial.
+# 			# trial_end = trial_reference + time_aft_frame # time_aft_ms / 1000 
+# 			trial_reference = data.loc[data[cs_us_beg] == t, data.columns[0]].to_numpy()[0]
 			
-			trial = data.loc[(data.iloc[:,0] >= trial_reference + time_bef_frame) & (data.iloc[:,0] <= trial_reference + time_aft_frame), :]
+# 			trial = data.loc[(data.iloc[:,0] >= trial_reference + time_bef_frame) & (data.iloc[:,0] <= trial_reference + time_aft_frame), :]
 			
-			# trial[time_trial] is not given by np.arange(time_bef_frame, time_aft_frame + 1) because there may be "incomplete' trials at the end (stopped before trial_reference + time_aft_frame).
-			# trial[[type_trial_csus, number_trial, time_trial]] = cs_us, str(t), np.arange(time_bef_frame, len(trial) + time_bef_frame)	
-			trial[[type_trial_csus, number_trial]] = cs_us, str(t)
-			trial[time_trial] = np.arange(time_bef_frame, len(trial) + time_bef_frame)
-			# 1000/expected_framerate
+# 			# trial[time_trial_f] is not given by np.arange(time_bef_frame, time_aft_frame + 1) because there may be "incomplete' trials at the end (stopped before trial_reference + time_aft_frame).
+# 			# trial[[type_trial_csus, number_trial, time_trial_f]] = cs_us, str(t), np.arange(time_bef_frame, len(trial) + time_bef_frame)	
+# 			trial[[type_trial_csus, number_trial]] = cs_us, str(t)
+# 			trial[time_trial_f] = 0
+# 			trial[time_trial_f] = np.arange(time_bef_frame, len(trial) + time_bef_frame)
+# 			# 1000/expected_framerate
 
-			trials_list.append(trial)
+# 			trials_list.append(trial)
 		
-	data = pd.concat(trials_list)
+# 	data = pd.concat(trials_list)
 
-	# data[vigor] = data[vigor].astype(pd.SparseDtype('float32', 0))
-	# data.loc[ : , number_trial] = data.loc[ : , number_trial].astype('category')
-	data[type_trial_csus] = data[type_trial_csus].astype('category')
-	# data.loc[ : , time_trial] = data.loc[ : , time_trial].astype('float32')
+# 	# data[vigor] = data[vigor].astype(pd.SparseDtype('float32', 0))
+# 	# data.loc[ : , number_trial] = data.loc[ : , number_trial].astype('category')
+# 	data[type_trial_csus] = data[type_trial_csus].astype('category')
+# 	# data.loc[ : , time_trial_f] = data.loc[ : , time_trial_f].astype('float32')
 
-	data.drop(data.columns[0], axis=1, inplace=True)
+# 	data.drop(data.columns[0], axis=1, inplace=True)
 
-		# To discard automatically fish.
-			#zero_bouts_trials = 0
+# 		# To discard automatically fish.
+# 			#zero_bouts_trials = 0
 			
-			# trial = data.loc[data[number_trial] == t, :]
+# 			# trial = data.loc[data[number_trial] == t, :]
 
-			# Check that fish beats the tail before the us at least every few trials.
-			# if csus == 'us':
-			# 	if trial.loc[(trial[time_trial] > -numb_seconds_before_us*expected_framerate) & (trial[time_trial] < numb_seconds_after_us*expected_framerate) & (trial[vigor] > 0),:].empty:
-			# 		zero_bouts_trials += 1
-			# 		if zero_bouts_trials == max_numb_trials_no_bout_bef:
-			# 			print('!!! Quiet fish before and after us !!!  trial: ', t)
-			# 			lines.append(stem_fish_path + '\n\t' ' Quiet fish before and after cs ({} consecutive trials). last trial: {}\n'.format(max_numb_trials_no_bout_bef, t))
+# 			# Check that fish beats the tail before the us at least every few trials.
+# 			# if csus == 'us':
+# 			# 	if trial.loc[(trial[time_trial_f] > -numb_seconds_before_us*expected_framerate) & (trial[time_trial_f] < numb_seconds_after_us*expected_framerate) & (trial[vigor] > 0),:].empty:
+# 			# 		zero_bouts_trials += 1
+# 			# 		if zero_bouts_trials == max_numb_trials_no_bout_bef:
+# 			# 			print('!!! Quiet fish before and after us !!!  trial: ', t)
+# 			# 			lines.append(stem_fish_path + '\n\t' ' Quiet fish before and after cs ({} consecutive trials). last trial: {}\n'.format(max_numb_trials_no_bout_bef, t))
 
-			# 			skip = True
-			# 			break
-			# 	else:
-			# 		if zero_bouts_trials > 0:
-			# 			zero_bouts_trials = 0
+# 			# 			skip = True
+# 			# 			break
+# 			# 	else:
+# 			# 		if zero_bouts_trials > 0:
+# 			# 			zero_bouts_trials = 0
 
-			# Check that fish always beats the tail after the us.
-			# else:
-			# 	if trial.loc[(trial[time_trial] > 0) & (trial[time_trial] < numb_seconds_after_us*expected_framerate) & (trial[vigor] > 0),:].empty:
-			# 		print('!!! Fish inactive after us !!!  trial: ', t)
-			# 		lines.append(stem_fish_path + '\n\t' ' Fish inactive after us. trial: {}\n'.format(t))
+# 			# Check that fish always beats the tail after the us.
+# 			# else:
+# 			# 	if trial.loc[(trial[time_trial_f] > 0) & (trial[time_trial_f] < numb_seconds_after_us*expected_framerate) & (trial[vigor] > 0),:].empty:
+# 			# 		print('!!! Fish inactive after us !!!  trial: ', t)
+# 			# 		lines.append(stem_fish_path + '\n\t' ' Fish inactive after us. trial: {}\n'.format(t))
 
-			# 		skip = True
-			# 		break
+# 			# 		skip = True
+# 			# 		break
 
 
-	return data
+# 	return data
 
 
 
@@ -1254,7 +1276,7 @@ def calculate_digested_vigor(data):
 
 			data_trial = data_stim.loc[data_stim[number_trial] == t]
 
-			mean_vigor_baseline_window = data_trial.loc[data_trial[time_trial].between(-baseline_window*expected_framerate, 0), vigor_raw].mean()
+			mean_vigor_baseline_window = data_trial.loc[data_trial[time_trial_f].between(-baseline_window*expected_framerate, 0), vigor_raw].mean()
 
 
 			#* Kind of deltaF/F.
@@ -1291,9 +1313,9 @@ def calculate_digested_vigor(data):
 
 def convert_time_from_frame_to_s(data):
 
-	data[time_trial] = data[time_trial] / expected_framerate # s
+	data[time_trial_f] = data[time_trial_f] / expected_framerate # s
 	
-	return data.rename(columns={time_trial : time_trial_s})
+	return data.rename(columns={time_trial_f : time_trial_s})
 
 
 def convert_time_from_s_to_frame(data):
@@ -1302,7 +1324,7 @@ def convert_time_from_s_to_frame(data):
 	
 	data[time_trial_s] = data[time_trial_s].astype('int')
 	
-	return data.rename(columns={time_trial_s : time_trial})
+	return data.rename(columns={time_trial_s : time_trial_f})
 
 
 
@@ -1422,7 +1444,7 @@ def setDtypesAndSortIndex(data):
 
 	#* Set the columns' dtypes.
 	data = data.astype({
-		time_trial:'int32',
+		time_trial_f:'int32',
 		cs_beg:	CategoricalDtype(categories=np.sort(data[cs_beg].unique()).astype('int64'), ordered=True),
 		cs_end:	CategoricalDtype(categories=np.sort(data[cs_end].unique()).astype('int64'), ordered=True),
 		us_beg:	CategoricalDtype(categories=np.sort(data[us_beg].unique()).astype('int64'), ordered=True),
@@ -1584,11 +1606,11 @@ def find_plane_in_anatomical_stack(anatomical_stack_images, the_plane_mean_subse
 	
 	if plane_where_we_are is not None:
 		
-		if (first_plane_substack := plane_where_we_are - number_planes_around_the_plane) < 0:
+		if (first_plane_substack := plane_where_we_are - p.number_planes_around_the_plane) < 0:
 			
 			first_plane_substack = 0
 
-		if (last_plane_substack := plane_where_we_are + number_planes_around_the_plane + 1) > len(anatomical_stack_images):
+		if (last_plane_substack := plane_where_we_are + p.number_planes_around_the_plane + 1) > len(anatomical_stack_images):
 			
 			last_plane_substack = len(anatomical_stack_images)
 
@@ -1915,15 +1937,15 @@ def identify_trials(data, protocol):
 
 	data = data.set_index(abs_time)
 
-	try:
-		data.loc[:, data_cols] = data.loc[:, data_cols].interpolate(kind='slinear')
-	except:
-		print('HERE. FIX THIS')
+	# try:
+	# 	data.loc[:, data_cols] = data.loc[:, data_cols].interpolate(kind='slinear')
+	# except:
+	# 	print('HERE. FIX THIS')
 
 	#! data = data.reset_index(drop=True).dropna()
 	data = data.reset_index().dropna()
 
-	data[time_experiment_f] = data[time_experiment_f].astype('int64')
+	data['Frame number'] = data['Frame number'].astype('int64')
 
 	data[[cs, us]] = data[[cs, us]].astype('Sparse[int16]')
 
@@ -1940,21 +1962,21 @@ def identify_trials(data, protocol):
 def get_good_images_indices(images_subset):
 
 
-	top = np.nanmean(images_subset[:, :top_bottom_frame_slice, :], axis=(1,2))
-	bottom = np.nanmean(images_subset[:, -top_bottom_frame_slice:, :], axis=(1,2))
-	front = np.nanmean(images_subset[:, :, -front_back_frame_slice:], axis=(1,2))
-	back = np.nanmean(images_subset[:, :, :front_back_frame_slice], axis=(1,2))
+	# top = np.nanmean(images_subset[:, :p.top_bottom_frame_slice, :], axis=(1,2))
+	# bottom = np.nanmean(images_subset[:, -p.top_bottom_frame_slice:, :], axis=(1,2))
+	# front = np.nanmean(images_subset[:, :, -p.front_back_frame_slice:], axis=(1,2))
+	# back = np.nanmean(images_subset[:, :, :p.front_back_frame_slice], axis=(1,2))
 
 	all = np.nanmean(images_subset, axis=(1,2))
 	all_median = np.nanmedian(all)
 
-	light_percentage_change = (np.abs(all - all_median) / all_median) * 100
+	light_percentage_change = (np.abs(all - all_median) / all_median * 100)
 
 	#* Discard based on overall light (too low or too high)
-	mask_good_images = light_percentage_change < light_percentage_increase_thr
+	mask_good_images = light_percentage_change < p.light_percentage_increase_thr
 
 	#* And also discard based on the derivative
-	mask_good_images = mask_good_images & ([True] + list((np.abs(np.diff(top)) < average_light_derivative_thr) & (np.abs(np.diff(bottom)) < average_light_derivative_thr) & (np.abs(np.diff(front)) < average_light_derivative_thr) & (np.abs(np.diff(back)) < average_light_derivative_thr) & (np.abs(np.diff(all) < average_light_derivative_thr))))
+	# mask_good_images = mask_good_images & ([True] + list((np.abs(np.diff(top)) < p.average_light_derivative_thr) & (np.abs(np.diff(bottom)) < p.average_light_derivative_thr) & (np.abs(np.diff(front)) < p.average_light_derivative_thr) & (np.abs(np.diff(back)) < p.average_light_derivative_thr) & (np.abs(np.diff(all) < p.average_light_derivative_thr))))
 
 	# plt.plot(top-np.nanmedian(top))
 	# plt.plot(bottom-np.nanmedian(bottom))
@@ -1984,8 +2006,8 @@ def get_fixed_number_good_last_images(images_subset):
 
 		if value:
 			consecutive_count += 1
-			if consecutive_count >= number_repetitions_the_plane_consecutively_stable:
-				new_mask[i - number_repetitions_the_plane_consecutively_stable + 1 : i + 1] = True
+			if consecutive_count >= p.number_repetitions_the_plane_consecutively_stable:
+				new_mask[i - p.number_repetitions_the_plane_consecutively_stable + 1 : i + 1] = True
 				break
 		else:
 			consecutive_count = 0
@@ -2021,8 +2043,8 @@ def get_maximum_number_good_last_images(images_subset):
 			# 	new_mask[i - number_repetitions_the_plane_consecutively_stable + 1 : i + 1] = True
 			# 	break
 		else:
-			if consecutive_count > 0 and consecutive_count > number_repetitions_the_plane_consecutively_stable:
-				new_mask[i - consecutive_count : i] = True
+			if consecutive_count >= p.number_repetitions_the_plane_consecutively_stable + 2:
+				new_mask[i - consecutive_count + 1 : i-1] = True
 				break
 			else:
 				consecutive_count = 0
@@ -2042,7 +2064,7 @@ def get_maximum_number_good_last_images(images_subset):
 
 def get_template_image(frames):
 
-	template_image = ndimage.median_filter(np.nanmean(frames, axis=0), size=median_filter_kernel)
+	template_image = ndimage.median_filter(np.nanmean(frames, axis=0), size=p.median_filter_kernel)
 	# np.mean(ndimage.median_filter(frames, size=median_filter_kernel, axes=(1,2)), axis=0)
 
 	# plt.figure(figsize=(20, 16))
@@ -2103,11 +2125,11 @@ def align_frames(frames, motion, total_motion, total_motion_thr=None):
 			# print(X)
 			# Y=phase_cross_correlation(original_anatomy, aligned_frames[j,:,:] ,upsample_factor=10, space='real')
 			# print(Y)
-   
+
 	return aligned_frames
 
 
-def correct_motion_within_trial(trial, number_iterations=5):
+def correct_motion_within_trial(trial, anatomical_stack_images, x_dim, y_dim, number_iterations=5):
 
 	images_trial_ = trial.images.to_numpy()
 
@@ -2135,7 +2157,7 @@ def correct_motion_within_trial(trial, number_iterations=5):
 		template_image_ = get_template_image(aligned_frames[np.where(total_motion <= motion_thr)[0]])
 
 
-	plt.imshow(ndimage.median_filter(np.mean(aligned_frames, axis=0), size=median_filter_kernel))
+	plt.imshow(ndimage.median_filter(np.mean(aligned_frames, axis=0), size=p.median_filter_kernel))
 	# plt.imshow(np.mean(ndimage.median_filter(aligned_frames, size=median_filter_kernel, axes=(1,2)), axis=0))
 
 	#* Identify the plane number of the trial.
@@ -2212,5 +2234,4 @@ def get_ROIs(Nrois, correlation_map, images, threshold, max_pixels):
 
 	return all_traces, all_rois, used_pixels, correlation_map_
 
-#endregion			
-
+#endregion

@@ -898,7 +898,6 @@ class AllRawData:
 
 
 
-
 #* Classes
 # %%
 # region Classes
@@ -914,11 +913,29 @@ class Trial:
 	behavior : pd.DataFrame
 	images : xr.DataArray
 
+	def get_stim_index(self, cs_us: str):
+
+		#* Get the indices of the CS in the images of the trials.
+
+		# self = self.trials[trial_number]
+
+		protocol = self.protocol
+
+		cs_beg, cs_end = protocol.loc[protocol[cs_us] != 0, 'Time (ms)'].values[[0,-1]]
+
+		a = self.images.time.values < cs_beg
+		cs_beg_index = np.where(np.diff(a))[0][0]
+
+		b = self.images.time.values > cs_end
+		cs_end_index = np.where(np.diff(b))[0][0]
+
+		return np.array([cs_beg_index, cs_end_index])
+	
 
 @dataclass
 class Plane:
 
-	trials : list[Trial]
+	trials : list['Trial']
 
 	# reference_image_position_anatomical_stack : int
 	# reference_image : np.ndarray
@@ -928,10 +945,40 @@ class Plane:
 	def get_reference_position(self):
 
 		return round(np.median([trial.position_anatomical_stack for trial in self.trials]))
+	
+	def get_all_images(self):
+
+		return np.concatenate([trial.images.values for trial in self.trials])
 
 @dataclass
 class Data:
 	
 	planes : list['Plane']
+	anatomical_stack : np.ndarray
 
-#endregion
+
+	def get_planes(self, plane_numbers: list[int]):
+		
+		return [self.planes[i] for i in plane_numbers]
+
+
+	def get_trials(self, plane_numbers: list[int] | str, trial_numbers: list[int]):
+		
+		if plane_numbers == 'all':
+			
+			plane_numbers = range(len(self.planes))
+
+		return [self.planes[i].trials[j] for i in plane_numbers for j in trial_numbers]
+
+
+	# def get_images(self, plane_numbers: list[int] | str, trial_numbers: list[int]):
+		
+	# 	if plane_numbers is None:
+			
+	# 		plane_numbers = len(self.planes)
+
+	# 	return [self.planes[i].trials[j].images for i in plane_numbers for j in trial_numbers]
+
+
+# endregion
+

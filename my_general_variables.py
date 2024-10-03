@@ -162,6 +162,7 @@ mean_bef_onset = 'Mean '+str(baseline_window)+' s before'
 #* Variables containing strings
 
 # 'Type': Final = 'Type'
+experiment_type: Final = 'experiment type'
 beg: Final = 'beg (ms)'
 end: Final = 'end (ms)'
 
@@ -353,7 +354,7 @@ cols_bout = [bout_beg, bout_end, bout]
 cols_stats = [vigor_mean, bout_mean, bout_beg_mean, bout_end_mean]
 
 
-# cols_ordered = [[time_trial], cols_stim, cols[1:], [vigor_raw], cols_bout]
+# cols_ordered = [[time_trial_f], cols_stim, cols[1:], [vigor_raw], cols_bout]
 # cols_ordered = [i for j in cols_ordered for i in j]
 
 

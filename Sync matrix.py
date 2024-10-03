@@ -1,34 +1,39 @@
-
 #* Imports
+
 # %%
 # region Imports
-import math
 import pickle
 from dataclasses import dataclass
 from pathlib import Path
 
-import cv2
 import h5py
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
 import plotly.io as pio
 import scipy.ndimage as ndimage
 import tifffile
 import xarray as xr
-from scipy import interpolate, signal
-from scipy.ndimage import shift
+from scipy import signal
 from scipy.stats import pearsonr, zscore
 from skimage import morphology
-from skimage.registration import phase_cross_correlation
 from tqdm import tqdm
 from skimage.measure import block_reduce
 
 import my_functions as f
 import my_classes as c
+import my_parameters as p
 from my_general_variables import *
+from importlib import reload
+
+#* Load custom functions and classes
+
 # endregion
+reload(f)
+reload(c)
+reload(p)
 
 #* Settings
 # %% Settings
@@ -44,53 +49,6 @@ pd.set_option("compute.use_numexpr", True)
 pd.set_option("compute.use_bottleneck", True)
 #endregion
 
-#* Parameters
-# %%
-#region Parameters
-light_percentage_increase_thr = 5
-average_light_derivative_thr = 10
-top_bottom_frame_slice = 50  # number pixels
-front_back_frame_slice = 50  # number pixels
-
-
-# step_size = 0.001  # mm
-# number_repetitions_the_plane = 20
-images_bin_size = 30
-number_repetitions_the_plane_consecutively_stable = 40
-# step_between_repetitions_of_the_plane = 1
-
-median_filter_kernel = 3
-gaussian_filter_sigma = 1
-
-# kernel_size = 3
-# ddepth = cv2.CV_16S
-
-total_motion_thr = 0.5
-
-
-#! debug
-nrows = None
-# 100000000
-
-number_rows_read = None
-
-
-galvo_value_height_threshold = 0.5
-galvo_value_distance_threshold = 100
-galvo_value_width_threshold = 20
-
-
-xy_movement_allowed = 0.15  # fraction of the real image
-
-
-number_imaged_planes = 15
-number_reps_plane_consective = 2
-relevant_cs = np.concatenate([range(5,35), range(45,75)])
-
-motion_thr_from_trial_average = 5
-
-correlation_map_sigma = 2
-voxel_bin_size = 5
 
 
 #! this is overwriting the one in my_general_variables.py
@@ -100,7 +58,7 @@ voxel_bin_size = 5
 # angle_cols = [angle_name]
 
 time_experiment_f = frame_id
-#endregion
+
 
 #* Paths
 # %%
@@ -111,16 +69,55 @@ path_home = Path(r'E:\2024 03_Delay 2-P multiple planes')
 # fish_names.remove('Behavior')
 
 # for fish_name in fish_names:
-# fish_name = r'20240228_01_delay_2p-1_mitfaMinusMinus,elavl3H2BCaMP6s_7dpf'
+# fish_name = r'20240228_01_delay_2p-1_mitfaMinusMinus,elavl3H2Bcamp6f_7dpf'
 
-fish_name = r'20240415_02_delay_2p-2_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+fish_names_list = [
+				#    r'20240910_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_6dpf',
+				#    r'20240910_03_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_6dpf',
+					#! r'20240911_02_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf',
+					# r'20240911_03_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf',
+				   	# r'20240909_02_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf',
+				#    r'20240912_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf',
+				#    r'20240912_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf',
+				#    r'20240912_03_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf',
+					# r'20240920_02_trace_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf',
+					# r'20240925_01_trace_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf',
+					# r'20240925_02_trace_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf',
+					# r'20240925_03_trace_2p-6_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf',
+					# r'20240926_01_trace_2p-7_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf',
+					# r'20240926_02_trace_2p-8_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf',
+					# r'20240926_03_trace_2p-9_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf',
+					# r'20240927_01_control_2p-4_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf',
+					# r'20240927_02_control_2p-5_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf',
+					# r'20240927_03_control_2p-6_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf',
+					# r'20241002_01_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf',
+					# r'20241002_02_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf',
+					r'20241002_03_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf'
 
-#! '20240304_01_delay_2p-1_mitfaMinusMinus,Gal4elavl3GCaMP6s_6dpf' is good
+				   ]
+# '20240911_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+# '20240909_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+# '20240910_02_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_6dpf'
+# '20240416_01_delay_2p-3_mitfaminusminus,elavl3h2bgcamp6f_6dpf'
+# '20240415_02_delay_2p-2_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+
+fish_name = fish_names_list[0]
+
+
+# for fish_name in fish_names_list:
+
+# 	break
+
+# try:
 
 # behavior_path = Path(r'D:\2024 02_Delay 2p\Behavior')
 # imaging_path = Path(r'D:\2024 02_Delay 2p') / fish_name / 'Imaging'
 
 behavior_path = path_home / 'Behavior'
+
+
+path_home = path_home / 'Raw data'
+
 imaging_path = path_home / fish_name / 'Imaging'
 
 protocol_path = behavior_path / (fish_name + '_stim control.txt')
@@ -133,91 +130,8 @@ images_path = imaging_path / (fish_name + '_green.tif')
 
 anatomy_1_path = path_home / fish_name / 'Anatomical stack 1.tif'
 anatomy_1_filtered_path = path_home / fish_name / 'Anatomical stack 1 binned and filtered.tif'
+
 #endregion
-
-#* Classes
-# %%
-# region Classes
-@dataclass
-class Trial:
-	
-	trial_number : int
-
-	# position_anatomical_stack : int
-	# reference_image : np.ndarray
-
-	protocol : pd.DataFrame
-	behavior : pd.DataFrame
-	images : xr.DataArray
-
-	def get_stim_index(self, cs_us: str):
-
-		#* Get the indices of the CS in the images of the trials.
-
-		# self = self.trials[trial_number]
-
-		protocol = self.protocol
-
-		cs_beg, cs_end = protocol.loc[protocol[cs_us] != 0, 'Time (ms)'].values[[0,-1]]
-
-		a = self.images.time.values < cs_beg
-		cs_beg_index = np.where(np.diff(a))[0][0]
-
-		b = self.images.time.values > cs_end
-		cs_end_index = np.where(np.diff(b))[0][0]
-
-		return np.array([cs_beg_index, cs_end_index])
-	
-
-@dataclass
-class Plane:
-
-	trials : list['Trial']
-
-	# reference_image_position_anatomical_stack : int
-	# reference_image : np.ndarray
-
-	# order_planes_sequence : int
-
-	def get_reference_position(self):
-
-		return round(np.median([trial.position_anatomical_stack for trial in self.trials]))
-	
-	def get_all_images(self):
-
-		return np.concatenate([trial.images.values for trial in self.trials])
-
-@dataclass
-class Data:
-	
-	planes : list['Plane']
-	anatomical_stack : np.ndarray
-
-
-	def get_planes(self, plane_numbers: list[int]):
-		
-		return [self.planes[i] for i in plane_numbers]
-
-
-	def get_trials(self, plane_numbers: list[int] | str, trial_numbers: list[int]):
-		
-		if plane_numbers == 'all':
-			
-			plane_numbers = range(len(self.planes))
-
-		return [self.planes[i].trials[j] for i in plane_numbers for j in trial_numbers]
-
-
-	# def get_images(self, plane_numbers: list[int] | str, trial_numbers: list[int]):
-		
-	# 	if plane_numbers is None:
-			
-	# 		plane_numbers = len(self.planes)
-
-	# 	return [self.planes[i].trials[j].images for i in plane_numbers for j in trial_numbers]
-
-
-# endregion
 
 
 
@@ -230,17 +144,21 @@ else:
 	Summer_time = False
 
 
+
+
+
+
 #* Read the behavior camera data and preprocess it.
 # %%
 # region Behavior camera
-data = read_camera(camera_path)
+data = f.read_camera(camera_path)
 data[abs_time] = data[abs_time].astype('float64')
 
 print('Behavior camera started: ', pd.to_datetime(data[abs_time].iat[0], unit='ms'))
- 
+
 
 #* Estimate the true framerate.
-predicted_framerate, reference_frame_id = framerate_and_reference_frame(data)
+predicted_framerate, reference_frame_id = f.framerate_and_reference_frame(data)
 
 
 data = data.drop(columns=ela_time)
@@ -280,14 +198,14 @@ data[abs_time] = np.linspace(data[abs_time].iat[0], data[abs_time].iat[0] + len(
 # region Stim log
 
 #* Open the stim log.
-protocol = read_protocol(protocol_path)
+protocol = f.read_protocol(protocol_path)
 
 
 # protocol.iloc[:,1] - protocol.iloc[:,0]
 
 #* Identify the stimuli, trials of the experiment.
 data_cols = []
-data = identify_trials(data, protocol)
+data = f.identify_trials(data, protocol)
 
 # plt.plot(data[abs_time])
 # data[cs].unique()
@@ -296,7 +214,7 @@ data = identify_trials(data, protocol)
 #* Read the galvo signal and find the peaks.
 # %%
 #region Galvo signal
-galvo = pd.read_csv(galvo_path, sep='\t', decimal=',', usecols=[0,1], names=[abs_time, 'GalvoValue'], dtype={'GalvoValue':'float64'}, parse_dates=[abs_time], date_format=r'%d/%m/%Y  %H:%M:%S,%f', skip_blank_lines=True, skipinitialspace=True, nrows=nrows).dropna(axis=0)
+galvo = pd.read_csv(galvo_path, sep='\t', decimal=',', usecols=[0,1], names=[abs_time, 'GalvoValue'], dtype={'GalvoValue':'float64'}, parse_dates=[abs_time], date_format=r'%d/%m/%Y  %H:%M:%S,%f', skip_blank_lines=True, skipinitialspace=True, nrows=p.nrows).dropna(axis=0)
 galvo = galvo.reset_index(drop=True)
 #* Convert the time in galvo to unixtime in ms
 galvo[abs_time] = galvo[abs_time].astype('int64') / 10**6
@@ -373,11 +291,11 @@ number_images_before_first_image_to_consider = round((beg_image_to_consider_time
 
 
 #* Get info about the images in the multipage tiff with the imaging data.
-bytes_header, height, width = get_bytes_header_and_image(images_path)
+bytes_header, height, width = f.get_bytes_header_and_image(images_path)
 bytes_header_and_image = bytes_header + height * width * 2
 
 #* Find where we started imaging in the anatomical stack.
-number_images = get_number_images(images_path, bytes_header_and_image)
+number_images = f.get_number_images(images_path, bytes_header_and_image)
 # - number_images_before_first_image_to_consider
 
 
@@ -432,7 +350,7 @@ fig.show()
 # region Behavior data
 #! reverse data_cols to what we want
 data_cols = x_cols + y_cols + angle_cols
-behavior = read_tail_tracking_data(tracking_path).astype('float32')
+behavior = f.read_tail_tracking_data(tracking_path).astype('float32')
 
 # behavior.dtypes
 # if (tail := read_tail_tracking_data(data_path)) is None: # type: ignore
@@ -512,7 +430,7 @@ data[abs_time] -= data[abs_time].iat[0]
 #! Do not forget to discard the first images.
 #!!!!! images = np.array([get_image_from_tiff(images_path, image_i, bytes_header, height, width) for image_i in range(number_images_before_first_image_to_consider, len(peaks))])
 # images_subset_mean = [np.mean(image[-30:-10][-30:-10]).astype('float32') for image in images]
-images = np.array([get_image_from_tiff(images_path, image_i, bytes_header, height, width).astype('float32') for image_i in tqdm(range(number_images))])
+images = np.array([f.get_image_from_tiff(images_path, image_i, bytes_header, height, width).astype('float32') for image_i in tqdm(range(number_images))])
 
 images.shape
 # endregion
@@ -646,10 +564,9 @@ imaging.name = 'Imaging data'
 #* Arrange the data in planes data.
 # %%
 # region Planes data
+cs_onset_index = np.array([protocol.loc[protocol[cs] == p.relevant_cs[i], :].index[0] for i in range(len(p.relevant_cs))])
 
-cs_onset_index = np.array([protocol.loc[protocol[cs] == relevant_cs[i], :].index[0] for i in range(len(relevant_cs))])
-
-index_list = [[i, i+1, i+2*number_imaged_planes, i+2*number_imaged_planes+1] for i in range(0, number_reps_plane_consective * number_imaged_planes, 2)]
+index_list = [[i, i+1, i+2*p.number_imaged_planes, i+2*p.number_imaged_planes+1] for i in range(0, p.number_reps_plane_consective * p.number_imaged_planes, 2)]
 
 planes_cs_onset_indices = cs_onset_index
 
@@ -667,7 +584,7 @@ for plane_i, plane_cs_onset_indices in tqdm(enumerate(planes_cs_onset_indices)):
 	for trial_i, trial_cs_onset_index in enumerate(plane_cs_onset_indices):
 
 		time_start = protocol.loc[trial_cs_onset_index, abs_time] - 45000
-		time_end = protocol.loc[trial_cs_onset_index, abs_time] + 15000
+		time_end = protocol.loc[trial_cs_onset_index, abs_time] + 35000
 
 		# index = protocol[protocol[abs_time].between(time_start, time_end)].index
 
@@ -697,11 +614,11 @@ for plane_i, plane_cs_onset_indices in tqdm(enumerate(planes_cs_onset_indices)):
 		# 	continue
 
 
-		trials_list.append(Trial(i, protocol[protocol[abs_time].between(time_start, time_end)], behavior[behavior[abs_time].between(time_start, time_end)], trial_images))
+		trials_list.append(c.Trial(i, protocol[protocol[abs_time].between(time_start, time_end)], behavior[behavior[abs_time].between(time_start, time_end)], trial_images))
 
 		i += 1
 
-	all_data.append(Plane(trials_list))
+	all_data.append(c.Plane(trials_list))
 
 	# break
 
@@ -713,46 +630,53 @@ for i in range(len(all_data)):
 
 #endregion
 
+
+
 #* Read the anatomical stack.
 # %%
 # region Anatomical stack
 anatomical_stack_images = tifffile.imread(anatomy_1_path).astype('float32')
 # anatomical_stack_images = tifffile.imread(anatomy_1_filtered_path).astype('float32')
 
-anatomical_stack_images = ndimage.median_filter(anatomical_stack_images, size=median_filter_kernel, axes=(1,2))
+anatomical_stack_images = ndimage.median_filter(anatomical_stack_images, size=p.median_filter_kernel, axes=(1,2))
 
 
 #ToDo this should take the pixel spacing into account!!!
 
 _, y_dim, x_dim = np.array(anatomical_stack_images.shape)
 
-x_dim = int(x_dim * xy_movement_allowed/2)
-y_dim = int(y_dim * xy_movement_allowed/2)
+x_dim = int(x_dim * p.xy_movement_allowed/2)
+y_dim = int(y_dim * p.xy_movement_allowed/2)
 # endregion
+
 
 #* Save the data.
 # %%
 # region Save the data
-path_pkl = path_home / fish_name / (fish_name + '.pkl')
 
-all_data = Data(all_data, anatomical_stack_images)
+all_data = c.Data(all_data, anatomical_stack_images)
 
-with open(path_pkl, 'wb') as f:
-	pickle.dump(all_data, f)
+path_pkl = path_home / fish_name / (fish_name_before registration + '.pkl')
+
+with open(path_pkl, 'wb') as file:
+	pickle.dump(all_data, file)
+
 # endregion
+
+
 
 #* Correct motion within and across trials.
 # %%
 # region Correct motion
 
-no final, ha valores negativos de pixels
+#! no final, ha valores negativos de pixels
 
-for plane_i, plane in tqdm(enumerate(all_data)):
+for plane_i, plane in tqdm(enumerate(all_data.planes)):
 	# break
 
 	print('Plane: ', plane_i)
 
-	motions = [_ for _ in range(4)]
+	motions = [_ for _ in range(len(plane.trials))]
 	template_images = np.zeros((len(plane.trials), plane.trials[0].images.shape[1], plane.trials[0].images.shape[2]))
 	plane_numbers = np.zeros(len(plane.trials), dtype='int32')
 
@@ -763,151 +687,171 @@ for plane_i, plane in tqdm(enumerate(all_data)):
 
 		##* Discard bad frames due to motion, gating of the PMT or plane change when making a template image for the trial.
 		# plane.trials[trial_i].images.values, plane.trials[trial_i].template_image, plane.trials[trial_i].position_anatomical_stack 
-		motions[trial_i], template_images[trial_i], plane_numbers[trial_i] = correct_motion_within_trial(trial, 5)
+		motions[trial_i], template_images[trial_i], plane_numbers[trial_i] = f.correct_motion_within_trial(trial, anatomical_stack_images, x_dim, y_dim, 5)
 
-		plt.imshow(anatomical_stack_images[plane_numbers[trial_i]])
-		plt.show()
+		# template_image_[motion_thr:-motion_thr, motion_thr:-motion_thr]
+		# a = f.get_template_image(f.get_maximum_number_good_last_images(trial.images.values))
+
+		# plt.imshow(anatomical_stack_images[plane_numbers[trial_i]])
+		# plt.show()
 
 
 		#* Frames to ignore due to too much motion (or gating of the PMT, which causes a huge "motion").
 		trial_images = trial.images.values
 
 		# Mask with True where the frames are bad (due to gating of the PMT or motion).
-		mask_bad_frames = (~get_good_images_indices(trial_images)) | (np.where(get_total_motion(motions[trial_i]) > motion_thr_from_trial_average, True, False))
+		mask_bad_frames = (~f.get_good_images_indices(trial_images)) | (np.where(f.get_total_motion(motions[trial_i]) > p.motion_thr_from_trial_average, True, False))
 
-		all_data[plane_i].trials[trial_i].mask_bad_frames = mask_bad_frames
+		all_data.planes[plane_i].trials[trial_i].mask_bad_frames = mask_bad_frames
 
 
 	#* Motion correction across trials of the same plane.
 	for trial_i, trial in enumerate(plane.trials):
-		
+			
 		if trial_i > 0:
 			#* Measure motion of each frame using phase cross-correlation.
-			motion = measure_motion(np.expand_dims(template_images[trial_i][5:-5, 5:-5], axis=0), template_images[0][5:-5, 5:-5], normalization=None)[0]
+			motion = f.measure_motion(np.expand_dims(template_images[trial_i][5:-5, 5:-5], axis=0), template_images[0][5:-5, 5:-5], normalization=None)[0]
 
 			motions[trial_i] += motion
 
 		#* Measure motion of each frame using phase cross-correlation.
-		total_motion = get_total_motion(motions[trial_i])
+		total_motion = f.get_total_motion(motions[trial_i])
 		# Use half of the frames to get the template image.
 		motion_thr = np.median(total_motion)
 
 		
 		
 		#* Align the frames to their average.
-		aligned_frames = align_frames(trial.images.to_numpy(), motions[trial_i], total_motion, [5,10,30,35][trial_i])
+		aligned_frames = f.align_frames(trial.images.to_numpy(), motions[trial_i], total_motion, [5,10,30,35][trial_i])
 
-		template_image = get_template_image(aligned_frames[np.where(total_motion <= motion_thr)[0]])
+		template_image = f.get_template_image(aligned_frames[np.where(total_motion <= motion_thr)[0]])
 
 
+
+#!!!!!!!!!!!!!!! FIX THIS TO REMOVE PADDED VALUES AROUND THE TEMPLATE IMAGE
 		#* Identify the plane number of the trial.
-		plane_number, _ = find_plane_in_anatomical_stack(anatomical_stack_images, template_image.astype('float32'), None, x_dim, y_dim)
+		plane_number, _ = f.find_plane_in_anatomical_stack(anatomical_stack_images, template_image.astype('float32')[25:-25, 25:-25], None, x_dim, y_dim)
 
 
-		plt.imshow(ndimage.median_filter(np.mean(aligned_frames, axis=0), size=median_filter_kernel))
+		plt.imshow(ndimage.median_filter(np.mean(aligned_frames, axis=0), size=p.median_filter_kernel))
 		plt.colorbar(shrink=0.5)
 		plt.show()
 
-		all_data[plane_i].trials[trial_i].images.values = aligned_frames
-		all_data[plane_i].trials[trial_i].template_image = template_image
-		all_data[plane_i].trials[trial_i].position_anatomical_stack = plane_number
+		all_data.planes[plane_i].trials[trial_i].images.values = aligned_frames
+		all_data.planes[plane_i].trials[trial_i].template_image = template_image
+		all_data.planes[plane_i].trials[trial_i].position_anatomical_stack = plane_number
 
 		# break
 	# break
 	print('Plane:', plane_i, plane_numbers)
 #endregion
 
+
+
+#* Save the data.
+# %%
+# region Save the data
+path_pkl = path_home / fish_name / (fish_name + '_2' + '.pkl')
+
+all_data = c.Data(all_data.planes, anatomical_stack_images)
+
+with open(path_pkl, 'wb') as file:
+	pickle.dump(all_data, file)
+# endregion
+
+
 #* Plot the position in the anatomical stack.
 # region Position in the anatomical stack
+try:
+	A = []
+	B = []
 
-A = []
-B = []
+	C = []
+	D = []
 
-C = []
-D = []
+	for i in range(len(all_data.planes)):
 
-for i in range(len(all_data)):
+		for j in range(2):
 
-	for j in range(2):
+			A.append(all_data.planes[i].trials[j].position_anatomical_stack)
 
-		A.append(all_data[i].trials[j].position_anatomical_stack)
+			C.append(all_data.planes[i].trials[j].template_image)
 
-		C.append(all_data[i].trials[j].template_image)
+		for l in range(2,4):
 
-	for l in range(2,4):
+			B.append(all_data.planes[i].trials[l].position_anatomical_stack)
 
-		B.append(all_data[i].trials[l].position_anatomical_stack)
-
-		D.append(all_data[i].trials[l].template_image)
-
-
-A = np.array(A)
-B = np.array(B)
-
-C = np.array(C)
-D = np.array(D)
+			D.append(all_data.planes[i].trials[l].template_image)
 
 
-import seaborn as sns
-sns.set_style('whitegrid')
+	A = np.array(A)
+	B = np.array(B)
+
+	C = np.array(C)
+	D = np.array(D)
 
 
-plt.xlabel('Trial before or after initial train')
-plt.ylabel('Plane number in anatomical stack')
-plt.plot(A, 'blue')
-plt.plot(B, 'red')
-plt.legend(['Before initial train', 'After initial train'])
-plt.savefig(r'H:\My Drive\PhD\Lab meetings\A and B.png', dpi=300, bbox_inches='tight')
+	sns.set_style('whitegrid')
 
 
-plt.xlabel('Trial before or after initial train')
-plt.ylabel('Difference between planes imaged\n before and after initial train (μm)')
-plt.plot(A-B, 'k')
-plt.ylim(-6, 6)
-plt.savefig(r'H:\My Drive\PhD\Lab meetings\difference.png', dpi=300, bbox_inches='tight')
+	path_ = path_home / fish_name
 
 
+	plt.xlabel('Trial before or after initial train')
+	plt.ylabel('Plane number in anatomical stack')
+	plt.plot(A, 'blue')
+	plt.plot(B, 'red')
+	plt.legend(['Before initial train', 'After initial train'])
+	plt.savefig(path_ / ('Where in the anatomical stack' + '.png'), dpi=300, bbox_inches='tight')
 
 
-sns.set_style('white')
+	plt.xlabel('Trial before or after initial train')
+	plt.ylabel('Difference between planes imaged\n before and after initial train (μm)')
+	plt.plot(A-B, 'k')
+	plt.ylim(-10, 10)
+	plt.savefig(path_ / ('Difference when revisiting planes' + '.png'), dpi=300, bbox_inches='tight')
 
 
-
-fig, axs = plt.subplots(15, 2, figsize=(10, 50))
-
-for i in range(30):
-	if i<=14:
-		im = axs[i,0].imshow(C[i*2], interpolation=None, cmap='RdBu_r', vmin=80, vmax=500)
-		axs[i,0].axis('off')
-
-	if i>14 and i<=29:
-		axs[i-15,1].imshow(C[(i-15)*2+1], interpolation=None, cmap='RdBu_r', vmin=80, vmax=500)
-		axs[i-15,1].axis('off')
-
-fig.tight_layout()
-# fig.suptitle('Templates Before Correction', fontsize=16)
-fig.savefig(r'H:\My Drive\PhD\Lab meetings\templates before.png', dpi=300, bbox_inches='tight')
+	sns.set_style('white')
+	
+except:
+	pass
 
 
 
-fig, axs = plt.subplots(15, 2, figsize=(10, 50))
+				# fig, axs = plt.subplots(15, 2, figsize=(10, 50))
 
-for i in range(30):
-	if i<=14:
-		axs[i,0].imshow(D[i*2], interpolation=None, cmap='RdBu_r', vmin=80, vmax=500)
-		axs[i,0].axis('off')
+				# for i in range(30):
+				# 	if i<=14:
+				# 		im = axs[i,0].imshow(C[i*2], interpolation='none', cmap='RdBu_r', vmin=80, vmax=500)
+				# 		axs[i,0].axis('off')
 
-	if i>14 and i<=29:
-		axs[i-15,1].imshow(D[(i-15)*2+1], interpolation=None, cmap='RdBu_r', vmin=80, vmax=500)
-		axs[i-15,1].axis('off')
+				# 	if i>14 and i<=29:
+				# 		axs[i-15,1].imshow(C[(i-15)*2+1], interpolation='none', cmap='RdBu_r', vmin=80, vmax=500)
+				# 		axs[i-15,1].axis('off')
 
-fig.tight_layout()
-# fig.suptitle('Templates After Correction', fontsize=16)
-fig.savefig(r'H:\My Drive\PhD\Lab meetings\templates after.png', dpi=300, bbox_inches='tight')
+				# fig.tight_layout()
+				# # fig.suptitle('Templates Before Correction', fontsize=16)
+				# fig.savefig(r'H:\My Drive\PhD\Lab meetings\templates before.png', dpi=300, bbox_inches='tight')
+
+
+
+				# fig, axs = plt.subplots(15, 2, figsize=(10, 50))
+
+				# for i in range(30):
+				# 	if i<=14:
+				# 		axs[i,0].imshow(D[i*2], interpolation='none', cmap='RdBu_r', vmin=80, vmax=500)
+				# 		axs[i,0].axis('off')
+
+				# 	if i>14 and i<=29:
+				# 		axs[i-15,1].imshow(D[(i-15)*2+1], interpolation='none', cmap='RdBu_r', vmin=80, vmax=500)
+				# 		axs[i-15,1].axis('off')
+
+				# fig.tight_layout()
+				# # fig.suptitle('Templates After Correction', fontsize=16)
+				# fig.savefig(r'H:\My Drive\PhD\Lab meetings\templates after .png', dpi=300, bbox_inches='tight')
 
 #  endregion
-
-
 
 #* Load the data.
 path_pkl = path_home / fish_name / (fish_name + '.pkl')
@@ -916,8 +860,40 @@ path_pkl = path_home / fish_name / (fish_name + '.pkl')
 with open(path_pkl, 'rb') as file:
 	all_data = pickle.load(file)
 
-all_data.planes[0].trials[0].__dict__.keys()
 
+
+# Create a new HDF5 file
+h5_file = h5py.File(path_home / fish_name / (fish_name + '.h5'), 'w')
+
+# Create a group for the planes data
+planes_group = h5_file.create_group('planes')
+
+# Loop through each plane in all_data
+for plane_i, plane in enumerate(all_data.planes):
+	# Create a group for the current plane
+	plane_group = planes_group.create_group(f'plane_{plane_i}')
+	
+	# Loop through each trial in the plane
+	for trial_i, trial in enumerate(plane.trials):
+		# Create a group for the current trial
+		trial_group = plane_group.create_group(f'trial_{trial_i}')
+		
+		trial_group.create_dataset('trial_number', data=trial.trial_number)
+		trial_group.create_dataset('protocol', data=trial.protocol)
+		trial_group.create_dataset('behavior', data=trial.behavior)
+		trial_group.create_dataset('images', data=trial.images)
+		try:
+			trial_group.create_dataset('mask_bad_frames', data=trial.mask_bad_frames)
+			trial_group.create_dataset('template_image', data=trial.template_image)
+			trial_group.create_dataset('position_anatomical_stack', data=trial.position_anatomical_stack)
+		except:
+			pass
+
+# Close the HDF5 file
+h5_file.close()
+
+	# except:
+	# 	continue
 
 # compression_level = 4
 # compression_library = 'zlib'
@@ -960,7 +936,586 @@ plt.imshow(eye_mask)
 # plt.colorbar()
 
 
+
+
+
+
+
+
+
+
+
 for plane_i, plane in enumerate(all_data.planes):
+
+	# if plane_i not in [0,1,3,6,8,9,10,13]:
+	# 	continue
+	# break
+#!
+	# plane.trials = plane.trials
+
+
+
+	#!!!!!!!!!!!!!!!!!!!!!!!!! DO ALL OF THIS FOR SINGLE TRIAL AND THEN CONCATENATE TO GET PLANE DATA
+
+
+
+
+	#* To get a correlation map for the whole plane data, we need to concatenate all the images of the trials.
+	# plane_trials_all_images = np.concatenate([t.images.values for t in plane.trials])
+	plane_trials_all_images = plane.get_all_images()
+
+	plt.title('All images from plane')
+	plt.imshow(np.mean(plane_trials_all_images, axis=0))
+	plt.colorbar
+	plt.show()
+
+
+	#* Get the number of images per trial.
+	plane_trials_number_images = np.array([t.images.shape[0] for t in plane.trials])
+
+
+	#* Get the indices of the CS in the images of the trials.
+	cs_indices = np.array([trial.get_stim_index(cs) for trial in plane.trials])
+
+	cs_indices[1:,0] += np.cumsum(plane_trials_number_images[:-1])
+	cs_indices[1:,1] += np.cumsum(plane_trials_number_images[:-1])
+
+
+
+
+
+
+
+
+
+	#* Discard bad frames due to motion, gating of the PMT or plane change.
+	plane_trials_mask_bad_frames = np.concatenate([t.mask_bad_frames for t in plane.trials])
+	plane_bad_frames_index = np.where(plane_trials_mask_bad_frames)[0]
+	plane_trials_good_images = plane_trials_all_images[~plane_trials_mask_bad_frames].copy()
+
+	plt.title('All good images from plane')
+	plt.imshow(np.mean(plane_trials_good_images, axis=0))
+	plt.colorbar
+	plt.show()
+
+
+
+
+
+
+
+
+
+#! not doing anything here
+	#* Filter in space.
+	plane_trials_good_images_filtered = ndimage.gaussian_filter(plane_trials_good_images, sigma=gaussian_filter_sigma, axes=(1,2))
+
+	plt.title('All good images from plane filtered')
+	plt.imshow(np.mean(plane_trials_good_images_filtered, axis=0))
+	plt.colorbar
+
+
+
+
+
+	# break
+
+
+
+
+#!!!!!!!!!!!!!!!!! move it further down
+	#* Calcultate the correlation map.
+	# Inspired in Suit2p. There, the function that computes the correlation map is celldetect2.getVmap.
+	correlation_map = np.linalg.norm(ndimage.gaussian_filter(plane_trials_good_images, sigma=correlation_map_sigma, axes=(1,2)), axis=0)**2 / ndimage.gaussian_filter(np.linalg.norm(plane_trials_good_images, axis=0), sigma=correlation_map_sigma)**2
+
+	plt.figure('Correlation map')
+	plt.imshow(correlation_map, interpolation='none')
+	plt.colorbar(shrink=0.5)
+	plt.show()
+
+
+
+
+
+
+	#* Subtract the background.
+	# Pixel values equal to 0 are ignored to discard the artificial edges of the images that were introduced during the motion correction.
+	images_mean = np.nanmean(np.where(plane_trials_good_images == 0, np.nan, plane_trials_good_images), axis=(1,2))
+
+	images_mean = np.nanmean(plane_trials_good_images, axis=(1,2))
+	for image_i in range(plane_trials_good_images.shape[0]):
+		plane_trials_good_images[image_i] -= images_mean[image_i]
+
+	del images_mean
+
+	#* Mask the background.
+	plane_images_mask_fish = np.where(np.median(plane_trials_good_images, axis=0) <= 0, 0, 1).astype(dtype='bool')
+
+	plane_images_mask_fish_without_eyes = plane_images_mask_fish & eye_mask
+
+	#* Set to 0 the pixels that are not part of the fish in the images. Also, mask the eyes.
+	plane_trials_good_images = np.where(plane_images_mask_fish_without_eyes, plane_trials_good_images, 0)
+
+	plt.title('All good images from plane masked background')
+	plt.imshow(np.mean(plane_trials_good_images, axis=0))
+	plt.colorbar(shrink=0.5)
+	plt.show()
+
+
+
+
+	# region Voxel analysis
+	#* Voxel analysis
+
+	#* Bin the 2D images.
+	
+
+	plane_trials_good_images_binned = block_reduce(plane_trials_good_images, block_size=(1, voxel_bin_size, voxel_bin_size), func=np.mean, cval=0)
+
+	plt.imshow(np.mean(plane_trials_good_images_binned, axis=0), interpolation='none')
+
+
+	plane_trials_good_images_binned_ = np.empty(tuple([plane_trials_all_images.shape[0]] + list(plane_trials_good_images_binned.shape[1:]))) * np.nan
+	plane_trials_good_images_binned_[~plane_trials_mask_bad_frames, :, :] = plane_trials_good_images_binned
+
+	plane_trials_good_images_binned = plane_trials_good_images_binned_.copy()
+
+	del plane_trials_good_images_binned_
+
+	plt.title('All good images from plane binned')
+	plt.imshow(np.mean(plane_trials_good_images_binned, axis=0))
+	plt.colorbar(shrink=0.5)
+	plt.show()
+
+
+
+	deltaF = []
+	deltaF_ratio = []
+
+	for i in range(len(cs_indices)):
+
+		baseline = np.nanmean(plane_trials_good_images_binned[[cs_indices[i, 0] - 20, cs_indices[i, 0]]], axis=0)
+		
+		during_cs = np.nanmean(plane_trials_good_images_binned[[cs_indices[i, 0], cs_indices[i, 1]]], axis=0)
+
+		deltaF_ratio.append((during_cs - baseline) / baseline)
+
+		if i == 0:
+			
+			deltaF.append((plane_trials_good_images_binned[ : plane_trials_number_images[0]] - baseline) / baseline)
+
+		elif i < len(cs_indices)-1:
+
+			deltaF.append((plane_trials_good_images_binned[np.cumsum(plane_trials_number_images)[i-1] : np.cumsum(plane_trials_number_images)[i]] - baseline) / baseline)
+
+		else:
+			deltaF.append((plane_trials_good_images_binned[np.cumsum(plane_trials_number_images)[i-1] : ] - baseline) / baseline)
+
+	deltaF = np.concatenate(deltaF)
+
+	deltaF = np.where(np.isnan(deltaF), 0, deltaF)
+
+	deltaF_ratio = np.array(deltaF_ratio)
+
+
+	for i in range(len(cs_indices)):
+		plt.imshow(deltaF_ratio[i], interpolation='none', vmin=-10, vmax=10, cmap='RdBu_r')
+		plt.colorbar(shrink=0.5)
+		plt.title('DeltaF_SR')
+		plt.show()
+
+
+	A = np.mean(np.array([deltaF_ratio[0], deltaF_ratio[1]]), axis=0)
+	B = np.mean(np.array([deltaF_ratio[2], deltaF_ratio[3]]), axis=0)
+
+
+
+	plt.imshow(A, interpolation='none', vmin=-10, vmax=10, cmap='RdBu_r')
+	plt.colorbar(shrink=0.5)
+	plt.title('DeltaF_SR A')
+	plt.show()
+
+	plt.imshow(B, interpolation='none', vmin=-10, vmax=10, cmap='RdBu_r')
+	plt.colorbar(shrink=0.5)
+	plt.title('DeltaF_SR B')
+	plt.show()
+
+	plt.imshow(B/A, interpolation='none', vmin=-100, vmax=100, cmap='RdBu_r')
+	plt.colorbar(shrink=0.5)
+	plt.title('DeltaF_SR B / DeltaF_SR A')
+	plt.savefig(path_home /  fish_name / (fish_name + '_deltaF_SR_voxels_plane ' + str(plane_i) + '.tif'))
+	plt.show()
+
+	deltaF_ratio = np.concatenate(deltaF_ratio)
+
+#!!!
+	# deltaF_ = np.empty(tuple([plane_trials_all_images.shape[0]] + list(deltaF.shape[1:]))) * np.nan
+	# deltaF_[~plane_trials_mask_bad_frames, :, :] = deltaF
+
+	# deltaF = deltaF_.copy()
+
+	# del deltaF_
+
+	for i in range(len(cs_indices)):
+		deltaF[cs_indices[i,0]:cs_indices[i,1],:20,-20:] = -100
+
+	plt.imshow(np.nanmean(deltaF, axis=0))
+	plt.colorbar(shrink=0.5)
+
+	#* Save rois_zscore_over_time as a TIFF file.
+	tifffile.imwrite(path_home /  fish_name / (fish_name + '_deltaF_voxels_plane ' + str(plane_i) + '.tif'), deltaF.astype('float32'))
+
+	# endregion
+
+
+
+
+
+
+
+	# region ROI analysis for the whole plane
+
+	#* Set to 0 the pixels that are not part of the fish in the correlation map.
+	correlation_map = np.where(plane_images_mask_fish_without_eyes, correlation_map, 0)
+
+	plt.title('Correlation map masked background')
+	plt.imshow(np.where(plane_images_mask_fish_without_eyes, correlation_map, 0))
+	plt.colorbar(shrink=0.5)
+	plt.show()
+
+
+
+
+
+	#* ROIs for the all the trials of the same plane.
+	#TODO need to rewrite all this part, using Mike's and Ruben's code
+	all_traces, all_rois, used_pixels, correlation_map_ = f.get_ROIs(Nrois=100, correlation_map=correlation_map, images=plane_trials_good_images_filtered, threshold=0.3, max_pixels=60)
+
+	plt.imshow(zscore(all_traces, 1), aspect="auto", cmap="RdBu_r")
+	plt.savefig(path_home / fish_name / (fish_name + 'zscore ' + str(plane_i) + '.tif'))
+	plt.show()
+	plt.imshow(all_rois)
+	plt.colorbar()
+	plt.show()
+	plt.imshow(correlation_map_)
+	plt.show()
+	plt.imshow(np.sum(plane_trials_all_images, axis=0))
+	plt.show()
+	plt.imshow(correlation_map)
+	plt.show()
+
+
+
+	#* Create array to then make movie.
+	all_rois = all_rois.astype('int')
+
+	rois_zscore_over_time = np.zeros_like(plane_trials_all_images)
+
+
+	#* Consider the periods of bad frames in the array with the Z score of the ROI traces.
+	all_traces_z_score = zscore(all_traces, 1)
+
+	all_traces_z_score_ = np.empty((all_traces.shape[0], len(plane_trials_all_images))) * np.nan
+	all_traces_z_score_[:, ~plane_trials_mask_bad_frames] = all_traces_z_score
+
+	plt.imshow(all_traces_z_score_, aspect="auto", cmap="RdBu_r", vmin=-3, vmax=3)
+
+	all_traces_z_score = all_traces_z_score_
+	del all_traces_z_score_
+
+	rois_mask = np.zeros(rois_zscore_over_time.shape, dtype='bool')
+
+	#* Get mask of the ROIs.
+	for roi_i in range(1, all_rois.max()):
+		# break
+		rois_mask[roi_i] = all_rois == roi_i
+
+		# roi_mask = rois_mask[roi_i]
+		# [np.newaxis, :, :]
+
+		for t in range(rois_zscore_over_time.shape[0]):
+			# break
+			rois_zscore_over_time[t,:,:] += np.where(rois_mask[roi_i], all_traces_z_score[roi_i, t], 0)
+
+			rois_zscore_over_time[t,:,:]
+
+	for i in range(len(cs_indices)):
+		rois_zscore_over_time[cs_indices[i,0]:cs_indices[i,1],:50,-50:] = -100
+
+	# plt.imshow(np.mean(plane_trials_all_images, axis=0))
+	plt.imshow(np.nansum(rois_zscore_over_time, axis=0), aspect="auto", cmap="RdBu_r", interpolation='none')
+	plt.colorbar()
+
+	#* Save rois_zscore_over_time as a TIFF file.
+	tifffile.imwrite(path_home / fish_name / (fish_name + 'rois_zscore_over_time ' + str(plane_i) + '.tif'), rois_zscore_over_time.astype('float32'))
+
+	# endregion
+
+
+
+
+for plane_i, plane in enumerate(all_data.planes):
+
+	deltaF = [_ for _ in range(len(plane.trials))]
+	deltaF_ratio = deltaF.copy()
+
+
+	# region ROI analysis for each trial
+	for trial_i, trial in enumerate(plane.trials):
+		
+		# trial_i = trial.trial_number
+		
+		# trial = plane.trials[1]
+
+		# break
+	# break
+
+
+		#* Get the indices of the CS in the images of the trials.
+		cs_indices = trial.get_stim_index(cs)
+
+
+
+		#* Discard bad frames due to motion, gating of the PMT or trial change.
+		trial_good_images = trial.images.values[~trial.mask_bad_frames]
+		trial_bad_frames_index = np.where(trial.mask_bad_frames)[0]
+
+		# plt.title('All images from trial')
+		# plt.imshow(np.mean(trial_good_images, axis=0))
+		# plt.colorbar(shrink=0.5)
+		# plt.show()
+
+
+
+
+
+		#* Filter in space.
+		trial_good_images_filtered = ndimage.gaussian_filter(trial_good_images, sigma=gaussian_filter_sigma, axes=(1,2))
+
+		# plt.title('All good images from trial filtered')
+		# plt.imshow(np.mean(trial_good_images_filtered, axis=0))
+		# plt.colorbar(shrink=0.5)
+		# plt.show()
+
+
+
+
+#! calculate the correlation map for each trial
+		#* Correlation map
+		# In Suit2p, the function that computes the correlation map is celldetect2.getVmap.
+		correlation_map = np.linalg.norm(ndimage.gaussian_filter(trial_good_images, sigma=correlation_map_sigma, axes=(1,2)), axis=0)**2 / ndimage.gaussian_filter(np.linalg.norm(trial_good_images, axis=0), sigma=correlation_map_sigma)**2
+
+		# plt.figure('Correlation map')
+		# plt.imshow(correlation_map)
+		# plt.colorbar(shrink=0.5)
+		# plt.show()
+
+
+
+
+		#* Subtract the background.
+		# Pixel values equal to 0 are ignored to discard the artificial edges of the images that were introduced during the motion correction.
+		images_mean = np.nanmean(np.where(trial_good_images == 0, np.nan, trial_good_images), axis=(1,2))
+
+		images_mean = np.nanmean(trial_good_images, axis=(1,2))
+		for image_i in range(trial_good_images.shape[0]):
+			trial_good_images[image_i] -= images_mean[image_i]
+
+		del images_mean
+
+		#* Mask the background.
+		trial.images_mask_fish = np.where(np.median(trial_good_images, axis=0) <= 0, 0, 1).astype(dtype='bool')
+
+		trial.images_mask_fish_without_eyes = trial.images_mask_fish & eye_mask
+
+		#* Set to 0 the pixels that are not part of the fish in the images. Also, mask the eyes.
+		trial_good_images = np.where(trial.images_mask_fish_without_eyes, trial_good_images, 0)
+
+		# plt.title('All good images from trial masked background')
+		# plt.imshow(np.mean(trial_good_images, axis=0))
+		# plt.colorbar(shrink=0.5)
+		# plt.show()
+
+plane = all_data.planes[7]
+
+trial = plane.trials[3]
+
+trial.images.to_numpy()
+tifffile.imwrite(path_home / fish_name / (fish_name + '_trial_images.tif'), trial.images.to_numpy().astype('float32'))
+
+
+		# region Voxel analysis
+		#* Voxel analysis
+
+		#* Bin the 2D images.
+		
+		trial_good_images_binned = block_reduce(trial_good_images, block_size=(1, voxel_bin_size, voxel_bin_size), func=np.mean, cval=0)
+
+		# plt.imshow(np.mean(trial_good_images_binned, axis=0), interpolation='none')
+
+
+		trial_images_binned = np.empty(tuple([trial.images.shape[0]] + list(trial_good_images_binned.shape[1:]))) * np.nan
+		trial_images_binned[~trial.mask_bad_frames, :, :] = trial_good_images_binned
+		
+		# del trial_good_images_binned
+
+		# plt.title('All good images from trial binned')
+		# plt.imshow(np.mean(trial_images_binned, axis=0))
+		# plt.colorbar(shrink=0.5)
+		# plt.show()
+
+
+
+
+
+
+
+		baseline = np.nanmean(trial_images_binned[:cs_indices[0], :, :], axis=0)
+		
+		during_cs = np.nanmean(trial_images_binned[cs_indices[0] : cs_indices[1], :, :], axis=0)
+
+		deltaF[trial_i] = (trial_images_binned - baseline) / baseline
+
+
+
+		deltaF_ratio[trial_i] = (during_cs - baseline) / baseline
+		deltaF_ratio[trial_i] = np.where(np.isnan(deltaF_ratio[trial_i]), 0, deltaF_ratio[trial_i])
+
+		# plt.imshow(deltaF_ratio[trial_i], interpolation='none', vmin=-10, vmax=10, cmap='RdBu_r')
+		# plt.colorbar(shrink=0.5)
+		# plt.title('DeltaF / F')
+		# plt.show()
+
+
+
+		#!
+		# deltaF[trial_i][cs_indices[0]:cs_indices[1],:20,-20:] = -100
+		# deltaF[trial_i] = np.where(np.isnan(deltaF[trial_i]), 0, deltaF[trial_i])
+
+		# plt.imshow(np.nanmean(deltaF[trial_i], axis=0))
+		# plt.colorbar(shrink=0.5)
+		# plt.show()
+
+		#* Save rois_zscore_over_time as a TIFF file.
+		# tifffile.imwrite(path_home /  fish_name / (fish_name + '_deltaF_voxels_trial ' + str(trial_i) + '.tif'), deltaF[trial_i].astype('float32'))
+
+		# endregion
+
+
+
+	fig, axs = plt.subplots(2, 2, figsize=(10, 10), sharex=True, sharey=True)
+
+	for i in range(len(deltaF)):
+
+		a = 0 if (i==0 or i==1) else 1
+		b = 0 if (i==0 or i==2) else 1
+
+		C = np.reshape(deltaF[i], (deltaF[i].shape[0], deltaF[i].shape[1]*deltaF[i].shape[2]))
+
+		for j in range(C.shape[1]):
+			
+			axs[a,b].plot(C[:,j], color='gray', alpha=0.5)
+
+		axs[a,b].set_title('Trial ' + str(i+1))
+
+		axs[a,b].axvline(x=cs_indices[0], color='red', linestyle='--')
+		axs[a,b].axvline(x=cs_indices[1], color='blue', linestyle='--')
+
+		axs[a,b].set_ylim((-5, 30))
+
+	fig.suptitle('DeltaF/F plane ' + str(plane_i), fontsize=20)
+
+	fig.savefig(path_home / fish_name / (fish_name + '_deltaF_voxels_plane ' + str(plane_i) + '.png'), dpi=100, bbox_inches='tight')
+
+
+
+A = np.mean(np.array([deltaF[0][:-1,:,:], deltaF[1][:,:,:]]), axis=0)
+# for trial_i in range(len(deltaF)):
+# 	deltaF[trial_i] = np.where(np.isnan(deltaF[trial_i]), 0, deltaF[trial_i])
+A = np.where(np.isnan(A), 0, A)
+
+B = np.mean(np.array([deltaF[2], deltaF[3]]), axis=0)
+
+
+np.nanmedian(A, axis=0).shape
+
+cs_indices
+
+plt.imshow(np.nanmedian(A, axis=0), interpolation='none')
+
+
+
+
+
+
+A = np.mean(np.array([deltaF_ratio[trial_i][0], deltaF_ratio[trial_i][1]]), axis=0)
+B = np.mean(np.array([deltaF_ratio[trial_i][2], deltaF_ratio[trial_i][3]]), axis=0)
+
+
+
+plt.imshow(A, interpolation='none', vmin=-10, vmax=10, cmap='RdBu_r')
+plt.colorbar(shrink=0.5)
+plt.title('DeltaF_SR A')
+plt.show()
+
+plt.imshow(B, interpolation='none', vmin=-10, vmax=10, cmap='RdBu_r')
+plt.colorbar(shrink=0.5)
+plt.title('DeltaF_SR B')
+plt.show()
+
+plt.imshow(B/A, interpolation='none', vmin=-100, vmax=100, cmap='RdBu_r')
+plt.colorbar(shrink=0.5)
+plt.title('DeltaF_SR B / DeltaF_SR A')
+plt.savefig(path_home /  fish_name / (fish_name + '_deltaF_SR_voxels_trial ' + str(trial_i) + '.tif'))
+plt.show()
+
+deltaF_ratio[trial_i] = np.concatenate(deltaF_ratio)
+
+!!!
+deltaF_ = np.empty(tuple([trial.images.shape[0]] + list(deltaF.shape[1:]))) * np.nan
+deltaF_[~trial.mask_bad_frames, :, :] = deltaF
+
+deltaF = deltaF_.copy()
+
+del deltaF_
+
+		
+
+
+
+
+
+
+
+		# region ROI analysis for each trial
+
+		#* Set to 0 the pixels that are not part of the fish in the correlation map.
+		correlation_map = np.where(trial.images_mask_fish_without_eyes , correlation_map, 0)
+
+		plt.title('Correlation map masked background')
+		plt.imshow(np.where(trial.images_mask_fish_without_eyes , correlation_map, 0))
+		plt.colorbar(shrink=0.5)
+		plt.show()
+
+
+
+		#* ROIs for the all the trials of the same plane.
+		#TODO need to rewrite all this part, using Mike's and Ruben's code
+		all_traces, all_rois, used_pixels, correlation_map_ = get_ROIs(Nrois=100, correlation_map=correlation_map, images=trial_good_images_filtered, threshold=0.3, max_pixels=60)
+
+		plt.imshow(zscore(all_traces, 1), aspect="auto", cmap="RdBu_r")
+		plt.savefig(path_home / fish_name / (fish_name + 'zscore ' + str(plane_i) + '.tif'))
+		plt.show()
+		plt.imshow(all_rois)
+		plt.colorbar()
+		plt.show()
+		plt.imshow(correlation_map_)
+		plt.show()
+		plt.imshow(np.sum(plane_trials_all_images, axis=0))
+		plt.show()
+		plt.imshow(correlation_map)
+		plt.show()
+
 
 	# if plane_i not in [0,1,3,6,8,9,10,13]:
 	# 	continue
@@ -1070,110 +1625,6 @@ for plane_i, plane in enumerate(all_data.planes):
 
 
 
-	# region Voxel analysis
-	#* Voxel analysis
-
-	#* Bin the 2D images.
-	
-
-	plane_trials_good_images_binned = block_reduce(plane_trials_good_images, block_size=(1, voxel_bin_size, voxel_bin_size), func=np.mean, cval=0)
-
-	plt.imshow(np.mean(plane_trials_good_images_binned, axis=0), interpolation='none')
-
-
-	plane_trials_good_images_binned_ = np.empty(tuple([plane_trials_all_images.shape[0]] + list(plane_trials_good_images_binned.shape[1:]))) * np.nan
-	plane_trials_good_images_binned_[~plane_trials_mask_bad_frames, :, :] = plane_trials_good_images_binned
-
-	plane_trials_good_images_binned = plane_trials_good_images_binned_.copy()
-
-	del plane_trials_good_images_binned_
-
-	plt.title('All good images from plane binned')
-	plt.imshow(np.mean(plane_trials_good_images_binned, axis=0))
-	plt.colorbar(shrink=0.5)
-	plt.show()
-
-
-
-	deltaF = []
-	deltaF_SR = []
-
-	for i in range(len(cs_indices)):
-
-		baseline = np.nanmean(plane_trials_good_images_binned[[cs_indices[i, 0] - 20, cs_indices[i, 0]]], axis=0)
-		
-		during_cs = np.nanmean(plane_trials_good_images_binned[[cs_indices[i, 0], cs_indices[i, 1]]], axis=0)
-
-		deltaF_SR.append((during_cs - baseline) / baseline)
-
-		if i == 0:
-			
-			deltaF.append((plane_trials_good_images_binned[ : plane_trials_number_images[0]] - baseline) / baseline)
-
-		elif i < len(cs_indices)-1:
-
-			deltaF.append((plane_trials_good_images_binned[np.cumsum(plane_trials_number_images)[i-1] : np.cumsum(plane_trials_number_images)[i]] - baseline) / baseline)
-
-		else:
-			deltaF.append((plane_trials_good_images_binned[np.cumsum(plane_trials_number_images)[i-1] : ] - baseline) / baseline)
-
-	deltaF = np.concatenate(deltaF)
-
-	deltaF = np.where(np.isnan(deltaF), 0, deltaF)
-
-	deltaF_SR = np.array(deltaF_SR)
-
-
-	for i in range(len(cs_indices)):
-		plt.imshow(deltaF_SR[i], interpolation='none', vmin=-10, vmax=10, cmap='RdBu_r')
-		plt.colorbar(shrink=0.5)
-		plt.title('DeltaF_SR')
-		plt.show()
-
-
-	A = np.mean(np.array([deltaF_SR[0], deltaF_SR[1]]), axis=0)
-	B = np.mean(np.array([deltaF_SR[2], deltaF_SR[3]]), axis=0)
-
-
-
-	plt.imshow(A, interpolation='none', vmin=-10, vmax=10, cmap='RdBu_r')
-	plt.colorbar(shrink=0.5)
-	plt.title('DeltaF_SR A')
-	plt.show()
-
-	plt.imshow(B, interpolation='none', vmin=-10, vmax=10, cmap='RdBu_r')
-	plt.colorbar(shrink=0.5)
-	plt.title('DeltaF_SR B')
-	plt.show()
-
-	plt.imshow(B/A, interpolation='none', vmin=-100, vmax=100, cmap='RdBu_r')
-	plt.colorbar(shrink=0.5)
-	plt.title('DeltaF_SR B / DeltaF_SR A')
-	plt.savefig(path_home /  fish_name / (fish_name + '_deltaF_SR_voxels_plane ' + str(plane_i) + '.tif'))
-	plt.show()
-
-	deltaF_SR = np.concatenate(deltaF_SR)
-
-#!!!
-	# deltaF_ = np.empty(tuple([plane_trials_all_images.shape[0]] + list(deltaF.shape[1:]))) * np.nan
-	# deltaF_[~plane_trials_mask_bad_frames, :, :] = deltaF
-
-	# deltaF = deltaF_.copy()
-
-	# del deltaF_
-
-	for i in range(len(cs_indices)):
-		deltaF[cs_indices[i,0]:cs_indices[i,1],:20,-20:] = -100
-
-	plt.imshow(np.nanmean(deltaF, axis=0))
-	plt.colorbar(shrink=0.5)
-
-	#* Save rois_zscore_over_time as a TIFF file.
-	tifffile.imwrite(path_home /  fish_name / (fish_name + '_deltaF_voxels_plane ' + str(plane_i) + '.tif'), deltaF.astype('float32'))
-
-	# endregion
-
-
 
 
 
@@ -1195,7 +1646,7 @@ for plane_i, plane in enumerate(all_data.planes):
 
 	#* ROIs for the all the trials of the same plane.
 	#TODO need to rewrite all this part, using Mike's and Ruben's code
-	all_traces, all_rois, used_pixels, correlation_map_ = get_ROIs(Nrois=100, correlation_map=correlation_map, images=plane_trials_good_images_filtered, threshold=0.3, max_pixels=60)
+	all_traces, all_rois, used_pixels, correlation_map_ = f.get_ROIs(Nrois=100, correlation_map=correlation_map, images=plane_trials_good_images_filtered, threshold=0.3, max_pixels=60)
 
 	plt.imshow(zscore(all_traces, 1), aspect="auto", cmap="RdBu_r")
 	plt.savefig(path_home / fish_name / (fish_name + 'zscore ' + str(plane_i) + '.tif'))
@@ -1259,6 +1710,9 @@ for plane_i, plane in enumerate(all_data.planes):
 
 
 
+
+
+
 	# region ROI analysis for each trial
 
 	for trial in plane.trials:
@@ -1311,12 +1765,12 @@ for plane_i, plane in enumerate(all_data.planes):
 		plt.imshow(np.mean(trial_good_images_binned, axis=0), interpolation='none')
 
 
-		trial_good_images_binned_ = np.empty(tuple([trial.images.shape[0]] + list(trial_good_images_binned.shape[1:]))) * np.nan
-		trial_good_images_binned_[~trial.mask_bad_frames, :, :] = trial_good_images_binned
+		trial_images_binned = np.empty(tuple([trial.images.shape[0]] + list(trial_good_images_binned.shape[1:]))) * np.nan
+		trial_images_binned[~trial.mask_bad_frames, :, :] = trial_good_images_binned
 
-		trial_good_images_binned = trial_good_images_binned_.copy()
+		trial_good_images_binned = trial_images_binned.copy()
 
-		del trial_good_images_binned_
+		del trial_images_binned
 
 		plt.title('All good images from trial binned')
 		plt.imshow(np.mean(trial_good_images_binned, axis=0))
@@ -1906,3 +2360,8 @@ plt.colorbar(shrink=0.5)
 
 
 __dict__.keys()
+
+
+
+
+
