@@ -22,13 +22,13 @@ from skimage import morphology
 from tqdm import tqdm
 from skimage.measure import block_reduce
 
+#* Load custom functions and classes
 import my_functions as f
 import my_classes as c
 import my_parameters as p
 from my_general_variables import *
 from importlib import reload
 
-#* Load custom functions and classes
 
 # endregion
 reload(f)
@@ -63,7 +63,8 @@ time_experiment_f = frame_id
 #* Paths
 # %%
 # region Paths
-path_home = Path(r'E:\2024 03_Delay 2-P multiple planes')
+path_home = Path(r'E:\2024 09_Delay 2-P zoom in multiplane imaging')
+# path_home = Path(r'E:\2024 03_Delay 2-P multiple planes')
 
 # fish_names = [folder.stem for folder in path_home.iterdir() if folder.is_dir()]
 # fish_names.remove('Behavior')
@@ -92,8 +93,16 @@ fish_names_list = [
 					# r'20240927_03_control_2p-6_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf',
 					# r'20241002_01_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf',
 					# r'20241002_02_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf',
-					r'20241002_03_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf'
-
+					# r'20241002_03_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf',
+					# r'20241003_03_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_5dpf',
+					# r'20241004_01_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf',
+					# r'20241004_02_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf'
+					# r'20241004_03_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf'
+					# r'20241007_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf',
+					# r'20241007_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+					# r'20241008_01_delay_2p-4_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf',
+					# r'20241008_02_delay_2p-5_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+					r'20241008_03_delay_2p-6_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
 				   ]
 # '20240911_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
 # '20240909_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
@@ -566,13 +575,13 @@ imaging.name = 'Imaging data'
 # region Planes data
 cs_onset_index = np.array([protocol.loc[protocol[cs] == p.relevant_cs[i], :].index[0] for i in range(len(p.relevant_cs))])
 
-index_list = [[i, i+1, i+2*p.number_imaged_planes, i+2*p.number_imaged_planes+1] for i in range(0, p.number_reps_plane_consective * p.number_imaged_planes, 2)]
+# index_list = [[i, i+1, i+2*p.number_imaged_planes, i+2*p.number_imaged_planes+1] for i in range(0, p.number_reps_plane_consective * p.number_imaged_planes, 2)]
 
 planes_cs_onset_indices = cs_onset_index
 
-planes_cs_onset_indices = [cs_onset_index[[j for j in i]] for i in index_list]
+planes_cs_onset_indices = [cs_onset_index[[j for j in i]] for i in p.index_list]
 
-del cs_onset_index, index_list
+del cs_onset_index
 
 
 all_data = []
@@ -638,15 +647,11 @@ for i in range(len(all_data)):
 anatomical_stack_images = tifffile.imread(anatomy_1_path).astype('float32')
 # anatomical_stack_images = tifffile.imread(anatomy_1_filtered_path).astype('float32')
 
+#!!!!!!!!!!!!!!!
+
+# MAYBE SHOULD MEDIAN FILTER EACH FRAME FROM THE ANATOMICAL STACK AND THEN USE THE MEAN
+
 anatomical_stack_images = ndimage.median_filter(anatomical_stack_images, size=p.median_filter_kernel, axes=(1,2))
-
-
-#ToDo this should take the pixel spacing into account!!!
-
-_, y_dim, x_dim = np.array(anatomical_stack_images.shape)
-
-x_dim = int(x_dim * p.xy_movement_allowed/2)
-y_dim = int(y_dim * p.xy_movement_allowed/2)
 # endregion
 
 
@@ -656,7 +661,7 @@ y_dim = int(y_dim * p.xy_movement_allowed/2)
 
 all_data = c.Data(all_data, anatomical_stack_images)
 
-path_pkl = path_home / fish_name / (fish_name_before registration + '.pkl')
+path_pkl = path_home / fish_name / (fish_name + '_before motion correction' + '.pkl')
 
 with open(path_pkl, 'wb') as file:
 	pickle.dump(all_data, file)
@@ -665,232 +670,42 @@ with open(path_pkl, 'wb') as file:
 
 
 
-#* Correct motion within and across trials.
-# %%
-# region Correct motion
 
-#! no final, ha valores negativos de pixels
+# Run the next script, where some plots are made.
+# exec(open('2. Motion correction.py').read())
 
-for plane_i, plane in tqdm(enumerate(all_data.planes)):
-	# break
 
-	print('Plane: ', plane_i)
 
-	motions = [_ for _ in range(len(plane.trials))]
-	template_images = np.zeros((len(plane.trials), plane.trials[0].images.shape[1], plane.trials[0].images.shape[2]))
-	plane_numbers = np.zeros(len(plane.trials), dtype='int32')
 
-	#* Motion correction within trial.
-	for trial_i, trial in enumerate(plane.trials):
 
-		#* 1.1. Motion correction relative to trials average.
 
-		##* Discard bad frames due to motion, gating of the PMT or plane change when making a template image for the trial.
-		# plane.trials[trial_i].images.values, plane.trials[trial_i].template_image, plane.trials[trial_i].position_anatomical_stack 
-		motions[trial_i], template_images[trial_i], plane_numbers[trial_i] = f.correct_motion_within_trial(trial, anatomical_stack_images, x_dim, y_dim, 5)
 
-		# template_image_[motion_thr:-motion_thr, motion_thr:-motion_thr]
-		# a = f.get_template_image(f.get_maximum_number_good_last_images(trial.images.values))
 
-		# plt.imshow(anatomical_stack_images[plane_numbers[trial_i]])
-		# plt.show()
 
 
-		#* Frames to ignore due to too much motion (or gating of the PMT, which causes a huge "motion").
-		trial_images = trial.images.values
 
-		# Mask with True where the frames are bad (due to gating of the PMT or motion).
-		mask_bad_frames = (~f.get_good_images_indices(trial_images)) | (np.where(f.get_total_motion(motions[trial_i]) > p.motion_thr_from_trial_average, True, False))
 
-		all_data.planes[plane_i].trials[trial_i].mask_bad_frames = mask_bad_frames
 
 
-	#* Motion correction across trials of the same plane.
-	for trial_i, trial in enumerate(plane.trials):
-			
-		if trial_i > 0:
-			#* Measure motion of each frame using phase cross-correlation.
-			motion = f.measure_motion(np.expand_dims(template_images[trial_i][5:-5, 5:-5], axis=0), template_images[0][5:-5, 5:-5], normalization=None)[0]
 
-			motions[trial_i] += motion
 
-		#* Measure motion of each frame using phase cross-correlation.
-		total_motion = f.get_total_motion(motions[trial_i])
-		# Use half of the frames to get the template image.
-		motion_thr = np.median(total_motion)
 
-		
-		
-		#* Align the frames to their average.
-		aligned_frames = f.align_frames(trial.images.to_numpy(), motions[trial_i], total_motion, [5,10,30,35][trial_i])
 
-		template_image = f.get_template_image(aligned_frames[np.where(total_motion <= motion_thr)[0]])
 
 
 
-#!!!!!!!!!!!!!!! FIX THIS TO REMOVE PADDED VALUES AROUND THE TEMPLATE IMAGE
-		#* Identify the plane number of the trial.
-		plane_number, _ = f.find_plane_in_anatomical_stack(anatomical_stack_images, template_image.astype('float32')[25:-25, 25:-25], None, x_dim, y_dim)
 
 
-		plt.imshow(ndimage.median_filter(np.mean(aligned_frames, axis=0), size=p.median_filter_kernel))
-		plt.colorbar(shrink=0.5)
-		plt.show()
 
-		all_data.planes[plane_i].trials[trial_i].images.values = aligned_frames
-		all_data.planes[plane_i].trials[trial_i].template_image = template_image
-		all_data.planes[plane_i].trials[trial_i].position_anatomical_stack = plane_number
 
-		# break
-	# break
-	print('Plane:', plane_i, plane_numbers)
-#endregion
 
 
 
-#* Save the data.
-# %%
-# region Save the data
-path_pkl = path_home / fish_name / (fish_name + '_2' + '.pkl')
 
-all_data = c.Data(all_data.planes, anatomical_stack_images)
 
-with open(path_pkl, 'wb') as file:
-	pickle.dump(all_data, file)
-# endregion
 
 
-#* Plot the position in the anatomical stack.
-# region Position in the anatomical stack
-try:
-	A = []
-	B = []
 
-	C = []
-	D = []
-
-	for i in range(len(all_data.planes)):
-
-		for j in range(2):
-
-			A.append(all_data.planes[i].trials[j].position_anatomical_stack)
-
-			C.append(all_data.planes[i].trials[j].template_image)
-
-		for l in range(2,4):
-
-			B.append(all_data.planes[i].trials[l].position_anatomical_stack)
-
-			D.append(all_data.planes[i].trials[l].template_image)
-
-
-	A = np.array(A)
-	B = np.array(B)
-
-	C = np.array(C)
-	D = np.array(D)
-
-
-	sns.set_style('whitegrid')
-
-
-	path_ = path_home / fish_name
-
-
-	plt.xlabel('Trial before or after initial train')
-	plt.ylabel('Plane number in anatomical stack')
-	plt.plot(A, 'blue')
-	plt.plot(B, 'red')
-	plt.legend(['Before initial train', 'After initial train'])
-	plt.savefig(path_ / ('Where in the anatomical stack' + '.png'), dpi=300, bbox_inches='tight')
-
-
-	plt.xlabel('Trial before or after initial train')
-	plt.ylabel('Difference between planes imaged\n before and after initial train (μm)')
-	plt.plot(A-B, 'k')
-	plt.ylim(-10, 10)
-	plt.savefig(path_ / ('Difference when revisiting planes' + '.png'), dpi=300, bbox_inches='tight')
-
-
-	sns.set_style('white')
-	
-except:
-	pass
-
-
-
-				# fig, axs = plt.subplots(15, 2, figsize=(10, 50))
-
-				# for i in range(30):
-				# 	if i<=14:
-				# 		im = axs[i,0].imshow(C[i*2], interpolation='none', cmap='RdBu_r', vmin=80, vmax=500)
-				# 		axs[i,0].axis('off')
-
-				# 	if i>14 and i<=29:
-				# 		axs[i-15,1].imshow(C[(i-15)*2+1], interpolation='none', cmap='RdBu_r', vmin=80, vmax=500)
-				# 		axs[i-15,1].axis('off')
-
-				# fig.tight_layout()
-				# # fig.suptitle('Templates Before Correction', fontsize=16)
-				# fig.savefig(r'H:\My Drive\PhD\Lab meetings\templates before.png', dpi=300, bbox_inches='tight')
-
-
-
-				# fig, axs = plt.subplots(15, 2, figsize=(10, 50))
-
-				# for i in range(30):
-				# 	if i<=14:
-				# 		axs[i,0].imshow(D[i*2], interpolation='none', cmap='RdBu_r', vmin=80, vmax=500)
-				# 		axs[i,0].axis('off')
-
-				# 	if i>14 and i<=29:
-				# 		axs[i-15,1].imshow(D[(i-15)*2+1], interpolation='none', cmap='RdBu_r', vmin=80, vmax=500)
-				# 		axs[i-15,1].axis('off')
-
-				# fig.tight_layout()
-				# # fig.suptitle('Templates After Correction', fontsize=16)
-				# fig.savefig(r'H:\My Drive\PhD\Lab meetings\templates after .png', dpi=300, bbox_inches='tight')
-
-#  endregion
-
-#* Load the data.
-path_pkl = path_home / fish_name / (fish_name + '.pkl')
-# path_pkl = r"E:\2024 03_Delay 2-P multiple planes\20240415_02_delay_2p-2_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf\20240415_02_delay_2p-2_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf.pkl"
-
-with open(path_pkl, 'rb') as file:
-	all_data = pickle.load(file)
-
-
-
-# Create a new HDF5 file
-h5_file = h5py.File(path_home / fish_name / (fish_name + '.h5'), 'w')
-
-# Create a group for the planes data
-planes_group = h5_file.create_group('planes')
-
-# Loop through each plane in all_data
-for plane_i, plane in enumerate(all_data.planes):
-	# Create a group for the current plane
-	plane_group = planes_group.create_group(f'plane_{plane_i}')
-	
-	# Loop through each trial in the plane
-	for trial_i, trial in enumerate(plane.trials):
-		# Create a group for the current trial
-		trial_group = plane_group.create_group(f'trial_{trial_i}')
-		
-		trial_group.create_dataset('trial_number', data=trial.trial_number)
-		trial_group.create_dataset('protocol', data=trial.protocol)
-		trial_group.create_dataset('behavior', data=trial.behavior)
-		trial_group.create_dataset('images', data=trial.images)
-		try:
-			trial_group.create_dataset('mask_bad_frames', data=trial.mask_bad_frames)
-			trial_group.create_dataset('template_image', data=trial.template_image)
-			trial_group.create_dataset('position_anatomical_stack', data=trial.position_anatomical_stack)
-		except:
-			pass
-
-# Close the HDF5 file
-h5_file.close()
 
 	# except:
 	# 	continue

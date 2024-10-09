@@ -1,0 +1,388 @@
+#* Imports
+
+# %%
+# region Imports
+import pickle
+from dataclasses import dataclass
+from importlib import reload
+from pathlib import Path
+
+import h5py
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import plotly.io as pio
+import scipy.ndimage as ndimage
+import seaborn as sns
+import tifffile
+import xarray as xr
+from scipy import signal
+from scipy.stats import pearsonr, zscore
+from skimage import morphology
+from skimage.measure import block_reduce
+from tqdm import tqdm
+
+#* Load custom functions and classes
+import my_classes as c
+import my_functions as f
+import my_parameters as p
+from my_general_variables import *
+
+# endregion
+reload(f)
+reload(c)
+reload(p)
+
+#* Settings
+# %% Settings
+# region Settings
+
+# %matplotlib ipympl
+
+pio.templates.default = "plotly_dark"
+
+pd.set_option("mode.copy_on_write", True)
+pd.set_option("compute.use_numba", True)
+pd.set_option("compute.use_numexpr", True)
+pd.set_option("compute.use_bottleneck", True)
+#endregion
+
+
+
+
+#* Paths
+# %%
+# region Paths
+path_home = Path(r'E:\2024 09_Delay 2-P zoom in multiplane imaging')
+# path_home = Path(r'E:\2024 03_Delay 2-P multiple planes')
+
+# fish_names = [folder.stem for folder in path_home.iterdir() if folder.is_dir()]
+# fish_names.remove('Behavior')
+
+# for fish_name in fish_names:
+# fish_name = r'20240228_01_delay_2p-1_mitfaMinusMinus,elavl3H2Bcamp6f_7dpf'
+
+fish_names_list = [
+				#    r'20240910_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_6dpf',
+				#    r'20240910_03_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_6dpf',
+					#! r'20240911_02_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf',
+					# r'20240911_03_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf',
+				   	# r'20240909_02_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf',
+				#    r'20240912_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf',
+				#    r'20240912_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf',
+				#    r'20240912_03_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf',
+					# r'20240920_02_trace_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf',
+					# r'20240925_01_trace_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf',
+					# r'20240925_02_trace_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf',
+					# r'20240925_03_trace_2p-6_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf',
+					# r'20240926_01_trace_2p-7_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf',
+					# r'20240926_02_trace_2p-8_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf',
+					# r'20240926_03_trace_2p-9_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf',
+					# r'20240927_01_control_2p-4_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf',
+					# r'20240927_02_control_2p-5_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf',
+					# r'20240927_03_control_2p-6_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf',
+					# r'20241002_01_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf',
+					# r'20241002_02_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf',
+					# r'20241002_03_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf',
+					# r'20241003_03_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_5dpf',
+					# r'20241004_01_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf',
+					# r'20241004_02_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf'
+					# r'20241004_03_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf'
+					# r'20241007_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf',
+					# r'20241007_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+					# r'20241008_01_delay_2p-4_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf',
+					# r'20241008_02_delay_2p-5_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+					r'20241008_03_delay_2p-6_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+				   ]
+# '20240911_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+# '20240909_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+# '20240910_02_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_6dpf'
+# '20240416_01_delay_2p-3_mitfaminusminus,elavl3h2bgcamp6f_6dpf'
+# '20240415_02_delay_2p-2_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+
+fish_name = fish_names_list[0]
+
+path_pkl = path_home / 'Raw data' / fish_name / (fish_name + '_before motion correction' + '.pkl')
+#endregion
+
+
+
+#* Load the data before motion correction.
+# %%
+# region Load the data before motion correction
+with open(path_pkl, 'rb') as file:
+	all_data = pickle.load(file)
+
+# all_data.__dict__.keys()
+
+anatomical_stack_images = all_data.anatomical_stack
+#endregion
+
+
+
+
+#* Correct motion within and across trials.
+# %%
+# region Correct motion
+
+
+
+#ToDo this should take the pixel spacing into account!!!
+
+_, y_dim, x_dim = np.array(anatomical_stack_images.shape)
+
+x_dim = int(x_dim * p.xy_movement_allowed/2)
+y_dim = int(y_dim * p.xy_movement_allowed/2)
+
+
+#! no final, ha valores negativos de pixels
+
+for plane_i, plane in tqdm(enumerate(all_data.planes)):
+
+	print('Plane: ', plane_i)
+
+	motions = [_ for _ in range(len(plane.trials))]
+	template_images = np.zeros((len(plane.trials), plane.trials[0].images.shape[1], plane.trials[0].images.shape[2]))
+	plane_numbers = np.zeros(len(plane.trials), dtype='int32')
+
+	#* Motion correction within trial.
+	for trial_i, trial in enumerate(plane.trials):
+
+		#* 1.1. Motion correction relative to trials average.
+
+		##* Discard bad frames due to motion, gating of the PMT or plane change when making a template image for the trial.
+		# plane.trials[trial_i].images.values, plane.trials[trial_i].template_image, plane.trials[trial_i].position_anatomical_stack 
+		motions[trial_i], template_images[trial_i], plane_numbers[trial_i] = f.correct_motion_within_trial(trial, anatomical_stack_images, x_dim, y_dim, 5)
+
+		# template_image_[motion_thr:-motion_thr, motion_thr:-motion_thr]
+		# a = f.get_template_image(f.get_maximum_number_good_last_images(trial.images.values))
+
+		fig, axs = plt.subplots(1, 2)
+
+		axs[0].imshow(template_images[trial_i], vmin=0)
+		axs[1].imshow(anatomical_stack_images[plane_numbers[trial_i]], vmin=0)
+		axs[0].set_title('Template plane from\naverage of good frames')
+		axs[1].set_title('Anatomical stack plane number ' + str(plane_numbers[trial_i]))
+		# fig.figure(figsize=(10, 6))
+		# fig.colorbar(axs[0].imshow(template_images[trial_i]), ax=axs[0], shrink=0.5)
+		# fig.colorbar(ax=axs[1], shrink=0.5)
+		fig.show()
+
+
+		fig, axs = plt.subplots(1, 2)
+		fig.suptitle('Motion of each frame')
+		axs[0].plot(f.get_total_motion(motions[trial_i]), 'k.')
+		axs[1].scatter(motions[trial_i][:,0]-0.01+0.02*np.random.rand(motions[trial_i][:,0].shape[0]),motions[trial_i][:,1]-0.01+0.02*np.random.rand(motions[trial_i][:,1].shape[0]),s=0.5)
+		fig.show()
+
+
+
+		# plt.imshow(ndimage.median_filter(np.mean(f.align_frames(trial.images.to_numpy(), motions[trial_i], f.get_total_motion(motions[trial_i])), axis=0), size=p.median_filter_kernel), vmin=0)
+		# plt.colorbar(shrink=0.5)
+		
+		
+		# plt.imshow(ndimage.median_filter(np.mean(trial.images.to_numpy(),axis=0), size=p.median_filter_kernel), vmin=0)
+		# plt.colorbar(shrink=0.5)
+
+
+		#* Frames to ignore due to too much motion (or gating of the PMT, which causes a huge "motion").
+		trial_images = trial.images.values
+
+		# Mask with True where the frames are bad (due to gating of the PMT or motion).
+		mask_bad_frames = (~f.get_good_images_indices(trial_images)) | (np.where(f.get_total_motion(motions[trial_i]) > p.motion_thr_from_trial_average, True, False))
+
+		all_data.planes[plane_i].trials[trial_i].mask_bad_frames = mask_bad_frames
+
+	# 	break
+	# break
+
+
+	#* Motion correction across trials of the same plane.
+	for trial_i, trial in enumerate(plane.trials):
+			
+		if trial_i > 0:
+			#* Measure motion of each frame using phase cross-correlation.
+			motion = f.measure_motion(np.expand_dims(template_images[trial_i][5:-5, 5:-5], axis=0), template_images[0][5:-5, 5:-5], normalization=None)[0]
+
+			motions[trial_i] += motion
+
+		#* Measure motion of each frame using phase cross-correlation.
+		total_motion = f.get_total_motion(motions[trial_i])
+		# Use half of the frames to get the template image.
+		motion_thr = np.median(total_motion)
+
+		
+		
+		#* Align the frames to their average.
+		aligned_frames = f.align_frames(trial.images.to_numpy(), motions[trial_i], total_motion, None)
+
+		template_image = f.get_template_image(aligned_frames[np.where(total_motion <= motion_thr)[0]])
+
+		motion = np.array((np.ceil(motions[trial_i].max(axis=0))), dtype='int32')
+
+#!!!!!!!!!!!!!!! FIX THIS TO REMOVE PADDED VALUES AROUND THE TEMPLATE IMAGE
+		#* Identify the plane number of the trial.
+		#! plane_number, _ = f.find_plane_in_anatomical_stack(anatomical_stack_images, template_image.astype('float32')[motion[1]:-motion[1], motion[0]:-motion[0]], None, x_dim, y_dim)
+
+
+		plt.imshow(ndimage.median_filter(np.mean(aligned_frames, axis=0), size=p.median_filter_kernel))
+		plt.colorbar(shrink=0.5)
+		plt.show()
+
+		all_data.planes[plane_i].trials[trial_i].images.values = aligned_frames
+		all_data.planes[plane_i].trials[trial_i].template_image = template_image
+		all_data.planes[plane_i].trials[trial_i].position_anatomical_stack = 1
+		#! plane_number
+
+		# break
+	# break
+	print('Plane:', plane_i, plane_numbers)
+#endregion
+
+
+
+#* Save the data.
+# %%
+# region Save the data
+path_pkl = path_home / 'Raw data' / fish_name / (fish_name + '_2' + '.pkl')
+
+all_data = c.Data(all_data.planes, anatomical_stack_images)
+
+with open(path_pkl, 'wb') as file:
+	pickle.dump(all_data, file)
+# endregion
+
+
+#* Plot the position in the anatomical stack.
+# region Position in the anatomical stack
+try:
+	A = []
+	B = []
+
+	C = []
+	D = []
+
+	for i in range(len(all_data.planes)):
+
+		for j in range(2):
+
+			A.append(all_data.planes[i].trials[j].position_anatomical_stack)
+
+			C.append(all_data.planes[i].trials[j].template_image)
+
+		for l in range(2,4):
+
+			B.append(all_data.planes[i].trials[l].position_anatomical_stack)
+
+			D.append(all_data.planes[i].trials[l].template_image)
+
+
+	A = np.array(A)
+	B = np.array(B)
+
+	C = np.array(C)
+	D = np.array(D)
+
+
+	sns.set_style('whitegrid')
+
+
+	path_ = path_home / fish_name
+
+
+	plt.xlabel('Trial before or after initial train')
+	plt.ylabel('Plane number in anatomical stack')
+	plt.plot(A, 'blue')
+	plt.plot(B, 'red')
+	plt.legend(['Before initial train', 'After initial train'])
+	plt.savefig(path_ / ('Where in the anatomical stack' + '.png'), dpi=300, bbox_inches='tight')
+
+
+	plt.xlabel('Trial before or after initial train')
+	plt.ylabel('Difference between planes imaged\n before and after initial train (μm)')
+	plt.plot(A-B, 'k')
+	plt.ylim(-10, 10)
+	plt.savefig(path_ / ('Difference when revisiting planes' + '.png'), dpi=300, bbox_inches='tight')
+
+
+	sns.set_style('white')
+	
+except:
+	pass
+
+
+
+				# fig, axs = plt.subplots(15, 2, figsize=(10, 50))
+
+				# for i in range(30):
+				# 	if i<=14:
+				# 		im = axs[i,0].imshow(C[i*2], interpolation='none', cmap='RdBu_r', vmin=80, vmax=500)
+				# 		axs[i,0].axis('off')
+
+				# 	if i>14 and i<=29:
+				# 		axs[i-15,1].imshow(C[(i-15)*2+1], interpolation='none', cmap='RdBu_r', vmin=80, vmax=500)
+				# 		axs[i-15,1].axis('off')
+
+				# fig.tight_layout()
+				# # fig.suptitle('Templates Before Correction', fontsize=16)
+				# fig.savefig(r'H:\My Drive\PhD\Lab meetings\templates before.png', dpi=300, bbox_inches='tight')
+
+
+
+				# fig, axs = plt.subplots(15, 2, figsize=(10, 50))
+
+				# for i in range(30):
+				# 	if i<=14:
+				# 		axs[i,0].imshow(D[i*2], interpolation='none', cmap='RdBu_r', vmin=80, vmax=500)
+				# 		axs[i,0].axis('off')
+
+				# 	if i>14 and i<=29:
+				# 		axs[i-15,1].imshow(D[(i-15)*2+1], interpolation='none', cmap='RdBu_r', vmin=80, vmax=500)
+				# 		axs[i-15,1].axis('off')
+
+				# fig.tight_layout()
+				# # fig.suptitle('Templates After Correction', fontsize=16)
+				# fig.savefig(r'H:\My Drive\PhD\Lab meetings\templates after .png', dpi=300, bbox_inches='tight')
+
+#  endregion
+
+#* Load the data.
+path_pkl = path_home / 'Raw data' / fish_name / (fish_name + '_2.pkl')
+# path_pkl = r"E:\2024 03_Delay 2-P multiple planes\20240415_02_delay_2p-2_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf\20240415_02_delay_2p-2_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf.pkl"
+
+with open(path_pkl, 'rb') as file:
+	all_data = pickle.load(file)
+
+
+
+# Create a new HDF5 file
+h5_file = h5py.File(path_home / 'Raw data' / fish_name / (fish_name + '.h5'), 'w')
+
+# Create a group for the planes data
+planes_group = h5_file.create_group('planes')
+
+# Loop through each plane in all_data
+for plane_i, plane in enumerate(all_data.planes):
+	# Create a group for the current plane
+	plane_group = planes_group.create_group(f'plane_{plane_i}')
+	
+	# Loop through each trial in the plane
+	for trial_i, trial in enumerate(plane.trials):
+		# Create a group for the current trial
+		trial_group = plane_group.create_group(f'trial_{trial_i}')
+		
+		trial_group.create_dataset('trial_number', data=trial.trial_number)
+		trial_group.create_dataset('protocol', data=trial.protocol)
+		trial_group.create_dataset('behavior', data=trial.behavior)
+		trial_group.create_dataset('images', data=trial.images)
+		try:
+			trial_group.create_dataset('mask_bad_frames', data=trial.mask_bad_frames)
+			trial_group.create_dataset('template_image', data=trial.template_image)
+			trial_group.create_dataset('position_anatomical_stack', data=trial.position_anatomical_stack)
+		except:
+			pass
+
+# Close the HDF5 file
+h5_file.close()
+
+print('END')

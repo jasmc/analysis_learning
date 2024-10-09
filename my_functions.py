@@ -2064,10 +2064,10 @@ def get_maximum_number_good_last_images(images_subset):
 
 def get_template_image(frames):
 
-	template_image = ndimage.median_filter(np.nanmean(frames, axis=0), size=p.median_filter_kernel)
-	# np.mean(ndimage.median_filter(frames, size=median_filter_kernel, axes=(1,2)), axis=0)
+	template_image = np.mean(ndimage.median_filter(frames, size=p.median_filter_kernel, axes=(1,2)), axis=0)
+	# ndimage.median_filter(np.nanmean(frames, axis=0), size=p.median_filter_kernel)
 
-	# plt.figure(figsize=(20, 16))
+	# plt.figure(figsize=(10, 6))
 	# plt.imshow(template_image)
 	# plt.colorbar(shrink=0.5)
 	# plt.title('Anatomy')
@@ -2092,14 +2092,12 @@ def measure_motion(frames, anatomy, normalization=None):
 def get_total_motion(motion):
 	# total_motion=np.zeros(np.shape(frames)[0])
 	total_motion = np.linalg.norm(motion, axis=1)
-
-	# plt.show()
+	
 	# fig, axs = plt.subplots(1, 2)
 	# fig.suptitle('Motion of each frame')
 	# axs[0].plot(total_motion, 'k.')
 	# axs[1].scatter(motion[:,0]-0.01+0.02*np.random.rand(motion[:,0].shape[0]),motion[:,1]-0.01+0.02*np.random.rand(motion[:,1].shape[0]),s=0.5)
-	# # fig.show()
-	# plt.show()
+	# fig.show()
 
 	return total_motion
 
@@ -2140,30 +2138,33 @@ def correct_motion_within_trial(trial, anatomical_stack_images, x_dim, y_dim, nu
 	for _ in range(number_iterations):
 
 		motion_thr = int(np.ceil(motion_thr))
+
+		#! does this make sense?
 		motion_thr = motion_thr if motion_thr > 5 else 5
 		
-		#* Measure motion of each frame using phase cross-correlation.
-		motion = measure_motion(images_trial_[:, motion_thr:-motion_thr, motion_thr:-motion_thr], template_image_[motion_thr:-motion_thr, motion_thr:-motion_thr], normalization=None)
+		#* Measure the motion of each frame using phase cross-correlation.
+		motion_ = measure_motion(images_trial_[:, motion_thr:-motion_thr, motion_thr:-motion_thr], template_image_[motion_thr:-motion_thr, motion_thr:-motion_thr], normalization=None)
 
-		#* Measure motion of each frame using phase cross-correlation.
-		total_motion = get_total_motion(motion)
+		#* Get the total motion.
+		total_motion = get_total_motion(motion_)
 		# Use half of the frames to get the template image.
 		motion_thr = np.median(total_motion)
 
 		#* Align the frames to their average.
-		aligned_frames = align_frames(images_trial_, motion, total_motion, 5)
+		aligned_frames = align_frames(images_trial_, motion_, total_motion, 5)
 		
 		#* Motion correction relative to trials average.
 		template_image_ = get_template_image(aligned_frames[np.where(total_motion <= motion_thr)[0]])
 
-
-	plt.imshow(ndimage.median_filter(np.mean(aligned_frames, axis=0), size=p.median_filter_kernel))
-	# plt.imshow(np.mean(ndimage.median_filter(aligned_frames, size=median_filter_kernel, axes=(1,2)), axis=0))
+	# fig, axs = plt.subplots(1, 2)
+	# axs[0].imshow(ndimage.median_filter(np.mean(aligned_frames, axis=0), size=p.median_filter_kernel))
+	# axs[1].imshow(np.mean(ndimage.median_filter(aligned_frames, size=p.median_filter_kernel, axes=(1,2)), axis=0))
+	# fig.show()
 
 	#* Identify the plane number of the trial.
-	plane_number, _ = find_plane_in_anatomical_stack(anatomical_stack_images, template_image_.astype('float32'), None, x_dim, y_dim)
+	plane_number_, _ = find_plane_in_anatomical_stack(anatomical_stack_images, template_image_.astype('float32'), None, x_dim, y_dim)
 
-	return motion, template_image_, plane_number
+	return motion_, template_image_, plane_number_
 
 
 
