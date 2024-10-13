@@ -18,8 +18,8 @@ import tifffile
 import xarray as xr
 from scipy import signal
 from scipy.stats import pearsonr, zscore
-from skimage import morphology
-from skimage.measure import block_reduce
+# from skimage import morphology
+# from skimage.measure import block_reduce
 from tqdm import tqdm
 
 #* Load custom functions and classes
@@ -28,26 +28,20 @@ import my_functions as f
 import my_parameters as p
 from my_general_variables import *
 
-# endregion
 reload(f)
 reload(c)
 reload(p)
+# endregion
 
 #* Settings
 # %% Settings
 # region Settings
-
-# %matplotlib ipympl
-
 pio.templates.default = "plotly_dark"
-
 pd.set_option("mode.copy_on_write", True)
 pd.set_option("compute.use_numba", True)
 pd.set_option("compute.use_numexpr", True)
 pd.set_option("compute.use_bottleneck", True)
 #endregion
-
-
 
 
 #* Paths
@@ -107,6 +101,23 @@ path_pkl = path_home / 'Raw data' / fish_name / (fish_name + '_before motion cor
 
 
 
+
+
+x_black_box_beg = 330
+x_black_box_end = 345
+y_black_box_beg = 594
+y_black_box_end = 609
+
+
+image_crop = 5  # number of pixels to crop around the images
+
+
+motion_thr_within_trial = 5  # threshold for motion within trial (number of pixels)
+
+
+
+
+
 #* Load the data before motion correction.
 # %%
 # region Load the data before motion correction
@@ -116,6 +127,25 @@ with open(path_pkl, 'rb') as file:
 # all_data.__dict__.keys()
 
 anatomical_stack_images = all_data.anatomical_stack
+
+
+
+# #* Check the black box (mask)
+# plt.figure()
+# plt.imshow(all_data.planes[0].trials[0].images[100,:,:], vmin=0, vmax=500)
+# plt.colorbar(shrink=0.5)
+
+# plt.figure()
+# plt.imshow(all_data.planes[0].trials[0].images[100][y_black_box_beg:y_black_box_end, x_black_box_beg:x_black_box_end], vmin=0, vmax=500)
+# plt.colorbar(shrink=0.5)
+
+
+##* Subtract the background from the images.
+for image_i in range(anatomical_stack_images.shape[0]):
+	anatomical_stack_images[image_i] -= np.mean(anatomical_stack_images[image_i, y_black_box_beg:y_black_box_end, x_black_box_beg:x_black_box_end])
+
+##* Clip the values of anatomical_stack_images.
+anatomical_stack_images = np.clip(anatomical_stack_images, 0, None)
 #endregion
 
 
@@ -135,9 +165,15 @@ x_dim = int(x_dim * p.xy_movement_allowed/2)
 y_dim = int(y_dim * p.xy_movement_allowed/2)
 
 
+
+
+
+
 #! no final, ha valores negativos de pixels
 
 for plane_i, plane in tqdm(enumerate(all_data.planes)):
+
+	# break
 
 	print('Plane: ', plane_i)
 
@@ -146,13 +182,82 @@ for plane_i, plane in tqdm(enumerate(all_data.planes)):
 	plane_numbers = np.zeros(len(plane.trials), dtype='int32')
 
 	#* Motion correction within trial.
-	for trial_i, trial in enumerate(plane.trials):
+	for trial_i, trial in tqdm(enumerate(plane.trials)):
 
-		#* 1.1. Motion correction relative to trials average.
+		print('Trial: ', trial_i)
 
+		trial_images_ = trial.images.copy().to_numpy()
+
+		# break
+		
 		##* Discard bad frames due to motion, gating of the PMT or plane change when making a template image for the trial.
 		# plane.trials[trial_i].images.values, plane.trials[trial_i].template_image, plane.trials[trial_i].position_anatomical_stack 
-		motions[trial_i], template_images[trial_i], plane_numbers[trial_i] = f.correct_motion_within_trial(trial, anatomical_stack_images, x_dim, y_dim, 5)
+		# motions[trial_i], template_images[trial_i], plane_numbers[trial_i] = f.correct_motion_within_trial(trial, anatomical_stack_images, x_dim, y_dim, 5)
+		template_image_ = f.get_template_image(f.get_maximum_number_good_last_images(trial_images_))
+	
+
+
+
+#!!!!!!!!!!!!! MAKE THIS A FUNCTION
+		##* Subtract the background from the images.
+		for image_i in range(trial_images_.shape[0]):
+			trial_images_[image_i] -= np.mean(trial_images_[image_i, y_black_box_beg:y_black_box_end, x_black_box_beg:x_black_box_end])
+
+(ndimage.median_filter(frames, size=p.median_filter_kernel, axes=(1,2)), axis=0)
+
+
+
+
+
+
+		##* Clip the values of trial_images_.
+		trial_images_ = np.clip(trial_images_, 0, None)
+
+		#? NEED TO CROP THE IMAGES
+
+
+		for _ in tqdm(range(3)):
+
+			# break
+					
+			#* Measure the motion of each frame using phase cross-correlation.
+			#! check phase_cross_correlation parameters
+			motion_ = f.measure_motion(trial_images_[:, image_crop:-image_crop, image_crop:-image_crop], template_image_[image_crop:-image_crop, image_crop:-image_crop], normalization=None)
+
+			#* Get the total motion.
+			total_motion = f.get_total_motion(motion_)
+			# Use half of the frames to get the template image.
+			# motion_thr = int(np.quantile(total_motion, 0.2))
+
+			#* Align the frames to their average.
+			aligned_frames = f.align_frames(trial_images_, motion_, total_motion, total_motion_thr=motion_thr_within_trial)
+			
+			#* Motion correction relative to trials average.
+			template_image_ = f.get_template_image(aligned_frames[np.where(total_motion <= motion_thr_within_trial)[0]])
+			
+			# plt.imshow(template_image_, vmin=0, vmax=500)
+
+
+
+		# fig, axs = plt.subplots(1, 2)
+		# axs[0].imshow(ndimage.median_filter(np.mean(aligned_frames, axis=0), size=p.median_filter_kernel))
+		# axs[1].imshow(np.mean(ndimage.median_filter(aligned_frames, size=p.median_filter_kernel, axes=(1,2)), axis=0))
+		# fig.show()
+
+		#* Identify the plane number of the trial.
+		plane_number_, _ = f.find_plane_in_anatomical_stack(anatomical_stack_images, template_image_.astype('float32'), x_dim, y_dim)
+
+
+		print(plane_number_)
+
+		if trial_i == 4:
+
+			break
+
+
+	break
+
+
 
 		# template_image_[motion_thr:-motion_thr, motion_thr:-motion_thr]
 		# a = f.get_template_image(f.get_maximum_number_good_last_images(trial.images.values))
@@ -164,7 +269,7 @@ for plane_i, plane in tqdm(enumerate(all_data.planes)):
 		axs[0].set_title('Template plane from\naverage of good frames')
 		axs[1].set_title('Anatomical stack plane number ' + str(plane_numbers[trial_i]))
 		# fig.figure(figsize=(10, 6))
-		# fig.colorbar(axs[0].imshow(template_images[trial_i]), ax=axs[0], shrink=0.5)
+		fig.colorbar(axs[0].imshow(template_images[trial_i]), ax=axs[0], shrink=0.5)
 		# fig.colorbar(ax=axs[1], shrink=0.5)
 		fig.show()
 
@@ -186,10 +291,10 @@ for plane_i, plane in tqdm(enumerate(all_data.planes)):
 
 
 		#* Frames to ignore due to too much motion (or gating of the PMT, which causes a huge "motion").
-		trial_images = trial.images.values
+		# trial_images = trial.images.values
 
 		# Mask with True where the frames are bad (due to gating of the PMT or motion).
-		mask_bad_frames = (~f.get_good_images_indices(trial_images)) | (np.where(f.get_total_motion(motions[trial_i]) > p.motion_thr_from_trial_average, True, False))
+		mask_bad_frames = (~f.get_good_images_indices(aligned_frames)) | (np.where(f.get_total_motion(motions[trial_i]) > p.motion_thr_from_trial_average, True, False))
 
 		all_data.planes[plane_i].trials[trial_i].mask_bad_frames = mask_bad_frames
 

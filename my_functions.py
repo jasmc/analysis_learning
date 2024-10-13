@@ -1595,7 +1595,7 @@ def get_number_images(images_path, bytes_header_and_image):
 
 
 
-def find_plane_in_anatomical_stack(anatomical_stack_images, the_plane_mean_subset_last_images, plane_where_we_are, x_dim, y_dim):
+def find_plane_in_anatomical_stack(anatomical_stack_images, the_plane_mean_subset_last_images, x_dim, y_dim):
 
 	#* Handle to the multipage TIFF file with the plane being imaged.
 	# the_plane_tiff = tifffile.TiffFile(the_plane_path)
@@ -1604,23 +1604,23 @@ def find_plane_in_anatomical_stack(anatomical_stack_images, the_plane_mean_subse
 	# the_plane_mean_of_last_images = the_plane_tiff.asarray(slice(-number_repetitions_of_the_plane_to_analyze-1,-1,step_between_repetitions_of_the_plane_to_analyze))
 	the_plane_mean_subset_last_images = the_plane_mean_subset_last_images[y_dim:-y_dim, x_dim:-x_dim]
 	
-	if plane_where_we_are is not None:
+	# if plane_where_we_are is not None:
 		
-		if (first_plane_substack := plane_where_we_are - p.number_planes_around_the_plane) < 0:
+	# 	if (first_plane_substack := plane_where_we_are - p.number_planes_around_the_plane) < 0:
 			
-			first_plane_substack = 0
+	# 		first_plane_substack = 0
 
-		if (last_plane_substack := plane_where_we_are + p.number_planes_around_the_plane + 1) > len(anatomical_stack_images):
+	# 	if (last_plane_substack := plane_where_we_are + p.number_planes_around_the_plane + 1) > len(anatomical_stack_images):
 			
-			last_plane_substack = len(anatomical_stack_images)
+	# 		last_plane_substack = len(anatomical_stack_images)
 
-		anatomical_stack_images_ = anatomical_stack_images[first_plane_substack : last_plane_substack]
+	# 	anatomical_stack_images_ = anatomical_stack_images[first_plane_substack : last_plane_substack]
 		
-	else:
+	# else:
 		
-		anatomical_stack_images_ = anatomical_stack_images
+	anatomical_stack_images_ = anatomical_stack_images
 
-		first_plane_substack = 0
+	first_plane_substack = 0
 		
 	template_matching_results = [cv2.matchTemplate(plane, the_plane_mean_subset_last_images, cv2.TM_CCOEFF_NORMED) for plane in anatomical_stack_images_]
 
@@ -2050,9 +2050,13 @@ def get_maximum_number_good_last_images(images_subset):
 				consecutive_count = 0
 			
 	mask_good_images = new_mask[::-1]
-	
+
+	# print(mask_good_images)
+	# print(images_subset)
 
 	images_subset = images_subset[mask_good_images,:,:]
+
+	# print(images_subset)
 
 	# plt.plot(mask_good_images)
 	# # plt.axvspan(np.diff(mask_good_images)==1, np.diff(mask_good_images)==-1)
@@ -2064,14 +2068,26 @@ def get_maximum_number_good_last_images(images_subset):
 
 def get_template_image(frames):
 
+	print('Template using this number of frames: ', frames.shape[0])
+
 	template_image = np.mean(ndimage.median_filter(frames, size=p.median_filter_kernel, axes=(1,2)), axis=0)
 	# ndimage.median_filter(np.nanmean(frames, axis=0), size=p.median_filter_kernel)
 
-	# plt.figure(figsize=(10, 6))
-	# plt.imshow(template_image)
-	# plt.colorbar(shrink=0.5)
-	# plt.title('Anatomy')
-	# plt.show()
+
+##* Subtract the background from the images.
+for image_i in range(trial_images_.shape[0]):
+	trial_images_[image_i] -= np.mean(trial_images_[image_i, y_black_box_beg:y_black_box_end, x_black_box_beg:x_black_box_end])
+
+##* Clip the values of trial_images_.
+trial_images_ = np.clip(trial_images_, 0, None)
+
+
+	plt.figure(figsize=(10, 6))
+	plt.imshow(template_image, vmin=0, vmax=500)
+	plt.colorbar(shrink=0.5)
+	plt.title('Anatomy')
+	plt.show()
+
 
 	return template_image
 
@@ -2093,15 +2109,13 @@ def get_total_motion(motion):
 	# total_motion=np.zeros(np.shape(frames)[0])
 	total_motion = np.linalg.norm(motion, axis=1)
 	
-	# fig, axs = plt.subplots(1, 2)
-	# fig.suptitle('Motion of each frame')
-	# axs[0].plot(total_motion, 'k.')
-	# axs[1].scatter(motion[:,0]-0.01+0.02*np.random.rand(motion[:,0].shape[0]),motion[:,1]-0.01+0.02*np.random.rand(motion[:,1].shape[0]),s=0.5)
-	# fig.show()
+	fig, axs = plt.subplots(1, 2)
+	fig.suptitle('Motion of each frame')
+	axs[0].plot(total_motion, 'k.')
+	axs[1].scatter(motion[:,0]-0.01+0.02*np.random.rand(motion[:,0].shape[0]),motion[:,1]-0.01+0.02*np.random.rand(motion[:,1].shape[0]),s=0.5)
+	fig.show()
 
 	return total_motion
-
-
 
 def align_frames(frames, motion, total_motion, total_motion_thr=None):
 
@@ -2127,31 +2141,51 @@ def align_frames(frames, motion, total_motion, total_motion_thr=None):
 	return aligned_frames
 
 
-def correct_motion_within_trial(trial, anatomical_stack_images, x_dim, y_dim, number_iterations=5):
+def correct_motion_within_trial(trial, anatomical_stack_images, x_black_box, y_black_box, x_dim, y_dim, motion_thr=5, number_iterations=5):
 
 	images_trial_ = trial.images.to_numpy()
 
+	images_trial_ -= np.mean(images_trial_[:, y_black_box:, x_black_box:], axis=(1,2))
+
+	#! NEED TO SUBTRACT THE BACKGROUND
+
 	template_image_ = get_template_image(get_maximum_number_good_last_images(images_trial_))
 
-	motion_thr = 5
+	# motion_thr = np.median()
+	# motion_thr = int(np.ceil(motion_thr))
+	#! does this make sense?
+	# motion_thr = motion_thr if motion_thr > 5 else 5
+	
+	#* Measure the motion of each frame using phase cross-correlation.
+	#! check phase_cross_correlation parameters
+	motion_ = measure_motion(images_trial_, template_image_, normalization=None)
+
+	#* Get the total motion.
+	total_motion = get_total_motion(motion_)
+	# Use half of the frames to get the template image.
+	# motion_thr = int(np.quantile(total_motion, 0.2))
+
+	#* Align the frames to their average.
+	aligned_frames = align_frames(images_trial_, motion_, total_motion, total_motion_thr=motion_thr)
+	
+	#* Motion correction relative to trials average.
+	template_image_ = get_template_image(aligned_frames[np.where(total_motion <= motion_thr)[0]])
+
 
 	for _ in range(number_iterations):
-
-		motion_thr = int(np.ceil(motion_thr))
-
-		#! does this make sense?
-		motion_thr = motion_thr if motion_thr > 5 else 5
 		
 		#* Measure the motion of each frame using phase cross-correlation.
+
+		#? NEED TO CROP THE IMAGES
 		motion_ = measure_motion(images_trial_[:, motion_thr:-motion_thr, motion_thr:-motion_thr], template_image_[motion_thr:-motion_thr, motion_thr:-motion_thr], normalization=None)
 
 		#* Get the total motion.
 		total_motion = get_total_motion(motion_)
 		# Use half of the frames to get the template image.
-		motion_thr = np.median(total_motion)
+		# motion_thr = np.median(total_motion)
 
 		#* Align the frames to their average.
-		aligned_frames = align_frames(images_trial_, motion_, total_motion, 5)
+		aligned_frames = align_frames(images_trial_, motion_, total_motion, total_motion_thr=motion_thr)
 		
 		#* Motion correction relative to trials average.
 		template_image_ = get_template_image(aligned_frames[np.where(total_motion <= motion_thr)[0]])

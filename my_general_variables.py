@@ -205,7 +205,7 @@ bout_beg_mean: Final = bout_beg + ' mean'
 bout_end_mean: Final = bout_end + ' mean'
 # bout_end_sem = bout_end + ' sem'
 count: Final = 'Count'
-trial: Final = 'Trial'
+# trial: Final = 'Trial'
 
 
 
