@@ -2108,7 +2108,6 @@ def measure_motion(frames, anatomy, normalization=None):
 def get_total_motion(motion):
 	# total_motion=np.zeros(np.shape(frames)[0])
 	total_motion = np.linalg.norm(motion, axis=1)
-	
 	fig, axs = plt.subplots(1, 2)
 	fig.suptitle('Motion of each frame')
 	axs[0].plot(total_motion, 'k.')
@@ -2179,8 +2178,8 @@ def correct_motion_within_trial(trial, anatomical_stack_images, x_black_box, y_b
 		#? NEED TO CROP THE IMAGES
 		motion_ = measure_motion(images_trial_[:, motion_thr:-motion_thr, motion_thr:-motion_thr], template_image_[motion_thr:-motion_thr, motion_thr:-motion_thr], normalization=None)
 
-		#* Get the total motion.
-		total_motion = get_total_motion(motion_)
+		#* Measure motion of each frame using phase cross-correlation.
+		total_motion = get_total_motion(motion)
 		# Use half of the frames to get the template image.
 		# motion_thr = np.median(total_motion)
 
@@ -2190,15 +2189,14 @@ def correct_motion_within_trial(trial, anatomical_stack_images, x_black_box, y_b
 		#* Motion correction relative to trials average.
 		template_image_ = get_template_image(aligned_frames[np.where(total_motion <= motion_thr)[0]])
 
-	# fig, axs = plt.subplots(1, 2)
-	# axs[0].imshow(ndimage.median_filter(np.mean(aligned_frames, axis=0), size=p.median_filter_kernel))
-	# axs[1].imshow(np.mean(ndimage.median_filter(aligned_frames, size=p.median_filter_kernel, axes=(1,2)), axis=0))
-	# fig.show()
+
+	plt.imshow(ndimage.median_filter(np.mean(aligned_frames, axis=0), size=p.median_filter_kernel))
+	# plt.imshow(np.mean(ndimage.median_filter(aligned_frames, size=median_filter_kernel, axes=(1,2)), axis=0))
 
 	#* Identify the plane number of the trial.
-	plane_number_, _ = find_plane_in_anatomical_stack(anatomical_stack_images, template_image_.astype('float32'), None, x_dim, y_dim)
+	plane_number, _ = find_plane_in_anatomical_stack(anatomical_stack_images, template_image_.astype('float32'), None, x_dim, y_dim)
 
-	return motion_, template_image_, plane_number_
+	return motion, template_image_, plane_number
 
 
 
