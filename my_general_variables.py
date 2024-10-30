@@ -297,7 +297,7 @@ photodiode_value: Final = 'PhotodiodeValue'
 galvo_value: Final = 'GalvoValue'
 arduino_value: Final = 'ArduinoValue'
 
-frame_id: Final = 'Frame number'
+# frame_id: Final = 'Frame number'
 
 
 x_name: Final = 'X '

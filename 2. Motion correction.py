@@ -47,56 +47,27 @@ pd.set_option("compute.use_bottleneck", True)
 #* Paths
 # %%
 # region Paths
-path_home = Path(r'E:\2024 09_Delay 2-P zoom in multiplane imaging')
-# path_home = Path(r'E:\2024 03_Delay 2-P multiple planes')
+path_home = Path(r'E:\2024 03_Delay 2-P multiple planes')
+# Path(r'E:\2024 09_Delay 2-P zoom in multiplane imaging')
+# Path(r'E:\2024 10_Delay 2-P multiplane imaging ca8')
 
-# fish_names = [folder.stem for folder in path_home.iterdir() if folder.is_dir()]
-# fish_names.remove('Behavior')
 
-# for fish_name in fish_names:
-# fish_name = r'20240228_01_delay_2p-1_mitfaMinusMinus,elavl3H2Bcamp6f_7dpf'
+fish_name = r'20240910_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
 
-fish_names_list = [
-				#    r'20240910_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_6dpf',
-				#    r'20240910_03_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_6dpf',
-					#! r'20240911_02_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf',
-					# r'20240911_03_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf',
-				   	# r'20240909_02_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf',
-				#    r'20240912_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf',
-				#    r'20240912_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf',
-				#    r'20240912_03_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf',
-					# r'20240920_02_trace_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf',
-					# r'20240925_01_trace_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf',
-					# r'20240925_02_trace_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf',
-					# r'20240925_03_trace_2p-6_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf',
-					# r'20240926_01_trace_2p-7_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf',
-					# r'20240926_02_trace_2p-8_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf',
-					# r'20240926_03_trace_2p-9_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf',
-					# r'20240927_01_control_2p-4_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf',
-					# r'20240927_02_control_2p-5_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf',
-					# r'20240927_03_control_2p-6_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf',
-					# r'20241002_01_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf',
-					# r'20241002_02_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf',
-					# r'20241002_03_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf',
-					# r'20241003_03_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_5dpf',
-					# r'20241004_01_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf',
-					# r'20241004_02_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf'
-					# r'20241004_03_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf'
-					# r'20241007_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf',
-					# r'20241007_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
-					# r'20241008_01_delay_2p-4_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf',
-					# r'20241008_02_delay_2p-5_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
-					r'20241008_03_delay_2p-6_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
-				   ]
-# '20240911_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
-# '20240909_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
-# '20240910_02_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_6dpf'
-# '20240416_01_delay_2p-3_mitfaminusminus,elavl3h2bgcamp6f_6dpf'
-# '20240415_02_delay_2p-2_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+# path_pkl = path_home / 'Imaging' / fish_name / (fish_name + '_before motion correction' + '.pkl')
 
-fish_name = fish_names_list[0]
+imaging_path = path_home / 'Imaging'
 
-path_pkl = path_home / 'Raw data' / fish_name / (fish_name + '_before motion correction' + '.pkl')
+
+# for fish_i, fish_name in enumerate(fish_names_list):
+
+# 	try:
+
+imaging_path_ = imaging_path / fish_name / 'Imaging'
+
+h5_path = imaging_path_ / (fish_name + '_before_motion_correction.h5')
+
+
 #endregion
 
 
@@ -117,12 +88,40 @@ motion_thr_within_trial = 5  # threshold for motion within trial (number of pixe
 
 
 
-
 #* Load the data before motion correction.
 # %%
 # region Load the data before motion correction
-with open(path_pkl, 'rb') as file:
-	all_data = pickle.load(file)
+# with open(path_pkl, 'rb') as file:
+# 	all_data = pickle.load(file)
+
+# Load the HDF5 file
+
+with h5py.File(h5_path, 'r') as h5_file:
+
+	# Load the planes data
+	planes_group = h5_file['planes']
+	planes = []
+	for plane_name in planes_group:
+		plane_group = planes_group[plane_name]
+		trials = []
+		for trial_name in plane_group:
+			trial_group = plane_group[trial_name]
+			trial = c.Trial(
+				trial_number=trial_group['trial_number'][()],
+				protocol=trial_group['protocol'][()],
+				behavior=trial_group['behavior'][()],
+				images=trial_group['images'][()]
+			)
+			# if 'mask_bad_frames' in trial_group:
+			# 	trial.mask_bad_frames = trial_group['mask_bad_frames'][()]
+			# if 'template_image' in trial_group:
+			# 	trial.template_image = trial_group['template_image'][()]
+			# if 'position_anatomical_stack' in trial_group:
+			# 	trial.position_anatomical_stack = trial_group['position_anatomical_stack'][()]
+			trials.append(trial)
+		planes.append(c.Plane(trials=trials))
+
+	all_data = c.Data(planes=planes, anatomical_stack=h5_file['anatomical_stack'][()])
 
 # all_data.__dict__.keys()
 
@@ -192,7 +191,7 @@ for plane_i, plane in tqdm(enumerate(all_data.planes)):
 		
 		##* Discard bad frames due to motion, gating of the PMT or plane change when making a template image for the trial.
 		# plane.trials[trial_i].images.values, plane.trials[trial_i].template_image, plane.trials[trial_i].position_anatomical_stack 
-		# motions[trial_i], template_images[trial_i], plane_numbers[trial_i] = f.correct_motion_within_trial(trial, anatomical_stack_images, x_dim, y_dim, 5)
+		# motions[trial_i], template_images[trial_i], plane_numbers[trial_i] = f.correct_motion_within_trial(trial, anatomical_stack_images, x_dim, y_dim, 3)
 		template_image_ = f.get_template_image(f.get_maximum_number_good_last_images(trial_images_))
 	
 
@@ -271,14 +270,14 @@ for plane_i, plane in tqdm(enumerate(all_data.planes)):
 		# fig.figure(figsize=(10, 6))
 		fig.colorbar(axs[0].imshow(template_images[trial_i]), ax=axs[0], shrink=0.5)
 		# fig.colorbar(ax=axs[1], shrink=0.5)
-		fig.show()
+		# fig.show()
 
 
 		fig, axs = plt.subplots(1, 2)
 		fig.suptitle('Motion of each frame')
 		axs[0].plot(f.get_total_motion(motions[trial_i]), 'k.')
 		axs[1].scatter(motions[trial_i][:,0]-0.01+0.02*np.random.rand(motions[trial_i][:,0].shape[0]),motions[trial_i][:,1]-0.01+0.02*np.random.rand(motions[trial_i][:,1].shape[0]),s=0.5)
-		fig.show()
+		# fig.show()
 
 
 
@@ -349,7 +348,7 @@ for plane_i, plane in tqdm(enumerate(all_data.planes)):
 #* Save the data.
 # %%
 # region Save the data
-path_pkl = path_home / 'Raw data' / fish_name / (fish_name + '_2' + '.pkl')
+path_pkl = path_home / 'Imaging' / fish_name / (fish_name + '_2' + '.pkl')
 
 all_data = c.Data(all_data.planes, anatomical_stack_images)
 
@@ -452,7 +451,7 @@ except:
 #  endregion
 
 #* Load the data.
-path_pkl = path_home / 'Raw data' / fish_name / (fish_name + '_2.pkl')
+path_pkl = path_home / 'Imaging' / fish_name / (fish_name + '_2.pkl')
 # path_pkl = r"E:\2024 03_Delay 2-P multiple planes\20240415_02_delay_2p-2_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf\20240415_02_delay_2p-2_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf.pkl"
 
 with open(path_pkl, 'rb') as file:
@@ -461,7 +460,7 @@ with open(path_pkl, 'rb') as file:
 
 
 # Create a new HDF5 file
-h5_file = h5py.File(path_home / 'Raw data' / fish_name / (fish_name + '.h5'), 'w')
+h5_file = h5py.File(path_home / 'Imaging' / fish_name / (fish_name + '.h5'), 'w')
 
 # Create a group for the planes data
 planes_group = h5_file.create_group('planes')

@@ -1,6 +1,5 @@
 import numpy as np
 
-
 #* Parameters
 # %%
 #region Parameters
@@ -40,12 +39,27 @@ galvo_value_width_threshold = 20
 xy_movement_allowed = 0.15  # fraction of the real image
 
 
-number_imaged_planes = 15
-number_reps_plane_consective = 2
-relevant_cs = np.concatenate([range(5,35), range(45,75)])
+# # number_imaged_planes = 15
+# # number_reps_plane_consective = 2
+# # relevant_cs = nconcatenate([range(5,35), range(45,75)])
+
+# number_imaged_planes = 4
+# number_reps_plane_consective = 2
+# relevant_cs = [range(5,35),
+#               range(45,75)]
+#             # [range(5,13),
+#             #   range(15,23), range(25,33), range(35,43), range(45,53),
+#             #   range(55,63), range(67,75), range(77,85)]
+
+# index_list = [np.concatenate([[i+2*x*number_imaged_planes, i+2*x*number_imaged_planes+1] for x in range(len(relevant_cs))]) for i in range(0, number_reps_plane_consective * number_imaged_planes, 2)]
+
+# relevant_cs = np.concatenate(relevant_cs)
 
 motion_thr_from_trial_average = 5
 
 correlation_map_sigma = 2
 voxel_bin_size = 5
 
+
+time_bef_cs_onset = 45000  # ms
+time_aft_cs_onset = 35000  # ms
