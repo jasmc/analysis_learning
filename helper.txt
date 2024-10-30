@@ -1,0 +1,65 @@
+r'20241003_03_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_5dpf'
+# r'20241003_02_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_5dpf'
+# r'20241004_02_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf'
+# r'20241016_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+# r'20241016_03_delay_2p-3_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+# r'20241016_02_delay_2p-2_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+# r'20241017_01_delay_2p-4_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+# r'20241013_02_control_2p-2_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+# r'20241013_03_control_2p-3_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+
+# r'20241017_02_delay_2p-5_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+# r'20241017_03_delay_2p-6_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+# r'20241015_02_delay_2p-8_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf'
+# '20241015_01_delay_2p-7_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf'
+# r'20241014_03_trace_2p-6_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+# r'20241013_03_control_2p-3_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+# r'20241014_01_trace_2p-4_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'   Needs to be fixed
+# r'20241014_02_trace_2p-5_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'   Protocol needs to be fixed?
+
+# r'20241013_02_control_2p-2_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'   LabView crashed
+# r'20241013_01_control_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+# r'20241010_02_trace_2p-2_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+# r'20241009_03_delay_2p-9_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+# r'20241009_02_delay_2p-8_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+# r'20241009_01_delay_2p-7_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+# r'20241001_01_delayZoomIn_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+# r'20241001_01_delayZoomIn_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+# r'20241001_02_delayZoomIn_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+
+# 				#    r'20240910_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_6dpf',
+# 				#    r'20240910_03_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_6dpf',
+# 					#! r'20240911_02_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf',
+# 					# r'20240911_03_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf',
+# 				   	# r'20240909_02_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf',
+# 				#    r'20240912_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf',
+# 				#    r'20240912_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf',
+# 				#    r'20240912_03_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf',
+# 					# r'20240920_02_trace_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf',
+# 					# r'20240925_01_trace_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf',
+# 					# r'20240925_02_trace_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf',
+# 					# r'20240925_03_trace_2p-6_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf',
+# 					# r'20240926_01_trace_2p-7_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf',
+# 					# r'20240926_02_trace_2p-8_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf',
+# 					# r'20240926_03_trace_2p-9_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf',
+# 					# r'20240927_01_control_2p-4_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf',
+# 					# r'20240927_02_control_2p-5_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf',
+# 					# r'20240927_03_control_2p-6_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf',
+# r'20240930_01_delayZoomIn_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'   tracking crashed
+# r'20240930_02_delayZoomIn_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+
+# 					# r'20241002_01_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf',
+# 					# r'20241002_02_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf',
+# 					# r'20241002_03_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf',
+# 					# r'20241003_03_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_5dpf',
+# 					# r'20241004_01_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf',
+# 					# r'20241004_02_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf'
+# 					# r'20241004_03_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf'
+# 					# r'20241007_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf',
+# 					# r'20241007_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+# 					# r'20241008_01_delay_2p-4_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf',
+# 					# r'20241008_02_delay_2p-5_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+# 					# r'20241008_03_delay_2p-6_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf',
+# 					# r'20241010_01_trace_2p-1_mitfaminusminus,elavl3h2bgcamp6f_6dpf',
+# 					r'20241010_03_trace_2p-3_mitfaminusminus,elavl3h2bgcamp6f_6dpf'
+
