@@ -169,7 +169,7 @@ def read_initial_abs_time(camera_path):
 # 		print('Time to read cam.txt: {} (s)'.format(timer()-start))
 
 # 		camera.rename(columns={'TotalTime' : ela_time}, inplace=True)
-# 		camera.rename(columns={'ID' : frame_id}, inplace=True)
+# 		camera.rename(columns={'ID' : 'Frame number'}, inplace=True)
 		
 # 		return camera
 
@@ -222,7 +222,7 @@ def read_sync_reader(sync_reader_path):
 
 # 		if camera_diff_index_right_IFI_diff[i-1] == 1 and camera_diff_index_right_IFI_diff[i] == 1:
 
-# 			reference_frame_id = camera[frame_id].iloc[camera_diff_index_right_IFI[i] - 1]
+# 			reference_frame_id = camera['Frame number'].iloc[camera_diff_index_right_IFI[i] - 1]
 
 # 			# first_frame_absolute_time is not None when there is absolute time in the cam file.
 # 			if first_frame_absolute_time is not None:
@@ -237,14 +237,14 @@ def read_sync_reader(sync_reader_path):
 
 # 		if camera_diff_index_right_IFI_diff[i-1] == 1 and camera_diff_index_right_IFI_diff[i] == 1:
 			
-# 			last_frame_id = camera[frame_id].iloc[camera_diff_index_right_IFI[i] - 1]
+# 			last_frame_id = camera['Frame number'].iloc[camera_diff_index_right_IFI[i] - 1]
 # 			#last_frame_time = first_frame_absolute_time + camera[time].iloc[camera_diff_index_right_IFI[i] - 1] - camera[time].iloc[0]
 
 # 			break
 
 
 # 	#* Second estimate of the interframe interval, using the mean, and assuming there is no increasing accumulation of frames in the buffer during the experiment; Only the region between the two frames identified in the previous two for loops is considered.
-# 	ifi = camera_diff.iloc[reference_frame_id - camera[frame_id].iloc[0] : last_frame_id - camera[frame_id].iloc[0]].mean()
+# 	ifi = camera_diff.iloc[reference_frame_id - camera['Frame number'].iloc[0] : last_frame_id - camera['Frame number'].iloc[0]].mean()
 
 # 	print('Second estimate of IFI: {} ms'.format(ifi))
 # 	predicted_framerate = 1000 / ifi
@@ -571,8 +571,8 @@ def number_frames_discard(data_path, reference_frame_id):
 # 	print('Time to read tail tracking .txt: {} (s)'.format(timer()-start))
 
 # 	# data.iloc[:,0] = data.iloc[:,0].astype('int')
-# 	data.loc[:,frame_id] = data.loc[:, frame_id] - reference_frame_id
-# 	data = data[data[frame_id] >= 0]
+# 	data.loc[:,'Frame number'] = data.loc[:, 'Frame number'] - reference_frame_id
+# 	data = data[data['Frame number'] >= 0]
 
 # 	#? maybe before this was necessary because "decimal" in pd.read_csv was set to ",".
 # 	#* Even if decimal separator is wrong, this will correct it.
@@ -1568,7 +1568,7 @@ def get_bytes_header_and_image(images_path):
 def get_image_from_tiff(images_path, image_i, bytes_header, height, width):
 
 	# 2 comes from the 2 bytes used to store the byte order.
-	offset_image = 2 + (image_i) * (bytes_header + height * width * 2) + bytes_header
+	offset_image = 2 + (image_i) * (int(bytes_header) + int(height) * int(width) * 2) + int(bytes_header)
 
 	image_data = np.fromfile(images_path, dtype=np.uint16, count=height*width, offset=offset_image).byteswap().reshape((height, width))
 
@@ -1578,21 +1578,21 @@ def get_number_images(images_path, bytes_header_and_image):
 
 	total_tif_size = os.path.getsize(images_path)
 
-	number_images = (total_tif_size - 2) // bytes_header_and_image
+	number_images = (total_tif_size - 2) // int(bytes_header_and_image)
 
 	return number_images
 
 
 
 
-def find_plane_in_anatomical_stack(anatomical_stack_images, the_plane_mean_subset_last_images, x_dim, y_dim):
+def find_plane_in_anatomical_stack(anatomical_stack_images, the_plane_mean_subset_last_images):
 
 	#* Handle to the multipage TIFF file with the plane being imaged.
 	# the_plane_tiff = tifffile.TiffFile(the_plane_path)
 
 #! explain
 	# the_plane_mean_of_last_images = the_plane_tiff.asarray(slice(-number_repetitions_of_the_plane_to_analyze-1,-1,step_between_repetitions_of_the_plane_to_analyze))
-	the_plane_mean_subset_last_images = the_plane_mean_subset_last_images[y_dim:-y_dim, x_dim:-x_dim]
+	# the_plane_mean_subset_last_images = the_plane_mean_subset_last_images[y_dim:-y_dim, x_dim:-x_dim]
 	
 	# if plane_where_we_are is not None:
 		
@@ -1608,11 +1608,11 @@ def find_plane_in_anatomical_stack(anatomical_stack_images, the_plane_mean_subse
 		
 	# else:
 		
-	anatomical_stack_images_ = anatomical_stack_images
+	anatomical_stack_images_ = np.array(anatomical_stack_images).astype('float32')
 
-	first_plane_substack = 0
+	# first_plane_substack = 0
 		
-	template_matching_results = [cv2.matchTemplate(plane, the_plane_mean_subset_last_images, cv2.TM_CCOEFF_NORMED) for plane in anatomical_stack_images_]
+	template_matching_results = [cv2.matchTemplate(plane, np.array(the_plane_mean_subset_last_images).astype('float32'), cv2.TM_CCOEFF_NORMED) for plane in anatomical_stack_images_]
 
 	# b = [np.array(x.flatten())[np.argpartition(x.flatten(), 3)[:3]] for x in template_matching_results]
 
@@ -1625,10 +1625,10 @@ def find_plane_in_anatomical_stack(anatomical_stack_images, the_plane_mean_subse
 
 	xy_in_plane = np.argmax(template_matching_results[plane_i][0]), np.argmax(template_matching_results[plane_i][1])
 	
-	plane_i += first_plane_substack
+	# plane_i += first_plane_substack
 
 	# Find the index of the maximum correlation value
-	return plane_i, xy_in_plane
+	return int(plane_i), xy_in_plane
 
 
 def read_camera(camera_path):
@@ -1643,7 +1643,7 @@ def read_camera(camera_path):
 		# skipfooter=1
 		camera = camera.iloc[:-1,:]
 
-		camera.rename(columns={'FrameID' : frame_id, 'ID' : frame_id}, inplace=True)
+		camera.rename(columns={'FrameID' : 'Frame number', 'ID' : 'Frame number'}, inplace=True)
 		
 		# print('Time to read cam.txt: {} (s)'.format(timer()-start))
 		
@@ -1683,7 +1683,7 @@ def framerate_and_reference_frame(camera):
 
 		if camera_diff_index_correct_IFI_diff[i-1] == 1 and camera_diff_index_correct_IFI_diff[i] == 1:
 
-			reference_frame_id = camera[frame_id].iloc[camera_diff_index_correct_IFI[i] - 1]
+			reference_frame_id = camera['Frame number'].iloc[camera_diff_index_correct_IFI[i] - 1]
 
 
 			# # first_frame_absolute_time is not None when there is absolute time in the cam file.
@@ -1699,14 +1699,14 @@ def framerate_and_reference_frame(camera):
 
 		if camera_diff_index_correct_IFI_diff[i-1] == 1 and camera_diff_index_correct_IFI_diff[i] == 1:
 			
-			last_frame_id = camera[frame_id].iloc[camera_diff_index_correct_IFI[i] - 1]
+			last_frame_id = camera['Frame number'].iloc[camera_diff_index_correct_IFI[i] - 1]
 			#last_frame_time = first_frame_absolute_time + camera[time].iloc[camera_diff_index_right_IFI[i] - 1] - camera[time].iloc[0]
 
 			break
 
 
 	#* Second estimate of the interframe interval, using the mean, and assuming there is no increasing accumulation of frames in the buffer during the experiment; Only the region between the two frames identified in the previous two for loops is considered.
-	ifi = camera_diff.iloc[reference_frame_id - camera[frame_id].iloc[0] : last_frame_id - camera[frame_id].iloc[0]].mean()
+	ifi = camera_diff.iloc[reference_frame_id - camera['Frame number'].iloc[0] : last_frame_id - camera['Frame number'].iloc[0]].mean()
 
 	print('Second estimate of IFI: {} ms'.format(ifi))
 	predicted_framerate = 1000 / ifi
@@ -1725,13 +1725,13 @@ def read_tail_tracking_data(data_path):
 		
 		# start = timer()
 		
-		data = pd.read_csv(data_path, engine='pyarrow', sep=' ', usecols=cols_to_use_orig, header=0, decimal='.', na_filter=False, names=[frame_id]+data_cols)
+		data = pd.read_csv(data_path, engine='pyarrow', sep=' ', usecols=cols_to_use_orig, header=0, decimal='.', na_filter=False, names=['Frame number']+data_cols)
 		# dtype=dict(zip(cols_to_use_orig, ['int64'] + ['float32']*len(cols_to_use_orig))))
 		# skipfooter=1
 		data = data.iloc[:-1,:]
 		
 		#* Right now, pyarrow engine ignores renaming when opening the csv.
-		data.rename(columns=dict(zip(cols_to_use_orig, [frame_id] + data_cols)), inplace=True)
+		data.rename(columns=dict(zip(cols_to_use_orig, ['Frame number'] + data_cols)), inplace=True)
 
 		# print('Time to read tail tracking .txt: {} (s)'.format(timer()-start))
 
@@ -1769,7 +1769,7 @@ def plot_behavior_overview(data, fish_name, fig_behavior_name):
 
 	# print(timer() - start)
 	plt.figure(figsize=(30, 15))
-	plt.plot(data[frame_id]/expected_framerate/60/60, data[tail_angle], 'black')
+	plt.plot(data['Frame number']/expected_framerate/60/60, data[tail_angle], 'black')
 	plt.xlabel('Time (h)')
 	plt.ylabel('Tail end angle (deg)')
 	plt.suptitle('Behavior overview\n' + fish_name)
@@ -1796,9 +1796,9 @@ def tracking_errors(data, single_point_tracking_error_thr = single_point_trackin
 
 def merge_camera_with_data(data, camera):
 
-	data = pd.merge_ordered(data, camera, on=frame_id, how='outer')
+	data = pd.merge_ordered(data, camera, on='Frame number', how='outer')
 
-	data[frame_id] -= data[frame_id].iat[0]
+	data['Frame number'] -= data['Frame number'].iat[0]
 
 	return data
 
@@ -1809,9 +1809,9 @@ def interpolate_data(data, predicted_framerate, expected_framerate=expected_fram
 
 	#* Interpolate tail tracking data to the expected framerate.
 
-	data_[frame_id] *= expected_framerate/predicted_framerate
+	data_['Frame number'] *= expected_framerate/predicted_framerate
 
-	data_.rename(columns={frame_id : time_experiment_f}, inplace=True)
+	data_.rename(columns={'Frame number' : time_experiment_f}, inplace=True)
 
 	interp_function = interpolate.interp1d(data_[time_experiment_f], data_.drop(columns=time_experiment_f), kind='slinear', axis=0, assume_sorted=True, bounds_error=False, fill_value="extrapolate")
 
@@ -1949,7 +1949,7 @@ def identify_trials(data, protocol):
 
 
 
-def get_good_images_indices(images_subset):
+def get_good_images_indices_1(images):
 
 
 	# top = np.nanmean(images_subset[:, :p.top_bottom_frame_slice, :], axis=(1,2))
@@ -1957,7 +1957,7 @@ def get_good_images_indices(images_subset):
 	# front = np.nanmean(images_subset[:, :, -p.front_back_frame_slice:], axis=(1,2))
 	# back = np.nanmean(images_subset[:, :, :p.front_back_frame_slice], axis=(1,2))
 
-	all = np.nanmean(images_subset, axis=(1,2))
+	all = np.nanmean(images, axis=(1,2))
 	all_median = np.nanmedian(all)
 
 	light_percentage_change = (np.abs(all - all_median) / all_median * 100)
@@ -1981,13 +1981,31 @@ def get_good_images_indices(images_subset):
 	return mask_good_images
 
 
+
+def get_good_images_indices_2(images):
+
+	all = np.nanmean(images, axis=(1,2))
+	all_median = np.nanmedian(all)
+
+	light_percentage_change = ((all - all_median) / all_median * 100)
+
+	mask_good_images = light_percentage_change > p.light_percentage_decrease_PMT
+	# mask_good_images[-1] = False
+	# mask_good_images[0] = False
+	
+	# plt.plot(light_percentage_change)
+	# plt.plot(np.where(mask_good_images, mask_good_images, 0)*(-10), lw=3, )
+	
+	return mask_good_images
+
+
 def get_fixed_number_good_last_images(images_subset):
 
-	mask_good_images = get_good_images_indices(images_subset)
+	mask_good_images = get_good_images_indices_1(images_subset)
 
 	#* Discard the first and last frames
-	mask_good_images[:3] = False
-	mask_good_images[-3:] = False
+	# mask_good_images[-1] = False
+	# mask_good_images[0] = False
 
 	#* Find consecutive True regions
 	new_mask = np.zeros_like(mask_good_images, dtype=bool)
@@ -2016,7 +2034,7 @@ def get_fixed_number_good_last_images(images_subset):
 
 def get_maximum_number_good_last_images(images_subset):
 
-	mask_good_images = get_good_images_indices(images_subset)
+	mask_good_images = get_good_images_indices_1(images_subset)
 
 	#* Discard the first and last frames
 	mask_good_images[:3] = False
@@ -2060,16 +2078,21 @@ def get_template_image(frames):
 
 	print('Template using this number of frames: ', frames.shape[0])
 
-	template_image = np.mean(ndimage.median_filter(frames, size=p.median_filter_kernel, axes=(1,2)), axis=0)
+	template_image = np.mean(frames, axis=0)
+	# ndimage.median_filter(frames, size=p.median_filter_kernel, axes=(1,2))
 	# ndimage.median_filter(np.nanmean(frames, axis=0), size=p.median_filter_kernel)
 
+	template_image = template_image - int(np.quantile(template_image, 0.01))
+	template_image = template_image.clip(0, None)
+	template_image = ndimage.median_filter(template_image, size=p.median_filter_kernel, axes=(0,1))
 
-##* Subtract the background from the images.
-for image_i in range(trial_images_.shape[0]):
-	trial_images_[image_i] -= np.mean(trial_images_[image_i, y_black_box_beg:y_black_box_end, x_black_box_beg:x_black_box_end])
 
-##* Clip the values of trial_images_.
-trial_images_ = np.clip(trial_images_, 0, None)
+# ##* Subtract the background from the images.
+# for image_i in range(trial_images_.shape[0]):
+# 	trial_images_[image_i] -= np.mean(trial_images_[image_i, y_black_box_beg:y_black_box_end, x_black_box_beg:x_black_box_end])
+
+# ##* Clip the values of trial_images_.
+# trial_images_ = np.clip(trial_images_, 0, None)
 
 
 	plt.figure(figsize=(10, 6))
@@ -2098,6 +2121,7 @@ def measure_motion(frames, anatomy, normalization=None):
 def get_total_motion(motion):
 	# total_motion=np.zeros(np.shape(frames)[0])
 	total_motion = np.linalg.norm(motion, axis=1)
+	
 	fig, axs = plt.subplots(1, 2)
 	fig.suptitle('Motion of each frame')
 	axs[0].plot(total_motion, 'k.')
@@ -2106,26 +2130,26 @@ def get_total_motion(motion):
 
 	return total_motion
 
-def align_frames(frames, motion, total_motion, total_motion_thr=None):
-
+def align_frames(frames, motion):
+# , total_motion, total_motion_thr=None
 	# total_motion = get_total_motion(motion)
 
-	##* Discard frames with too much motion.
-	if total_motion_thr is not None:
-		frames_indices_ignore = np.where(total_motion > total_motion_thr)[0]
-	else:
-		frames_indices_ignore = []
+	# ##* Discard frames with too much motion.
+	# if total_motion_thr is not None:
+	# 	frames_indices_ignore = np.where(total_motion > total_motion_thr)[0]
+	# else:
+	# 	frames_indices_ignore = []
 	
 	aligned_frames=np.zeros(frames.shape)
 
 	for j in range(frames.shape[0]):
-		if j not in frames_indices_ignore:
-			aligned_frames[j,:,:]=shift(frames[j,:,:], motion[j], output=None, order=3, mode='constant', cval=0.0, prefilter=True)
-		#   the commented lines below check that the shift was performed in the correct direction	
-			# X=phase_cross_correlation(original_anatomy, frames[j,:,:] ,upsample_factor=10, space='real')
-			# print(X)
-			# Y=phase_cross_correlation(original_anatomy, aligned_frames[j,:,:] ,upsample_factor=10, space='real')
-			# print(Y)
+		# if j not in frames_indices_ignore:
+		aligned_frames[j,:,:]=shift(frames[j,:,:], motion[j], output=None, order=3, mode='constant', cval=0.0, prefilter=True)
+	#   the commented lines below check that the shift was performed in the correct direction	
+		# X=phase_cross_correlation(original_anatomy, frames[j,:,:] ,upsample_factor=10, space='real')
+		# print(X)
+		# Y=phase_cross_correlation(original_anatomy, aligned_frames[j,:,:] ,upsample_factor=10, space='real')
+		# print(Y)
 
 	return aligned_frames
 

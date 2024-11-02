@@ -4,6 +4,7 @@ import numpy as np
 # %%
 #region Parameters
 light_percentage_increase_thr = 5
+light_percentage_decrease_PMT = -10
 average_light_derivative_thr = 10
 top_bottom_frame_slice = 50  # number pixels
 front_back_frame_slice = 50  # number pixels

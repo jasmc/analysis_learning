@@ -3,7 +3,9 @@
 ##   
 # region Imports
 from importlib import reload
+import os
 from pathlib import Path
+import pickle
 
 import h5py
 import matplotlib.pyplot as plt
@@ -37,7 +39,7 @@ reload(p)
 pio.templates.default = "plotly_dark"
 
 pd.set_option("mode.copy_on_write", True)
-pd.set_option("compute.use_numba", True)
+# pd.set_option("compute.use_numba", True)
 pd.set_option("compute.use_numexpr", True)
 pd.set_option("compute.use_bottleneck", True)
 #endregion
@@ -417,7 +419,6 @@ data = data.dropna(subset=['Frame number', 'Frame beg', cs, us], how='all')
 # data.loc[data['Frame beg'].notna()]
 # data[[frame_id, 'Frame beg']] = data[[frame_id, 'Frame beg']].fillna(0)
 
-
 # data[abs_time] -= data[abs_time].iat[0]
 
 # first_timepoint = galvo[abs_time].iat[0]
@@ -507,7 +508,7 @@ del data_, data_plot
 
 # data.loc[data['Frame beg'].notna()]
 
-data.drop(columns=['Image mean', 'GalvoValue'], inplace=True)
+data.drop(columns=['Image mean', 'GalvoValue'], inplace=True, errors='ignore')
 
 #endregion
 
@@ -591,15 +592,22 @@ for plane_i, plane_cs_onset_indices in tqdm(enumerate(planes_cs_onset_indices)):
 
 	# break
 
-del trials_list, protocol_, trial_protocol, trial_cs_onset_index, time_start, time_end, plane_cs_onset_indices, index_list, relevant_cs, predicted_framerate, reference_frame_id, interframe_interval_array, interframe_interval, beg_first_image, beg_first_image_time, peaks, number_peaks, beg_image_to_consider_index, beg_image_to_consider_time, number_images_before_first_image_to_consider, bytes_header, height, width, bytes_header_and_image, number_images, images_mean, stim_numbers, fig, axs, protocol, behavior, images
+# del trials_list, protocol_, trial_protocol, trial_cs_onset_index, time_start, time_end, plane_cs_onset_indices, index_list, relevant_cs, predicted_framerate, reference_frame_id, interframe_interval_array, interframe_interval, beg_first_image, beg_first_image_time, peaks, number_peaks, beg_image_to_consider_index, beg_image_to_consider_time, number_images_before_first_image_to_consider, bytes_header, height, width, bytes_header_and_image, number_images, images_mean, stim_numbers, fig, axs, protocol, behavior, images
 
 
-fig, axs = plt.subplots(len(all_data), 1, figsize=(10, 50))
+
+
+fig, axs = plt.subplots(len(all_data), len(all_data[0].trials), figsize=(10, 50))
 
 for i in range(len(all_data)):
-	axs[i].imshow(np.mean(all_data[i].trials[0].images.values, axis=0))
-	axs[i].set_xticks([])
-	axs[i].set_yticks([])
+	for j in range(len(all_data[0].trials)):
+
+		axs[i,j].imshow(np.mean(all_data[i].trials[j].images.values, axis=0), vmin=0, vmax=500)
+		axs[i,j].set_xticks([])
+		axs[i,j].set_yticks([])
+
+fig.set_size_inches(15, 35)
+fig.subplots_adjust(hspace=0, wspace=0)
 
 fig.savefig(imaging_path_ / 'Summary of imaged planes.png')
 
@@ -617,8 +625,23 @@ anatomical_stack_images = tifffile.imread(anatomy_1_path).astype('float32')
 
 # MAYBE SHOULD MEDIAN FILTER EACH FRAME FROM THE ANATOMICAL STACK AND THEN USE THE MEAN
 
+
+
+do this in the following script
 anatomical_stack_images = ndimage.median_filter(anatomical_stack_images, size=p.median_filter_kernel, axes=(1,2))
+
+anatomical_stack_images = xr.DataArray(anatomical_stack_images, coords={'index': ('plane_number', range(anatomical_stack_images.shape[0])), 'plane_number': range(anatomical_stack_images.shape[0]), 'x': range(anatomical_stack_images.shape[2]), 'y': range(anatomical_stack_images.shape[1])}, dims=['plane_number', 'y', 'x'])
+
+
+#!!!!!! maybe here subtract background and save image with projection
+
 # endregion
+
+
+
+#* Create an object with all the data.
+all_data = c.Data(all_data, anatomical_stack_images)
+# all_data.__dict__.keys()
 
 
 
@@ -626,17 +649,44 @@ anatomical_stack_images = ndimage.median_filter(anatomical_stack_images, size=p.
 ##   
 # region Save the data
 
-all_data = c.Data(all_data, anatomical_stack_images)
-# all_data.__dict__.keys()
+
+path_pkl_before_motion_correction = path_home / fish_name / (fish_name + '_before motion correction' + '.pkl')
+
+with open(path_pkl_before_motion_correction, 'wb') as file:
+	pickle.dump(all_data, file)
 
 
-# path_pkl_before_motion_correction = imaging_path_ / fish_name / (fish_name + '_before motion correction' + '.pkl')
 
-# with open(path_pkl_before_motion_correction, 'wb') as file:
-# 	pickle.dump(all_data, file)
+
+
+
+
+#!!!!!!
+trial = all_data.planes[0].trials[0]
+
+
+path_ = path_home / fish_name / 'test.h5'
+os.makedirs(os.path.dirname(path_), exist_ok=True)
+
+
+
+#!
+with pd.HDFStore(path_, complevel=4, complib='zlib') as store:
+
+	store.append('behavior', trial.behavior, expectedrows=len(trial.behavior), append=False, chunksize=(trial.behavior.shape[0],trial.behavior.shape[1]))
+
+
+	#! store.select(fish.dataset_key(), where=where_to_query)
+# pd.read_hdf(self._path, key=fish.dataset_key(), mode='r', complevel=self._compression_level, complib=self._compression_library)
+
+
+trial.images.to_netcdf(path_, mode='a', group='images', format='NETCDF4', engine='netcdf4', encoding={'images': {'zlib': True, 'complevel': 4, chunksize=(trial.images.shape[0],np.ceil(trial.images.shape[1]/8),np.ceil(trial.images.shape[2]/8))}})
+
+
 
 # Save the data as an HDF5 file
 h5_path = path_home / fish_name / (fish_name + '_before_motion_correction.h5')
+os.makedirs(os.path.dirname(h5_path), exist_ok=True)
 
 with h5py.File(h5_path, 'w') as h5_file:
 	# Save anatomical stack images with compression

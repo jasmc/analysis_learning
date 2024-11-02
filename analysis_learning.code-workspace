@@ -5,6 +5,15 @@
 		}
 	],
 	"settings": {
-		"workbench.preferredDarkColorTheme": "Monokai"
+		"workbench.preferredDarkColorTheme": "Monokai",
+		"files.exclude": {
+			"__pycache__": true,
+			".gitignore": true,
+			".venv": true,
+			".vs": true,
+			".vscode": true,
+			"**.code-workspace": true,
+			"**.pyproj": true
+		}
 	}
 }
