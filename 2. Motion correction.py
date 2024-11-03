@@ -7,7 +7,6 @@ import pickle
 from importlib import reload
 from pathlib import Path
 
-import xarray as xr
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,6 +14,7 @@ import pandas as pd
 import plotly.io as pio
 import scipy.ndimage as ndimage
 import seaborn as sns
+import xarray as xr
 from tqdm import tqdm
 
 #* Load custom functions and classes
@@ -219,9 +219,9 @@ with open(path_pkl_before_motion_correction, 'rb') as file:
 ##* Subtract the background from the images.
 
 ###* Anatomical stack images.
-anatomical_stack = all_data.anatomical_stack
+anatomical_stack_images = all_data.anatomical_stack
 
-anatomical_stack = xr.DataArray(anatomical_stack, coords={'index': ('plane_number', range(anatomical_stack.shape[0])), 'plane_number': range(anatomical_stack.shape[0]), 'x': range(anatomical_stack.shape[2]), 'y': range(anatomical_stack.shape[1])}, dims=['plane_number', 'y', 'x'])
+anatomical_stack_images = xr.DataArray(anatomical_stack_images, coords={'index': ('plane_number', range(anatomical_stack_images.shape[0])), 'plane_number': range(anatomical_stack_images.shape[0]), 'x': range(anatomical_stack_images.shape[2]), 'y': range(anatomical_stack_images.shape[1])}, dims=['plane_number', 'y', 'x'])
 
 
 #!
@@ -229,8 +229,9 @@ anatomical_stack = xr.DataArray(anatomical_stack, coords={'index': ('plane_numbe
 ####* Consider that the background is 10% of each frame. Subtract it to the images and clip the values to 0.
 # The background will be always in more than 10% of the pixels in each frame.
 #? or take the mean of each frame and subtract it from the frame?
-anatomical_stack = anatomical_stack - anatomical_stack.quantile(0.01, dim=('y', 'x'))
-anatomical_stack = anatomical_stack.clip(0, None)
+anatomical_stack_images = anatomical_stack_images - anatomical_stack_images.quantile(0.01, dim=('y', 'x'))
+anatomical_stack_images = anatomical_stack_images.clip(0, None)
+anatomical_stack_images.images.drop_vars('quantile')
 
 # plt.imshow(np.mean(anatomical_stack, axis=0))
 # plt.colorbar(shrink=0.5)
@@ -255,10 +256,12 @@ for plane_i, plane in enumerate(all_data.planes):
 	for trial_i, trial in enumerate(plane.trials):
 		# trial_images = trial.images
 		# plt.imshow(np.mean(trial_images, axis=0), vmin=0, vmax=None)
-		trial.images.values = ndimage.median_filter(trial.images.to_numpy(), size=p.median_filter_kernel, axes=(1,2))
+		# trial.images.values = ndimage.median_filter(trial.images.to_numpy(), size=p.median_filter_kernel, axes=(1,2))
 		trial.images = trial.images - trial.images.quantile(0.01, dim=('y', 'x'))
 		trial.images = trial.images.clip(0, None)
 		# plt.imshow(np.mean(trial.images, axis=0), vmin=0, vmax=500)
+
+		trial.images.drop_vars('quantile')
 	# 	break
 	# break
 
@@ -293,7 +296,7 @@ for plane_i, plane in enumerate(all_data.planes):
 
 #ToDo this should take the pixel spacing into account!!!
 
-_, y_dim, x_dim = np.array(anatomical_stack.shape)
+_, y_dim, x_dim = np.array(anatomical_stack_images.shape)
 
 x_dim = int(x_dim * p.xy_movement_allowed/2)
 y_dim = int(y_dim * p.xy_movement_allowed/2)
@@ -301,12 +304,7 @@ y_dim = int(y_dim * p.xy_movement_allowed/2)
 
 
 
-
-reload(f)
-reload(c)
-reload(p)
-
-#! no final, ha valores negativos de pixels
+plane_numbers = np.zeros((len(all_data.planes), len(plane.trials)), dtype='int32')
 
 for plane_i, plane in tqdm(enumerate(all_data.planes)):
 
@@ -316,7 +314,6 @@ for plane_i, plane in tqdm(enumerate(all_data.planes)):
 
 	motions = list(np.zeros(len(plane.trials), dtype='int32'))
 	template_images = np.zeros((len(plane.trials), plane.trials[0].images.shape[1], plane.trials[0].images.shape[2]))
-	plane_numbers = np.zeros(len(plane.trials), dtype='int32')
 
 	#* Motion correction within trial.
 	for trial_i, trial in tqdm(enumerate(plane.trials)):
@@ -332,7 +329,7 @@ for plane_i, plane in tqdm(enumerate(all_data.planes)):
 		# plane.trials[trial_i].images.values, plane.trials[trial_i].template_image, plane.trials[trial_i].position_anatomical_stack 
 		# motions[trial_i], template_images[trial_i], plane_numbers[trial_i] = f.correct_motion_within_trial(trial, anatomical_stack_images, x_dim, y_dim, 3)
 
-		template_image_ = f.get_template_image(f.get_maximum_number_good_last_images(trial_images_))
+		template_image_ = f.get_template_image(trial_images_[f.get_good_images_indices_1(trial_images_)])
 
 		
 		# ##* Subtract the background from the images.
@@ -380,17 +377,19 @@ for plane_i, plane in tqdm(enumerate(all_data.planes)):
 		mask_bad_frames_motion = total_motion <= motion_thr_within_trial
 		mask_bad_frames_no_PMT = f.get_good_images_indices_2(trial.images)
 		mask_bad_frames = mask_bad_frames_motion & mask_bad_frames_no_PMT
-		images_helper = f.align_frames(trial.images[mask_bad_frames], motion_)
 		
-		template_image_ = f.get_template_image(images_helper)
+		template_image_ = f.get_template_image(f.align_frames(trial.images[mask_bad_frames], motion_))
 
-		# fig, axs = plt.subplots(1, 2)
-		# axs[0].imshow(ndimage.median_filter(np.mean(aligned_frames, axis=0), size=p.median_filter_kernel))
-		# axs[1].imshow(np.mean(ndimage.median_filter(aligned_frames, size=p.median_filter_kernel, axes=(1,2)), axis=0))
-		# fig.show()
+
+		plt.figure(figsize=(10, 6))
+		plt.imshow(template_image_, vmin=0, vmax=500)
+		plt.colorbar(shrink=0.5)
+		plt.title('Anatomy')
+		plt.show()
+
 
 		#* Identify the plane number of the trial.
-		plane_number_, _ = f.find_plane_in_anatomical_stack(anatomical_stack[:, image_crop:-image_crop, image_crop:-image_crop], template_image_[image_crop_template_matching:-image_crop_template_matching, image_crop_template_matching:-image_crop_template_matching])
+		plane_number_, _ = f.find_plane_in_anatomical_stack(anatomical_stack_images[:, image_crop:-image_crop, image_crop:-image_crop], template_image_[image_crop_template_matching:-image_crop_template_matching, image_crop_template_matching:-image_crop_template_matching])
 
 		print(plane_number_)
 
@@ -400,35 +399,36 @@ for plane_i, plane in tqdm(enumerate(all_data.planes)):
 		# trial_images = trial.images.values
 		# Mask with True where the frames are bad (due to gating of the PMT or motion).
 		# mask_bad_frames = (~f.get_good_images_indices_1(aligned_frames)) | (np.where(f.get_total_motion(motions[trial_i]) > p.motion_thr_from_trial_average, True, False))
-		all_data.planes[plane_i].trials[trial_i].mask_bad_frames = mask_bad_frames
-		# all_data.planes[plane_i].trials[trial_i].mask_bad_frames = 
-		# all_data.planes[plane_i].trials[trial_i].mask_bad_frames = 
-		# all_data.planes[plane_i].trials[trial_i].mask_bad_frames = 
 
+		all_data.planes[plane_i].trials[trial_i].images.assign_coords({'mask bad frames' : ('time', trial.mask_bad_frames)})
+		#! all_data.planes[plane_i].trials[trial_i].mask_bad_frames = mask_bad_frames
+
+
+		# all_data.planes[plane_i].trials[trial_i].mask_bad_frames = 
+		# all_data.planes[plane_i].trials[trial_i].mask_bad_frames = 
+		# all_data.planes[plane_i].trials[trial_i].mask_bad_frames = 
 
 		# mask_bad_frames = mask_bad_frames_motion | mask_bad_frames_no_PMT
 		motions[trial_i] = motion_
 		template_images[trial_i] = template_image_
-		plane_numbers[trial_i] = plane_number_
+		plane_numbers[plane_i, trial_i] = plane_number_
 
+		all_data.planes[plane_i].trials[trial_i].template_image = template_images[trial_i]
+		all_data.planes[plane_i].trials[trial_i].position_anatomical_stack = plane_numbers[plane_i, trial_i]
 #!!!!!!!!!!!
 
 		# if trial_i == 4:
 
 		# break
 
-
-
 		# template_image_[motion_thr:-motion_thr, motion_thr:-motion_thr]
 		# a = f.get_template_image(f.get_maximum_number_good_last_images(trial.images.values))
 
-
-
 		fig, axs = plt.subplots(1, 2)
 		axs[0].imshow(template_images[trial_i], vmin=0, vmax=500)
-		axs[1].imshow(anatomical_stack[plane_numbers[trial_i]], vmin=0, vmax=500)
+		axs[1].imshow(anatomical_stack_images[plane_numbers[plane_i, trial_i]], vmin=0, vmax=500)
 		axs[0].set_title('Template plane from\naverage of good frames')
-		axs[1].set_title('Anatomical stack plane number ' + str(plane_numbers[trial_i]))
+		axs[1].set_title('Anatomical stack plane number ' + str(plane_numbers[plane_i, trial_i]))
 		fig.set_size_inches((20, 10))
 		# fig.colorbar(axs[0].imshow(template_images[trial_i]), ax=axs[0], shrink=0.5)
 		# fig.colorbar(ax=axs[1], shrink=0.5)
@@ -457,143 +457,105 @@ for plane_i, plane in tqdm(enumerate(all_data.planes)):
 	#* Motion correction across trials of the same plane.
 	motion_ = f.measure_motion(template_images[1: , image_crop_:-image_crop_, image_crop_:-image_crop_], template_images[0, image_crop_:-image_crop_, image_crop_:-image_crop_], normalization=None)
 
-	for m_i, m in enumerate(motions):
+	for trial_i in range(len(plane.trials)):
 		
-		if m_i > 0:
+		if trial_i > 0:
 
-			motions[m_i] += motion_[m_i-1]
+			motions[trial_i] += motion_[trial_i-1]
 
-		plt.imshow(ndimage.median_filter(np.mean(f.align_frames(trial.images, motions[trial_i]), axis=0), size=p.median_filter_kernel))
+		plt.imshow(ndimage.median_filter(np.mean(f.align_frames(trial.images[mask_bad_frames], motions[trial_i]), axis=0), size=p.median_filter_kernel))
 		plt.colorbar(shrink=0.5)
 		plt.show()
+		# plt.imshow(f.get_template_image(f.align_frames(trial.images[mask_bad_frames], motions[trial_i])))
 
-	break
+		all_data.planes[plane_i].trials[trial_i].images.assign_coords({'shift correction in X' : ('time', trial.motions[trial_i,0].astype('float32'))})
+		all_data.planes[plane_i].trials[trial_i].images.assign_coords({'shift correction in Y' : ('time', trial.motions[trial_i,1].astype('float32'))})
 
-	# for trial_i, trial in enumerate(plane.trials):
-		
-	# 	if trial_i > 0:
-	# 		#* Measure motion of each frame using phase cross-correlation.
-			
-	# 		# trial_images_ = trial.images[:, image_crop_:-image_crop_, image_crop_:-image_crop_].copy()
+		#! all_data.planes[plane_i].trials[trial_i].shift_correction = motions[trial_i].astype('float32')
 
-	# 		motion_ = f.measure_motion(np.expand_dims(template_images[0, image_crop_:-image_crop_, image_crop_:-image_crop_], axis=0), np.expand_dims(template_images[trial_i, image_crop_:-image_crop_, image_crop_:-image_crop_], axis=0), normalization=None)
-	# 		# np.expand_dims(template_images[0, image_c<rop_:-image_crop_, image_crop_:-image_crop_], axis=0).shape
-	# 		# np.expand_dims(template_images[trial_i, image_crop_:-image_crop_, image_crop_:-image_crop_], axis=0).shape
-	# 		# motion = f.measure_motion(np.expand_dims(template_images[trial_i][image_crop:-image_crop, image_crop:-image_crop], axis=0), template_images[0][image_crop:-image_crop, image_crop:-image_crop], normalization=None)[0]
-
-	# 		motions[1:] += motion_
-
-		# #* Measure motion of each frame using phase cross-correlation.
-		# total_motion = f.get_total_motion(motions[trial_i])
-		# # Use half of the frames to get the template image.
-		# motion_thr = np.median(total_motion)
-
-		
-		
-		#* Align the frames to their average.
-		# aligned_frames = f.align_frames(trial.images.to_numpy(), motions[trial_i], total_motion, None)
-
-		# template_image = f.get_template_image(aligned_frames[np.where(total_motion <= motion_thr)[0]])
-
-		# motion = np.array((np.ceil(motions[trial_i].max(axis=0))), dtype='int32')
-
-#!!!!!!!!!!!!!!! FIX THIS TO REMOVE PADDED VALUES AROUND THE TEMPLATE IMAGE
-		#* Identify the plane number of the trial.
-#!!!!!!!!!!!!!!!!plane_number_, _ = f.find_plane_in_anatomical_stack(anatomical_stack[:, image_crop:-image_crop, image_crop:-image_crop], template_image_[image_crop_template_matching:-image_crop_template_matching, image_crop_template_matching:-image_crop_template_matching])
-
-		all_data.planes[plane_i].trials[trial_i].images.values = aligned_frames
-		all_data.planes[plane_i].trials[trial_i].template_image = template_image
-		all_data.planes[plane_i].trials[trial_i].position_anatomical_stack = 1
-		#! plane_number
-
-		motions[trial_i] = motion_
-		template_images[trial_i] = template_image_
-		plane_numbers[trial_i] = plane_number_
-SAVE THE NEW TEMPLATE
-SAVE THE SHIFT
-THE PLANE NUMBER IN THE ANATOMICAL STACK
-
-SHIFT THE ORIGINAL IMAGES
-	# 	break
-	# break
-
-	convert motion to np.array
 
 		# break
+	
+	
+	print('Plane:', plane_i)
+
+
+
 	# break
-	print('Plane:', plane_i, plane_numbers)
+
+print(plane_numbers)
+
+
 #endregion
+
+
+# trial.__dict__.keys()
+
+# for plane in all_data.planes:
+# 	for trial in plane.trials:
+
+# 		template_image_ = f.get_template_image(f.align_frames(trial.images[trial.mask_bad_frames], trial.shift_correction))
+
+# 		plane_number_, _ = f.find_plane_in_anatomical_stack(anatomical_stack_images[:, image_crop:-image_crop, image_crop:-image_crop], template_image_[image_crop_template_matching:-image_crop_template_matching, image_crop_template_matching:-image_crop_template_matching])
+
+
+
+plane_position_stack = np.argsort([p for p in plane_numbers[:,0]])
+
+for plane_i in range(len(all_data.planes)):
+	
+	all_data.planes[plane_i].template_image_position_anatomical_stack = plane_position_stack[plane_i]
+
+
+
+# all_data.planes[1].trials[0].template_image
+
+fig, axs = plt.subplots(len(all_data.planes), len(plane.trials), figsize=(10, 50))
+
+for plane_i in range(len(all_data.planes)):
+	for trial_i in range(len(plane.trials)):
+
+		axs[plane_i,trial_i].imshow(all_data.planes[plane_i].trials[trial_i].template_image, vmin=0, vmax=500)
+		axs[plane_i,trial_i].set_xticks([])
+		axs[plane_i,trial_i].set_yticks([])
+	
+	# break
+
+fig.set_size_inches(15, 35)
+fig.subplots_adjust(hspace=0, wspace=0)
+
+fig.savefig(imaging_path_ / 'Template images.png')
+
+
+
 
 
 
 #* Save the data.
 # %%
 # region Save the data
-path_pkl = path_home / 'Imaging' / fish_name / (fish_name + '_2' + '.pkl')
+
+SAVE THE BLACK BOX COORDINATES IN ALL_DATA
+
+
 
 all_data = c.Data(all_data.planes, anatomical_stack_images)
 
-with open(path_pkl, 'wb') as file:
+path_pkl_after_motion_correction = path_home / fish_name / (fish_name + '_after motion correction' + '.pkl')
+
+with open(path_pkl_after_motion_correction, 'wb') as file:
 	pickle.dump(all_data, file)
+
+# DATA = all_data
+
 # endregion
 
 
-#* Plot the position in the anatomical stack.
-# region Position in the anatomical stack
-try:
-	A = []
-	B = []
-
-	C = []
-	D = []
-
-	for i in range(len(all_data.planes)):
-
-		for j in range(2):
-
-			A.append(all_data.planes[i].trials[j].position_anatomical_stack)
-
-			C.append(all_data.planes[i].trials[j].template_image)
-
-		for l in range(2,4):
-
-			B.append(all_data.planes[i].trials[l].position_anatomical_stack)
-
-			D.append(all_data.planes[i].trials[l].template_image)
 
 
-	A = np.array(A)
-	B = np.array(B)
-
-	C = np.array(C)
-	D = np.array(D)
 
 
-	sns.set_style('whitegrid')
 
-
-	path_ = path_home / fish_name
-
-
-	plt.xlabel('Trial before or after initial train')
-	plt.ylabel('Plane number in anatomical stack')
-	plt.plot(A, 'blue')
-	plt.plot(B, 'red')
-	plt.legend(['Before initial train', 'After initial train'])
-	plt.savefig(path_ / ('Where in the anatomical stack' + '.png'), dpi=300, bbox_inches='tight')
-
-
-	plt.xlabel('Trial before or after initial train')
-	plt.ylabel('Difference between planes imaged\n before and after initial train (μm)')
-	plt.plot(A-B, 'k')
-	plt.ylim(-10, 10)
-	plt.savefig(path_ / ('Difference when revisiting planes' + '.png'), dpi=300, bbox_inches='tight')
-
-
-	sns.set_style('white')
-	
-except:
-	pass
 
 
 

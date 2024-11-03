@@ -1951,7 +1951,6 @@ def identify_trials(data, protocol):
 
 def get_good_images_indices_1(images):
 
-
 	# top = np.nanmean(images_subset[:, :p.top_bottom_frame_slice, :], axis=(1,2))
 	# bottom = np.nanmean(images_subset[:, -p.top_bottom_frame_slice:, :], axis=(1,2))
 	# front = np.nanmean(images_subset[:, :, -p.front_back_frame_slice:], axis=(1,2))
@@ -2095,11 +2094,11 @@ def get_template_image(frames):
 # trial_images_ = np.clip(trial_images_, 0, None)
 
 
-	plt.figure(figsize=(10, 6))
-	plt.imshow(template_image, vmin=0, vmax=500)
-	plt.colorbar(shrink=0.5)
-	plt.title('Anatomy')
-	plt.show()
+	# plt.figure(figsize=(10, 6))
+	# plt.imshow(template_image, vmin=0, vmax=500)
+	# plt.colorbar(shrink=0.5)
+	# plt.title('Anatomy')
+	# plt.show()
 
 
 	return template_image
@@ -2122,11 +2121,11 @@ def get_total_motion(motion):
 	# total_motion=np.zeros(np.shape(frames)[0])
 	total_motion = np.linalg.norm(motion, axis=1)
 	
-	fig, axs = plt.subplots(1, 2)
-	fig.suptitle('Motion of each frame')
-	axs[0].plot(total_motion, 'k.')
-	axs[1].scatter(motion[:,0]-0.01+0.02*np.random.rand(motion[:,0].shape[0]),motion[:,1]-0.01+0.02*np.random.rand(motion[:,1].shape[0]),s=0.5)
-	fig.show()
+	# fig, axs = plt.subplots(1, 2)
+	# fig.suptitle('Motion of each frame')
+	# axs[0].plot(total_motion, 'k.')
+	# axs[1].scatter(motion[:,0]-0.01+0.02*np.random.rand(motion[:,0].shape[0]),motion[:,1]-0.01+0.02*np.random.rand(motion[:,1].shape[0]),s=0.5)
+	# fig.show()
 
 	return total_motion
 

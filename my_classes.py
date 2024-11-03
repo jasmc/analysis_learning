@@ -911,6 +911,10 @@ class Trial:
 	protocol : pd.DataFrame
 	behavior : pd.DataFrame
 	images : xr.DataArray
+	mask_bad_frames : np.ndarray = None
+	template_image : np.ndarray = None
+	position_anatomical_stack : int = None
+	shift_correction : np.ndarray = None
 
 	def get_stim_index(self, cs_us: str):
 
@@ -935,8 +939,7 @@ class Trial:
 class Plane:
 
 	trials : list['Trial']
-
-	# reference_image_position_anatomical_stack : int
+	template_image_position_anatomical_stack : int = None
 	# reference_image : np.ndarray
 
 	# order_planes_sequence : int
@@ -953,7 +956,7 @@ class Plane:
 class Data:
 	
 	planes : list['Plane']
-	anatomical_stack : np.ndarray
+	anatomical_stack : xr.DataArray
 
 
 	def get_planes(self, plane_numbers: list[int]):
