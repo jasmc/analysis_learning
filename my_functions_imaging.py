@@ -20,7 +20,7 @@ from skimage.registration import phase_cross_correlation
 from tqdm import tqdm
 
 import my_classes as c
-import my_functions as f
+import my_functions_imaging as fi
 import my_parameters as p
 from my_general_variables import *
 
@@ -2203,7 +2203,7 @@ def correct_motion_within_trial(trial, anatomical_stack_images, x_black_box, y_b
 		template_image_ = get_template_image(aligned_frames[np.where(total_motion <= motion_thr)[0]])
 
 
-	plt.imshow(ndimage.median_filter(np.mean(aligned_frames, axis=0), size=p.median_filter_kernel))
+	# plt.imshow(ndimage.median_filter(np.mean(aligned_frames, axis=0), size=p.median_filter_kernel))
 	# plt.imshow(np.mean(ndimage.median_filter(aligned_frames, size=median_filter_kernel, axes=(1,2)), axis=0))
 
 	#* Identify the plane number of the trial.

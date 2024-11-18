@@ -10,7 +10,7 @@ from scipy import interpolate
 from tqdm import tqdm
 
 import my_experiment_specific_variables as exp_var
-import my_functions as f
+import my_functions_imaging as fi
 from my_general_variables import *
 
 # import Main as m
@@ -781,7 +781,7 @@ class Fish:
 		#! Only filtering the angle data so far.
 			#* Filter tail tracking data.
 		# TODO might want to test Adrien's way of filtering data (from Megabouts)
-		data = f.filter_data(data)
+		data = fi.filter_data(data)
 
 		self.data = data
 			# return data
@@ -911,7 +911,7 @@ class Trial:
 	protocol : pd.DataFrame
 	behavior : pd.DataFrame
 	images : xr.DataArray
-	mask_bad_frames : np.ndarray = None
+	mask_good_frames : np.ndarray = None
 	template_image : np.ndarray = None
 	position_anatomical_stack : int = None
 	shift_correction : np.ndarray = None

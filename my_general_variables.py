@@ -5,14 +5,24 @@ from typing import Final
 
 import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
 
 warnings.filterwarnings(action='ignore', category=FutureWarning)
 
 
 # plt.style.use('plot_style.mplstyle')
 # plt.style.use(['seaborn-v0_8-talk'])
-# plt.rcParams["svg.fonttype"] = 'none'
-# plt.rcParams['font.family'] = 'nunito'
+sns.set_context("talk")
+sns.set_style("ticks")
+
+plt.rcParams["svg.fonttype"] = 'none'
+plt.rcParams['font.family'] = 'nunito'
+# Enable LaTeX rendering for text in the figure
+plt.rcParams['text.usetex'] = True
+# Set SVG font type to 'none' to export text as text
+plt.rcParams['svg.fonttype'] = 'none'
+
+
 # , 'plot_style'
 
 
@@ -51,33 +61,24 @@ warnings.filterwarnings(action='ignore', category=FutureWarning)
 '''
 
 
-#! create a dictionary for the dtypes of each col.
-
-
-
 
 #* Parameters for the analysis
 
-
-number_tail_points: Final = 16
+# Point of the tail chosen as the last one to be considered in the analysis, using a tracking with 15 points on the tail.
+chosen_tail_point: Final = 16 - 1
 
 # To define the whole extent of trials, i.e., regions in time before and after a stimulus.
-# time_bef_ms: Final = 45000 # ms
-# time_aft_ms: Final = 45000 # ms
-time_bef_s: Final = 45 # ms
-time_aft_s: Final = 45 # ms
-
-
-
-time_aft_last_trial: Final = 1 # min
-
+time_bef_ms: Final = -45000 # ms
+time_aft_ms: Final = 45000 # ms
+time_bef: Final = -45 # ms
+time_aft: Final = 45 # ms
 
 
 baseline_window = 15 # s
 
 # To crop data, before pooling.
-t_crop_data_bef_s = -baseline_window #s
-t_crop_data_aft_s = baseline_window #s
+t_crop_data_bef_s = -45 #s
+t_crop_data_aft_s = 45 #s
 
 # To check whether any frame was lost.
 number_frames_discard_beg: Final = 60*700 # around 60 s at 700 FPS (number of frames)
@@ -107,29 +108,20 @@ bout_detection_thr_2: Final = 1 # deg/ms
 
 # Interpolate data to this framerate.
 expected_framerate: Final = 700 # FPS
-time_experiment_f = 'Experiment time (frame) [{} FPS]'.format(expected_framerate)
 
 # After interpolating, time_bef and time_aft can be used in number of frames.
 # time_bef_frame: Final = int(np.ceil(time_bef_ms * expected_framerate/1000)) # frames
 # time_aft_frame: Final = int(np.ceil(time_aft_ms * expected_framerate/1000)) # frames
 
 
-
-#! CHANGE THIS TO A MORE CAUDAL POINT
-# Point of the tail chosen as the last one to be considered in the analysis, using a tracking with 15 points on the tail.
-chosen_tail_point: Final = number_tail_points - space_bcf_window // 2
-
-
-
-
 # Width of the bins used to group bout_beg and bout_end data, in s.
 binning_window: Final = 0.5 # s
 
-binning_window_long: Final = 1 # s
+binning_window_long: Final = 2 # s
 
-time_bins_short = list(np.arange(-binning_window, t_crop_data_bef_s-binning_window, -binning_window))[::-1] + list(np.arange(0, t_crop_data_aft_s+binning_window, binning_window))
+time_bins_short = list(np.arange(-binning_window/2, t_crop_data_bef_s-binning_window, -binning_window))[::-1] + list(np.arange(binning_window/2, t_crop_data_aft_s, binning_window))
 
-time_bins_long = list(np.arange(-binning_window_long, time_bef_s-binning_window_long, -binning_window_long))[::-1] + list(np.arange(0, time_aft_s+binning_window_long, binning_window_long))
+time_bins_long = list(np.arange(-binning_window_long, time_bef-binning_window_long, -binning_window_long))[::-1] + list(np.arange(0, time_aft+binning_window_long, binning_window_long))
 
 bin_or_window_name = str(binning_window) + '-s window'
 
@@ -143,9 +135,9 @@ us_struggle_window = 15 # s
 
 
 #* Parameters for clipping scaled vigor
-clip_low = -0.05
-clip_high = 1.05
-vigor_no_bout = -0.1
+clip_low = 0
+clip_high = 1
+# vigor_no_bout = -0.1
 
 
 
@@ -161,7 +153,6 @@ mean_bef_onset = 'Mean '+str(baseline_window)+' s before'
 
 #* Variables containing strings
 
-# 'Type': Final = 'Type'
 experiment_type: Final = 'experiment type'
 beg: Final = 'beg (ms)'
 end: Final = 'end (ms)'
@@ -177,9 +168,6 @@ cs_beg: Final = 'CS beg'
 cs_end: Final = 'CS end'
 us_beg: Final = 'US beg'
 us_end: Final = 'US end'
-
-cs_trial: Final = 'CS trial'
-us_trial: Final = 'US trial'
 
 vigor_bout_detection: Final = 'Vigour for bout detection (deg/ms)'
 vigor_raw: Final = 'Vigour (deg/ms)'
@@ -205,61 +193,42 @@ bout_beg_mean: Final = bout_beg + ' mean'
 bout_end_mean: Final = bout_end + ' mean'
 # bout_end_sem = bout_end + ' sem'
 count: Final = 'Count'
-# trial: Final = 'Trial'
-
-
-
-# experiment: Final = 'Exp.'
-
-
+trial: Final = 'Trial'
 number_trial: Final = 'Trial number'
 type_trial_csus: Final = 'Trial type'
-# alignment: Final = 'Alignment'
 #! Change this name!
-time_trial_f: Final = 'Trial time (frame) [700 FPS]'
-cs_time_trial_f: Final = 'CS trial time (frame) [700 FPS]'
-us_time_trial_f: Final = 'US trial time (frame) [700 FPS]'
+time_trial: Final = 'Trial time (frame) [before interpolation]'
 time_trial_s: Final = 'Trial time (s)'
-phase: Final = 'Phase'
-
-
-
+block_name: Final = 'Block name'
 
 color: Final = 'color'
-
-blue: Final = [x/255 for x in [58, 129, 195]]
-magenta: Final = [x/255 for x in [216, 31, 98]]
-yellow: Final = [x/255 for x in [216, 31, 98]]
-
-
-
 name: Final = 'name'
 
 
-control: Final = 'control'
-delay: Final = 'delay'
-trace: Final = 'trace'
+# cond0: Final = 'c'
+# delay: Final = 'delay'
 # delayNoOpt: Final = 'delaynoopt'
+# trace: Final = 'trace'
 
 # cond1: Final = 'fixedtrace'
 # cond2: Final = 'increasingtrace'
 
 
-plane_trials: Final = 'trials'
-blocks: Final = 'blocks'
+blocks_1t: Final = 'single trials'
+blocks_10t: Final = 'blocks 10 trials'
+blocks_phases: Final = 'blocks phases'
 
 
-number_elements: Final = 'trials in each block'
-names_trials_blocks_blocks: Final = 'names of blocks'
-
-name_in_path: Final = 'name in original path'
+trials_blocks: Final = 'trials in each block'
+names_blocks: Final = 'names of blocks'
+id_in_path: Final = 'name in original path'
 
 number_cols_or_rows: Final = 'number of cols or rows'
 
 horizontal_fig: Final = 'horizontal'
 fig_size: Final = 'figure size'
 
-us_latency_after_cs_onset: Final = 'US latency'
+us_latency: Final = 'US latency'
 
 
 folder_name: Final = 'folder name'
@@ -273,8 +242,8 @@ x_label: Final = '\nt (s)'
 
 
 
-
 fish: Final = 'Fish'
+experiment: Final = 'Exp.'
 
 division: Final = 'division'
 
@@ -297,56 +266,20 @@ photodiode_value: Final = 'PhotodiodeValue'
 galvo_value: Final = 'GalvoValue'
 arduino_value: Final = 'ArduinoValue'
 
-# frame_id: Final = 'Frame number'
+frame_id: Final = 'FrameID'
+
+tail_angle: Final = 'Angle of point {} (deg)'.format(chosen_tail_point)
 
 
-x_name: Final = 'X '
-y_name: Final = 'Y '
-angle_name: Final = 'Angle (deg) '
+cols_to_use_orig = ['FrameID']
+for i in range(chosen_tail_point+int(math.floor(space_bcf_window/2))):
+	cols_to_use_orig.append('angle' + str(i))
 
-tail_angle: Final = angle_name + str(chosen_tail_point - 1)  # It's -1 because of 0-indexing in Python.
+#! Remove FrameID from cols!
+cols = [0] * len(cols_to_use_orig)
+cols[1:] = ['Angle of point {} (deg)'.format(i) for i in range(len(cols)-1)]
 
-
-
-
-cols_to_use_orig = ['FrameID'] + ['x' + str(i) for i in range(number_tail_points)] + ['y' + str(i) for i in range(number_tail_points)] + ['angle' + str(i) for i in range(number_tail_points - 1)]
-
-# x_cols = []
-# y_cols = []
-# angle_cols = []
-
-x_cols = [x_name + str(i) for i in range(number_tail_points)]
-y_cols = [y_name + str(i) for i in range(number_tail_points)]
-angle_cols = [angle_name + str(i) for i in range(number_tail_points - 1)]
-data_cols = x_cols + y_cols + angle_cols
-
-# for i in range(number_tail_points):
-
-# 	cols_to_use_orig.append('x' + str(i))
-# 	cols_to_use_orig.append('y' + str(i))
-
-# 	x_cols.append(x_name + str(i))
-# 	y_cols.append(y_name + str(i))
-# 	angle_cols.append(angle_name + str(i))
-
-# 	if i < 15:
-# 		cols_to_use_orig.append('angle' + str(i))
-
-
-# 	data_cols.append(x_name + str(i))
-# 	data_cols.append(y_name + str(i))
-
-# for i in range(number_tail_points-1):
-# 	data_cols.append(angle_name + str(i))
-
-
-
-
-
-
-cols_stim = [cs_beg, cs_end, us_beg, us_end]
-			#  , cs_trial, us_trial]
-			#  , type_trial_csus, number_trial, block_name]
+cols_stim = [cs_beg, cs_end, us_beg, us_end, type_trial_csus, number_trial, block_name]
 
 cols_bout = [bout_beg, bout_end, bout]
 
@@ -354,8 +287,8 @@ cols_bout = [bout_beg, bout_end, bout]
 cols_stats = [vigor_mean, bout_mean, bout_beg_mean, bout_end_mean]
 
 
-# cols_ordered = [[time_trial_f], cols_stim, cols[1:], [vigor_raw], cols_bout]
-# cols_ordered = [i for j in cols_ordered for i in j]
+cols_ordered = [['Original frame number', 'Trial time (frame) [before interpolation]'], cols_stim, cols[1:], [vigor_raw], cols_bout]
+cols_ordered = [i for j in cols_ordered for i in j]
 
 
 
