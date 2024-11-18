@@ -5,12 +5,12 @@ from importlib import reload
 
 from scipy import interpolate
 
-import my_functions as f
+import my_functions_imaging as fi
 from my_classes import *
 #TODO import my_general_variables as g
 from my_general_variables import *
 
-reload(f)
+reload(fi)
 
 
 import my_experiment_specific_variables as exp_var

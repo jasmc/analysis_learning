@@ -22,7 +22,7 @@ from skimage import morphology
 from tqdm import tqdm
 from skimage.measure import block_reduce
 
-import my_functions as f
+import my_functions_imaging as fi
 import my_classes as c
 import my_parameters as p
 from my_general_variables import *
@@ -31,7 +31,7 @@ from importlib import reload
 #* Load custom functions and classes
 
 # endregion
-reload(f)
+reload(fi)
 reload(c)
 reload(p)
 
@@ -151,14 +151,14 @@ else:
 #* Read the behavior camera data and preprocess it.
 # %%
 # region Behavior camera
-data = f.read_camera(camera_path)
+data = fi.read_camera(camera_path)
 data[abs_time] = data[abs_time].astype('float64')
 
 print('Behavior camera started: ', pd.to_datetime(data[abs_time].iat[0], unit='ms'))
 
 
 #* Estimate the true framerate.
-predicted_framerate, reference_frame_id = f.framerate_and_reference_frame(data)
+predicted_framerate, reference_frame_id = fi.framerate_and_reference_frame(data)
 
 
 data = data.drop(columns=ela_time)
@@ -198,14 +198,14 @@ data[abs_time] = np.linspace(data[abs_time].iat[0], data[abs_time].iat[0] + len(
 # region Stim log
 
 #* Open the stim log.
-protocol = f.read_protocol(protocol_path)
+protocol = fi.read_protocol(protocol_path)
 
 
 # protocol.iloc[:,1] - protocol.iloc[:,0]
 
 #* Identify the stimuli, trials of the experiment.
 data_cols = []
-data = f.identify_trials(data, protocol)
+data = fi.identify_trials(data, protocol)
 
 # plt.plot(data[abs_time])
 # data[cs].unique()
@@ -291,11 +291,11 @@ number_images_before_first_image_to_consider = round((beg_image_to_consider_time
 
 
 #* Get info about the images in the multipage tiff with the imaging data.
-bytes_header, height, width = f.get_bytes_header_and_image(images_path)
+bytes_header, height, width = fi.get_bytes_header_and_image(images_path)
 bytes_header_and_image = bytes_header + height * width * 2
 
 #* Find where we started imaging in the anatomical stack.
-number_images = f.get_number_images(images_path, bytes_header_and_image)
+number_images = fi.get_number_images(images_path, bytes_header_and_image)
 # - number_images_before_first_image_to_consider
 
 
@@ -350,7 +350,7 @@ fig.show()
 # region Behavior data
 #! reverse data_cols to what we want
 data_cols = x_cols + y_cols + angle_cols
-behavior = f.read_tail_tracking_data(tracking_path).astype('float32')
+behavior = fi.read_tail_tracking_data(tracking_path).astype('float32')
 
 # behavior.dtypes
 # if (tail := read_tail_tracking_data(data_path)) is None: # type: ignore
@@ -430,7 +430,7 @@ data[abs_time] -= data[abs_time].iat[0]
 #! Do not forget to discard the first images.
 #!!!!! images = np.array([get_image_from_tiff(images_path, image_i, bytes_header, height, width) for image_i in range(number_images_before_first_image_to_consider, len(peaks))])
 # images_subset_mean = [np.mean(image[-30:-10][-30:-10]).astype('float32') for image in images]
-images = np.array([f.get_image_from_tiff(images_path, image_i, bytes_header, height, width).astype('float32') for image_i in tqdm(range(number_images))])
+images = np.array([fi.get_image_from_tiff(images_path, image_i, bytes_header, height, width).astype('float32') for image_i in tqdm(range(number_images))])
 
 images.shape
 # endregion
@@ -687,7 +687,7 @@ for plane_i, plane in tqdm(enumerate(all_data.planes)):
 
 		##* Discard bad frames due to motion, gating of the PMT or plane change when making a template image for the trial.
 		# plane.trials[trial_i].images.values, plane.trials[trial_i].template_image, plane.trials[trial_i].position_anatomical_stack 
-		motions[trial_i], template_images[trial_i], plane_numbers[trial_i] = f.correct_motion_within_trial(trial, anatomical_stack_images, x_dim, y_dim, 5)
+		motions[trial_i], template_images[trial_i], plane_numbers[trial_i] = fi.correct_motion_within_trial(trial, anatomical_stack_images, x_dim, y_dim, 5)
 
 		# template_image_[motion_thr:-motion_thr, motion_thr:-motion_thr]
 		# a = f.get_template_image(f.get_maximum_number_good_last_images(trial.images.values))
@@ -700,9 +700,9 @@ for plane_i, plane in tqdm(enumerate(all_data.planes)):
 		trial_images = trial.images.values
 
 		# Mask with True where the frames are bad (due to gating of the PMT or motion).
-		mask_bad_frames = (~f.get_good_images_indices_1(trial_images)) | (np.where(f.get_total_motion(motions[trial_i]) > p.motion_thr_from_trial_average, True, False))
+		mask_good_frames = (~fi.get_good_images_indices_1(trial_images)) | (np.where(fi.get_total_motion(motions[trial_i]) > p.motion_thr_from_trial_average, True, False))
 
-		all_data.planes[plane_i].trials[trial_i].mask_bad_frames = mask_bad_frames
+		all_data.planes[plane_i].trials[trial_i].mask_good_frames = mask_good_frames
 
 
 	#* Motion correction across trials of the same plane.
@@ -710,27 +710,27 @@ for plane_i, plane in tqdm(enumerate(all_data.planes)):
 			
 		if trial_i > 0:
 			#* Measure motion of each frame using phase cross-correlation.
-			motion = f.measure_motion(np.expand_dims(template_images[trial_i][5:-5, 5:-5], axis=0), template_images[0][5:-5, 5:-5], normalization=None)[0]
+			motion = fi.measure_motion(np.expand_dims(template_images[trial_i][5:-5, 5:-5], axis=0), template_images[0][5:-5, 5:-5], normalization=None)[0]
 
 			motions[trial_i] += motion
 
 		#* Measure motion of each frame using phase cross-correlation.
-		total_motion = f.get_total_motion(motions[trial_i])
+		total_motion = fi.get_total_motion(motions[trial_i])
 		# Use half of the frames to get the template image.
 		motion_thr = np.median(total_motion)
 
 		
 		
 		#* Align the frames to their average.
-		aligned_frames = f.align_frames(trial.images.to_numpy(), motions[trial_i], total_motion, [5,10,30,35][trial_i])
+		aligned_frames = fi.align_frames(trial.images.to_numpy(), motions[trial_i], total_motion, [5,10,30,35][trial_i])
 
-		template_image = f.get_template_image(aligned_frames[np.where(total_motion <= motion_thr)[0]])
+		template_image = fi.get_template_image(aligned_frames[np.where(total_motion <= motion_thr)[0]])
 
 
 
 #!!!!!!!!!!!!!!! FIX THIS TO REMOVE PADDED VALUES AROUND THE TEMPLATE IMAGE
 		#* Identify the plane number of the trial.
-		plane_number, _ = f.find_plane_in_anatomical_stack(anatomical_stack_images, template_image.astype('float32')[25:-25, 25:-25], None, x_dim, y_dim)
+		plane_number, _ = fi.find_plane_in_anatomical_stack(anatomical_stack_images, template_image.astype('float32')[25:-25, 25:-25], None, x_dim, y_dim)
 
 
 		plt.imshow(ndimage.median_filter(np.mean(aligned_frames, axis=0), size=p.median_filter_kernel))
@@ -883,7 +883,7 @@ for plane_i, plane in enumerate(all_data.planes):
 		trial_group.create_dataset('behavior', data=trial.behavior)
 		trial_group.create_dataset('images', data=trial.images)
 		try:
-			trial_group.create_dataset('mask_bad_frames', data=trial.mask_bad_frames)
+			trial_group.create_dataset('mask_good_frames', data=trial.mask_good_frames)
 			trial_group.create_dataset('template_image', data=trial.template_image)
 			trial_group.create_dataset('position_anatomical_stack', data=trial.position_anatomical_stack)
 		except:
@@ -989,9 +989,9 @@ for plane_i, plane in enumerate(all_data.planes):
 
 
 	#* Discard bad frames due to motion, gating of the PMT or plane change.
-	plane_trials_mask_bad_frames = np.concatenate([t.mask_bad_frames for t in plane.trials])
-	plane_bad_frames_index = np.where(plane_trials_mask_bad_frames)[0]
-	plane_trials_good_images = plane_trials_all_images[~plane_trials_mask_bad_frames].copy()
+	plane_trials_mask_good_frames = np.concatenate([t.mask_good_frames for t in plane.trials])
+	plane_bad_frames_index = np.where(plane_trials_mask_good_frames)[0]
+	plane_trials_good_images = plane_trials_all_images[~plane_trials_mask_good_frames].copy()
 
 	plt.title('All good images from plane')
 	plt.imshow(np.mean(plane_trials_good_images, axis=0))
@@ -1076,7 +1076,7 @@ for plane_i, plane in enumerate(all_data.planes):
 
 
 	plane_trials_good_images_binned_ = np.empty(tuple([plane_trials_all_images.shape[0]] + list(plane_trials_good_images_binned.shape[1:]))) * np.nan
-	plane_trials_good_images_binned_[~plane_trials_mask_bad_frames, :, :] = plane_trials_good_images_binned
+	plane_trials_good_images_binned_[~plane_trials_mask_good_frames, :, :] = plane_trials_good_images_binned
 
 	plane_trials_good_images_binned = plane_trials_good_images_binned_.copy()
 
@@ -1150,7 +1150,7 @@ for plane_i, plane in enumerate(all_data.planes):
 
 #!!!
 	# deltaF_ = np.empty(tuple([plane_trials_all_images.shape[0]] + list(deltaF.shape[1:]))) * np.nan
-	# deltaF_[~plane_trials_mask_bad_frames, :, :] = deltaF
+	# deltaF_[~plane_trials_mask_good_frames, :, :] = deltaF
 
 	# deltaF = deltaF_.copy()
 
@@ -1189,7 +1189,7 @@ for plane_i, plane in enumerate(all_data.planes):
 
 	#* ROIs for the all the trials of the same plane.
 	#TODO need to rewrite all this part, using Mike's and Ruben's code
-	all_traces, all_rois, used_pixels, correlation_map_ = f.get_ROIs(Nrois=100, correlation_map=correlation_map, images=plane_trials_good_images_filtered, threshold=0.3, max_pixels=60)
+	all_traces, all_rois, used_pixels, correlation_map_ = fi.get_ROIs(Nrois=100, correlation_map=correlation_map, images=plane_trials_good_images_filtered, threshold=0.3, max_pixels=60)
 
 	plt.imshow(zscore(all_traces, 1), aspect="auto", cmap="RdBu_r")
 	plt.savefig(path_home / fish_name / (fish_name + 'zscore ' + str(plane_i) + '.tif'))
@@ -1216,7 +1216,7 @@ for plane_i, plane in enumerate(all_data.planes):
 	all_traces_z_score = zscore(all_traces, 1)
 
 	all_traces_z_score_ = np.empty((all_traces.shape[0], len(plane_trials_all_images))) * np.nan
-	all_traces_z_score_[:, ~plane_trials_mask_bad_frames] = all_traces_z_score
+	all_traces_z_score_[:, ~plane_trials_mask_good_frames] = all_traces_z_score
 
 	plt.imshow(all_traces_z_score_, aspect="auto", cmap="RdBu_r", vmin=-3, vmax=3)
 
@@ -1277,8 +1277,8 @@ for plane_i, plane in enumerate(all_data.planes):
 
 
 		#* Discard bad frames due to motion, gating of the PMT or trial change.
-		trial_good_images = trial.images.values[~trial.mask_bad_frames]
-		trial_bad_frames_index = np.where(trial.mask_bad_frames)[0]
+		trial_good_images = trial.images.values[~trial.mask_good_frames]
+		trial_bad_frames_index = np.where(trial.mask_good_frames)[0]
 
 		# plt.title('All images from trial')
 		# plt.imshow(np.mean(trial_good_images, axis=0))
@@ -1355,7 +1355,7 @@ tifffile.imwrite(path_home / fish_name / (fish_name + '_trial_images.tif'), tria
 
 
 		trial_images_binned = np.empty(tuple([trial.images.shape[0]] + list(trial_good_images_binned.shape[1:]))) * np.nan
-		trial_images_binned[~trial.mask_bad_frames, :, :] = trial_good_images_binned
+		trial_images_binned[~trial.mask_good_frames, :, :] = trial_good_images_binned
 		
 		# del trial_good_images_binned
 
@@ -1473,7 +1473,7 @@ deltaF_ratio[trial_i] = np.concatenate(deltaF_ratio)
 
 !!!
 deltaF_ = np.empty(tuple([trial.images.shape[0]] + list(deltaF.shape[1:]))) * np.nan
-deltaF_[~trial.mask_bad_frames, :, :] = deltaF
+deltaF_[~trial.mask_good_frames, :, :] = deltaF
 
 deltaF = deltaF_.copy()
 
@@ -1559,9 +1559,9 @@ del deltaF_
 
 
 	#* Discard bad frames due to motion, gating of the PMT or plane change.
-	plane_trials_mask_bad_frames = np.concatenate([t.mask_bad_frames for t in plane.trials])
-	plane_bad_frames_index = np.where(plane_trials_mask_bad_frames)[0]
-	plane_trials_good_images = plane_trials_all_images[~plane_trials_mask_bad_frames].copy()
+	plane_trials_mask_good_frames = np.concatenate([t.mask_good_frames for t in plane.trials])
+	plane_bad_frames_index = np.where(plane_trials_mask_good_frames)[0]
+	plane_trials_good_images = plane_trials_all_images[~plane_trials_mask_good_frames].copy()
 
 	plt.title('All good images from plane')
 	plt.imshow(np.mean(plane_trials_good_images, axis=0))
@@ -1646,7 +1646,7 @@ del deltaF_
 
 	#* ROIs for the all the trials of the same plane.
 	#TODO need to rewrite all this part, using Mike's and Ruben's code
-	all_traces, all_rois, used_pixels, correlation_map_ = f.get_ROIs(Nrois=100, correlation_map=correlation_map, images=plane_trials_good_images_filtered, threshold=0.3, max_pixels=60)
+	all_traces, all_rois, used_pixels, correlation_map_ = fi.get_ROIs(Nrois=100, correlation_map=correlation_map, images=plane_trials_good_images_filtered, threshold=0.3, max_pixels=60)
 
 	plt.imshow(zscore(all_traces, 1), aspect="auto", cmap="RdBu_r")
 	plt.savefig(path_home / fish_name / (fish_name + 'zscore ' + str(plane_i) + '.tif'))
@@ -1673,7 +1673,7 @@ del deltaF_
 	all_traces_z_score = zscore(all_traces, 1)
 
 	all_traces_z_score_ = np.empty((all_traces.shape[0], len(plane_trials_all_images))) * np.nan
-	all_traces_z_score_[:, ~plane_trials_mask_bad_frames] = all_traces_z_score
+	all_traces_z_score_[:, ~plane_trials_mask_good_frames] = all_traces_z_score
 
 	plt.imshow(all_traces_z_score_, aspect="auto", cmap="RdBu_r", vmin=-3, vmax=3)
 
@@ -1725,8 +1725,8 @@ del deltaF_
 
 
 		#* Discard bad frames due to motion, gating of the PMT or trial change.
-		trial_good_images = trial.images.values[~trial.mask_bad_frames]
-		trial_bad_frames_index = np.where(trial.mask_bad_frames)[0]
+		trial_good_images = trial.images.values[~trial.mask_good_frames]
+		trial_bad_frames_index = np.where(trial.mask_good_frames)[0]
 
 		plt.title('All images from trial')
 		plt.imshow(np.mean(trial_good_images, axis=0))
@@ -1766,7 +1766,7 @@ del deltaF_
 
 
 		trial_images_binned = np.empty(tuple([trial.images.shape[0]] + list(trial_good_images_binned.shape[1:]))) * np.nan
-		trial_images_binned[~trial.mask_bad_frames, :, :] = trial_good_images_binned
+		trial_images_binned[~trial.mask_good_frames, :, :] = trial_good_images_binned
 
 		trial_good_images_binned = trial_images_binned.copy()
 
@@ -1797,7 +1797,7 @@ del deltaF_
 
 		#* Filter in space.
 		trial_images_filtered = ndimage.gaussian_filter(trial_images, sigma=gaussian_filter_sigma, axes=(1,2))
-		trial_images_good_images_filtered = trial_images_filtered[~trial.mask_bad_frames].copy()
+		trial_images_good_images_filtered = trial_images_filtered[~trial.mask_good_frames].copy()
 
 
 
@@ -1918,7 +1918,7 @@ del deltaF_
 		all_traces_z_score = zscore(all_traces, 1)
 
 		all_traces_z_score_ = np.empty((all_traces.shape[0], len(trial_images))) * np.nan
-		all_traces_z_score_[:, ~trial.mask_bad_frames] = all_traces_z_score
+		all_traces_z_score_[:, ~trial.mask_good_frames] = all_traces_z_score
 
 		plt.imshow(all_traces_z_score_, aspect="auto", cmap="RdBu_r", vmin=-3, vmax=3)
 
@@ -1972,7 +1972,7 @@ del deltaF_
 
 
 #* Discard bad frames due to motion, gating of the PMT or plane change.
-trial_images_good_images = trial_images[~trial.mask_bad_frames].copy()
+trial_images_good_images = trial_images[~trial.mask_good_frames].copy()
 
 #* Filter in space.
 trial_images_good_images_filtered = ndimage.gaussian_filter(trial_images_good_images, sigma=gaussian_filter_sigma, axes=(1,2))

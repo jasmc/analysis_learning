@@ -14,7 +14,7 @@ from PIL import Image, ImageSequence
 from scipy import interpolate, signal
 from tqdm import tqdm
 
-import my_functions as f
+import my_functions_imaging as fi
 from my_general_variables import *
 
 pio.templates.default = "plotly_dark"
