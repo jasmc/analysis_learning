@@ -58,7 +58,7 @@ xy_movement_allowed = 0.15  # fraction of the real image
 
 motion_thr_from_trial_average = 5
 
-correlation_map_sigma = 2
+correlation_map_sigma = 3
 voxel_bin_size = 5
 
 

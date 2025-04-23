@@ -62,7 +62,11 @@ path_home = Path(r'C:\Users\joaqc\Desktop\WIP')
 # fish_list = [f for f in (path_home / 'Imaging').iterdir() if f.is_dir()]
 # fish_names_list = [f.stem for f in fish_list]
 
-fish_name = r'20240910_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+fish_name = r'20241007_03_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+
+# '20240910_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+
+
 # '20241013_01_control_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
 # '20241013_02_control_2p-2_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
 # '20241007_03_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
@@ -118,7 +122,7 @@ tracking_path = behavior_path / (fish_name + '_mp tail tracking.txt')
 galvo_path = imaging_path / 'signalsfeedback.xls'
 images_path = imaging_path / (fish_name + '_green.tif')
 
-anatomy_1_path = imaging_path / fish_name / 'Anatomical stack 1.tif'
+anatomy_1_path = imaging_path / 'Anatomical stack 1.tif'
 # anatomy_1_filtered_path = imaging_path / fish_name / 'Anatomical stack 1 binned and filtered.tif'
 
 #endregion
@@ -168,6 +172,31 @@ match str(path_home):
 		# 	np.array([6,7, 16,17, 26,27, 36,37, 46,47, 56,57, 68,69, 78,79])]
 		
 		
+
+
+
+
+
+
+
+
+
+
+
+#! one of the planes it's when the drift correction happens
+number_imaged_planes = 4
+number_reps_plane_consective = 2
+# relevant_cs = [range(5,15),
+# 			  range(15,25), range(25,55), range(55,45), range(45,55),
+# 			  range(55,65), range(65,75), range(75,85)]
+relevant_cs = [range(5,13),
+				range(15,23), range(25,33), range(35,43), range(45,53),
+				range(55,63), range(67,75), range(77,85)]
+index_list = [np.concatenate([[i+number_reps_plane_consective*x*number_imaged_planes, i+number_reps_plane_consective*x*number_imaged_planes+1] for x in range(len(relevant_cs))]) for i in range(0, number_reps_plane_consective * number_imaged_planes, number_reps_plane_consective)]
+# [np.array([0,1, 10,11, 20,21, 30,31, 40,41, 50,51, 62,63, 72,73]),
+# 	np.array([2,3, 12,13, 22,23, 32,33, 42,43, 52,53, 64,65, 74,75]),
+# 	np.array([4,5, 14,15, 24,25, 34,35, 44,45, 54,55, 66,67, 76,77]),
+# 	np.array([6,7, 16,17, 26,27, 36,37, 46,47, 56,57, 68,69, 78,79])]
 relevant_cs = np.concatenate(relevant_cs)
 
 
@@ -405,6 +434,12 @@ fig.savefig(path_home / fish_name / 'Galvo signal and frames.png')
 #!!!!!!!!!!
 behavior = fi.read_tail_tracking_data(tracking_path).astype('float32')
 
+
+
+
+
+# data.rename(columns={'Frame number':'AbsoluteTime'}, inplace=True)
+
 # behavior.dtypes
 # if (tail := read_tail_tracking_data(data_path)) is None: # type: ignore
 # 	return None
@@ -417,7 +452,7 @@ behavior = fi.read_tail_tracking_data(tracking_path).astype('float32')
 # endregion
 
 #* Merge the galvo signal, stim log, behavior camera data and behavior data.
-##   
+##
 # region Merge of galvo signal, stim log and behavior camera data
 #* Discard imaging before the tracking started (in some cases, the tracking might start after the imaging).
 if (first_timepoint_galvo := galvo['AbsoluteTime'].iat[0]) <= (first_timepoint_data := data['AbsoluteTime'].iat[0]):
@@ -467,7 +502,7 @@ del galvo, protocol
 
 data = pd.merge(data, behavior, on='Frame number', how='left')
 
-
+data.rename(columns={'AbsoluteTime' : 'Time (ms)'}, inplace=True)
 
 
 
@@ -553,11 +588,6 @@ images_mean = [image.mean() for image in images]
 data[[cs,us]] = data[[cs,us]].sparse.to_dense()
 data = data.dropna(subset=['Frame number', 'Frame beg', cs, us], how='all')
 
-
-data['GalvoValue'].dropna()
-data['Frame beg'].dropna()
-
-
 # data.loc[data['Frame beg'].notna()]
 # data[[frame_id, 'Frame beg']] = data[[frame_id, 'Frame beg']].fillna(0)
 
@@ -598,6 +628,8 @@ data = data.reset_index(drop=True)
 
 
 data[[cs, us]] = data[[cs, us]].fillna(0)
+
+
 
 # data[cs].cat.remove_unused_categories()
 # data[us].cat.remove_unused_categories()
@@ -791,7 +823,6 @@ all_data = c.Data(all_data, anatomical_stack_images)
 # all_data.__dict__.keys()
 
 
-
 #* Save the data.
 ##   
 # region Save the data
@@ -822,6 +853,7 @@ fig.set_size_inches(15, 35)
 fig.subplots_adjust(hspace=0, wspace=0)
 
 fig.savefig(path_home / fish_name / 'Summary of imaged planes.png')
+
 
 
 

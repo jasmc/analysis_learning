@@ -9,8 +9,8 @@ import xarray as xr
 from scipy import interpolate
 from tqdm import tqdm
 
-import my_experiment_specific_variables as exp_var
-import my_functions_imaging as fi
+import my_experiment_specific_variables_NEW as exp_var
+# import my_functions_imaging as fi
 from my_general_variables import *
 
 # import Main as m

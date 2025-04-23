@@ -5,22 +5,22 @@ from importlib import reload
 
 from scipy import interpolate
 
-import my_functions_imaging as fi
+# import my_functions_imaging as fi
 from my_classes import *
 #TODO import my_general_variables as g
 from my_general_variables import *
 
-reload(fi)
+# reload(fi)
 
 
-import my_experiment_specific_variables as exp_var
+import my_experiment_specific_variables_NEW as exp_var
 
-store_raw = r"C:\Users\joaqc\Desktop\2000 01_Test\all_data_raw.h5"
+store_raw = r"C:\Users\joaqc\Desktop\Test\all_data_raw.h5"
 
 # test_fish = r"C:\Users\joaqc\Desktop\2000 01_Test\Raw data\20000101_01_delay_orange-1_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_6dpfmp tail tracking.txt"
 
 #!
-test_fish = r"C:\Users\joaqc\Desktop\2000 01_Test\Raw data\20221125_12_delay_black-8_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_9dpfcam.txt"
+test_fish = r"D:\2022 06_Last version w moving CS 4 cond\Raw data\20220606_01_delay_orange-1_TU_6dpf_cam.txt"
 
 #! test_experiment = r"C:\Users\joaqc\Desktop\2000 01_Test\Raw data\20221125_12_delay_black-8_mitfaMinusMinus,elavl3GFF,10UASGCaMP6fEF05_9dpfcam.txt"
 

@@ -1725,13 +1725,13 @@ def read_tail_tracking_data(data_path):
 		
 		# start = timer()
 		
-		data = pd.read_csv(data_path, engine='pyarrow', sep=' ', usecols=cols_to_use_orig, header=0, decimal='.', na_filter=False, names=['Frame number']+data_cols)
+		data = pd.read_csv(data_path, engine='pyarrow', sep=' ', usecols=cols_to_use_orig, header=0, decimal='.', na_filter=False, names=['Frame number']+cols[1:])
 		# dtype=dict(zip(cols_to_use_orig, ['int64'] + ['float32']*len(cols_to_use_orig))))
 		# skipfooter=1
 		data = data.iloc[:-1,:]
 		
 		#* Right now, pyarrow engine ignores renaming when opening the csv.
-		data.rename(columns=dict(zip(cols_to_use_orig, ['Frame number'] + data_cols)), inplace=True)
+		data.rename(columns=dict(zip(cols_to_use_orig, ['Frame number'] + cols[1:])), inplace=True)
 
 		# print('Time to read tail tracking .txt: {} (s)'.format(timer()-start))
 
@@ -1741,7 +1741,7 @@ def read_tail_tracking_data(data_path):
 		# data.iloc[:,1:] = data.iloc[:,1:].astype('float32')
 
 		#* Convert tail tracking data from radian to degree
-		data.loc[:,angle_cols] *= (180/np.pi)
+		data.loc[:,cols[1:]] *= (180/np.pi)
 		
 		return data
 

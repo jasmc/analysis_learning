@@ -42,27 +42,30 @@ pd.set_option("compute.use_bottleneck", True)
 #* Paths
 # %%
 # region Paths
-path_home = Path(r'E:\2024 09_Delay 2-P 4 planes JC neurons')
-# Path(r'E:\2024 10_Delay 2-P single plane')
+
+
+path_home = Path(r'C:\Users\joaqc\Desktop\WIP')
 # Path(r'E:\2024 03_Delay 2-P 15 planes top part')
+# Path(r'E:\2024 09_Delay 2-P 4 planes JC neurons')
+# Path(r'E:\2024 10_Delay 2-P single plane')
 # Path(r'E:\2024 10_Delay 2-P 15 planes ca8 neurons')
 # Path(r'E:\2024 09_Delay 2-P zoom in multiplane imaging')
 
 # fish_list = [f for f in (path_home / 'Imaging').iterdir() if f.is_dir()]
 # fish_names_list = [f.stem for f in fish_list]
 
-fish_name = r'20241013_01_control_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+fish_name = r'20241007_03_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+
+# '20240910_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+
+
+# '20241013_01_control_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+# '20241013_02_control_2p-2_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
 # '20241007_03_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
-# '20240416_01_delay_2p-3_mitfaminusminus,elavl3h2bgcamp6f_6dpf'
+# '20241009_03_delay_2p-9_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
 
-# '20240919_03_control_2p-1_mitfaminusminus,elavl3h2bgcamp6s_5dpf'
-# '20240911_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
-# '20240415_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
-#! 
-#! 20240415_02_delay_2p-2_mitfaminusminus,elavl3h2bgcamp6f_5dpf
-#! 20240926_03_trace_2p-9_mitfaminusminus,elavl3h2bgcamp6f_5dpf
-
-# r'20240926_03_trace_2p-9_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+# '20241024_02_delay_2p-2_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+# '20240926_03_trace_2p-9_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
 # '20240919_03_control_2p-1_mitfaminusminus,elavl3h2bgcamp6s_5dpf'
 # '20240911_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
 # '20240415_02_delay_2p-2_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
@@ -71,43 +74,95 @@ fish_name = r'20241013_01_control_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
 
 
 
+# 20240927_02_control_2p-5_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf
+
 
 # '20241015_03_delay_2p-9_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf'
 
 
+
+
 # '20240926_03_trace_2p-9_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
 # '20240927_02_control_2p-5_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
-# r'20240920_03_trace_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf'
-# '20240910_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+# '20240920_03_trace_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf'
 
-
-imaging_path = path_home / 'Imaging'
-
-
-# for fish_i, fish_name in enumerate(fish_names_list):
-
-# 	try:
-
-imaging_path_ = imaging_path / fish_name / 'Imaging'
-
+behavior_path = path_home / fish_name / 'Behavior'
+imaging_path = path_home / fish_name / 'Imaging'
 
 path_pkl_before_motion_correction = path_home / fish_name / (fish_name + '_before motion correction' + '.pkl')
 
+path_pkl_after_motion_correction = path_home / fish_name / (fish_name + '_after motion correction' + '.pkl')
 
-# h5_path = path_home / fish_name / (fish_name + '_before_motion_correction.h5')
 
-# h5_path = imaging_path_ / (fish_name + '_before_motion_correction.h5')
 
-# h5_path = r"E:\2024 03_Delay 2-P 15 planes top part\Imaging\20240910_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf\Imaging\20240910_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf_before_motion_correction.h5"
+
+		# path_home = Path(r'E:\2024 09_Delay 2-P 4 planes JC neurons')
+		# # Path(r'E:\2024 10_Delay 2-P single plane')
+		# # Path(r'E:\2024 03_Delay 2-P 15 planes top part')
+		# # Path(r'E:\2024 10_Delay 2-P 15 planes ca8 neurons')
+		# # Path(r'E:\2024 09_Delay 2-P zoom in multiplane imaging')
+
+		# # fish_list = [f for f in (path_home / 'Imaging').iterdir() if f.is_dir()]
+		# # fish_names_list = [f.stem for f in fish_list]
+
+		# fish_name = r'20241013_01_control_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+		# # '20241007_03_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+		# # '20240416_01_delay_2p-3_mitfaminusminus,elavl3h2bgcamp6f_6dpf'
+
+		# # '20240919_03_control_2p-1_mitfaminusminus,elavl3h2bgcamp6s_5dpf'
+		# # '20240911_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+		# # '20240415_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+		# #! 
+		# #! 20240415_02_delay_2p-2_mitfaminusminus,elavl3h2bgcamp6f_5dpf
+		# #! 20240926_03_trace_2p-9_mitfaminusminus,elavl3h2bgcamp6f_5dpf
+
+		# # r'20240926_03_trace_2p-9_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+		# # '20240919_03_control_2p-1_mitfaminusminus,elavl3h2bgcamp6s_5dpf'
+		# # '20240911_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+		# # '20240415_02_delay_2p-2_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+		# # '20240416_01_delay_2p-3_mitfaminusminus,elavl3h2bgcamp6f_6dpf'
+		# # '20240415_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+
+
+
+
+		# # '20241015_03_delay_2p-9_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf'
+
+
+		# # '20240926_03_trace_2p-9_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+		# # '20240927_02_control_2p-5_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+		# # r'20240920_03_trace_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf'
+		# # '20240910_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+
+
+		# imaging_path = path_home / 'Imaging'
+
+
+		# # for fish_i, fish_name in enumerate(fish_names_list):
+
+		# # 	try:
+
+		# imaging_path_ = imaging_path / fish_name / 'Imaging'
+
+
+		# path_pkl_before_motion_correction = path_home / fish_name / (fish_name + '_before motion correction' + '.pkl')
+
+
+		# # h5_path = path_home / fish_name / (fish_name + '_before_motion_correction.h5')
+
+		# # h5_path = imaging_path_ / (fish_name + '_before_motion_correction.h5')
+
+		# # h5_path = r"E:\2024 03_Delay 2-P 15 planes top part\Imaging\20240910_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf\Imaging\20240910_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf_before_motion_correction.h5"
 
 #endregion
 
 
 
-x_black_box_beg = 330
-x_black_box_end = 345
-y_black_box_beg = 594
-y_black_box_end = 609
+# x_black_box_beg = 330
+# x_black_box_end = 345
+# y_black_box_beg = 594
+# y_black_box_end = 609
+
 
 
 image_crop = 5  # number of pixels to crop around the images
@@ -203,7 +258,6 @@ with open(path_pkl_before_motion_correction, 'rb') as file:
 			# 			trial_group.create_dataset('images', data=trial.images, compression="gzip", compression_opts=4, chunks=(trial.images.shape[0],np.ceil(trial.images.shape[1]/8),np.ceil(trial.images.shape[2]/8)))
 
 
-
 # # Load the HDF5 file
 
 # with h5py.File(h5_path, 'r') as h5_file:
@@ -237,6 +291,32 @@ with open(path_pkl_before_motion_correction, 'rb') as file:
 
 # # anatomical_stack_images = all_data.anatomical_stack
 
+
+shape_ = all_data.planes[0].trials[0].images.shape[1:]
+
+# x_black_box_beg, x_black_box_end, y_black_box_beg, y_black_box_end = all_data.black_box
+
+
+if ('ca8' in str(path_home)) | ('4' in str(path_home)):
+	x_black_box_beg = shape_[0] - 20
+	x_black_box_end = shape_[0] - 5
+	y_black_box_beg = shape_[1] - 20
+	y_black_box_end = shape_[1] - 5
+
+
+elif 'single' in str(path_home):
+		
+		
+	x_black_box_beg = shape_[0] - 10
+	x_black_box_end = shape_[0] - 5
+	y_black_box_beg = shape_[1] - 10
+	y_black_box_end = shape_[1] - 5
+
+else:
+	x_black_box_beg = 330
+	x_black_box_end = 345
+	y_black_box_beg = 594
+	y_black_box_end = 609
 
 
 
@@ -312,7 +392,7 @@ plt.imshow(all_data.planes[0].trials[0].images[100,:,:], vmin=0, vmax=500)
 plt.colorbar(shrink=0.5)
 
 plt.figure()
-plt.imshow(all_data.planes[0].trials[0].images[100][y_black_box_beg:y_black_box_end, x_black_box_beg:x_black_box_end], vmin=0, vmax=None)
+plt.imshow(all_data.planes[0].trials[0].images[100][x_black_box_beg:x_black_box_end, y_black_box_beg: y_black_box_end], vmin=0, vmax=None)
 plt.colorbar(shrink=0.5)
 
 # all_data.planes[0].trials[0].images[100].shape
@@ -560,7 +640,7 @@ for plane_i in range(len(all_data.planes)):
 fig.set_size_inches(15, 35)
 fig.subplots_adjust(hspace=0, wspace=0)
 
-fig.savefig(imaging_path_ / 'Template images.png')
+fig.savefig(path_home / fish_name / 'Template images.png')
 
 
 

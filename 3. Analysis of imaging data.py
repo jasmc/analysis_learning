@@ -9,10 +9,12 @@ from copy import deepcopy
 from importlib import reload
 from pathlib import Path
 
+import cv2
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 import plotly.io as pio
 import scipy.ndimage as ndimage
 import seaborn as sns
@@ -20,6 +22,7 @@ import tifffile as tiff
 import xarray as xr
 from PIL import Image
 from scipy.ndimage import gaussian_filter
+from skimage.measure import block_reduce
 from tqdm import tqdm
 
 #* Load custom functions and classes
@@ -45,78 +48,114 @@ pd.set_option("compute.use_bottleneck", True)
 
 
 
-#* Load CSV data
-# %% Load CSV data
-# region Load CSV data
-
-csv_path = r"C:\Users\joaqc\Desktop\Book1.csv"
-csv_data = pd.read_csv(csv_path, sep=';')
-
-csv_data = csv_data.iloc[:,1:]
-
-for i in range(4):
-	plt.plot(csv_data.index, csv_data.iloc[:,i])
-plt.xlim(-1, len(csv_data.index))
-plt.ylabel('deltaF/F')
-plt.xlabel('Trial')
-plt.savefig(r"C:\Users\joaqc\Desktop\deltaFF.svg", format="svg")
-
-# Display the first few rows of the CSV data
-print(csv_data.head())
-
-# endregion
 
 #* Paths
 # %%
 # region Paths
-path_home = Path(r'E:\2024 09_Delay 2-P 4 planes JC neurons')
-# Path(r'E:\2024 10_Delay 2-P single plane')
+path_home = Path(r'C:\Users\joaqc\Desktop\WIP')
 # Path(r'E:\2024 03_Delay 2-P 15 planes top part')
+# Path(r'E:\2024 09_Delay 2-P 4 planes JC neurons')
+# Path(r'E:\2024 10_Delay 2-P single plane')
 # Path(r'E:\2024 10_Delay 2-P 15 planes ca8 neurons')
 # Path(r'E:\2024 09_Delay 2-P zoom in multiplane imaging')
 
 # fish_list = [f for f in (path_home / 'Imaging').iterdir() if f.is_dir()]
 # fish_names_list = [f.stem for f in fish_list]
 
-fish_name = r'20241013_01_control_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
-# '20241015_03_delay_2p-9_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf'
-# '20240919_03_control_2p-1_mitfaminusminus,elavl3h2bgcamp6s_5dpf'
-# '20240911_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
-# '20240415_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
-# !'20240919_03_control_2p-1_mitfaminusminus,elavl3h2bgcamp6s_5dpf'
-#! 20240416_01_delay_2p-3_mitfaminusminus,elavl3h2bgcamp6f_6dpf
-#! 20240415_02_delay_2p-2_mitfaminusminus,elavl3h2bgcamp6f_5dpf
-#! 20240926_03_trace_2p-9_mitfaminusminus,elavl3h2bgcamp6f_5dpf
+fish_name = r'20241007_03_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
 
-# '20240927_02_control_2p-5_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
-# r'20240926_03_trace_2p-9_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
-# '20241015_03_delay_2p-9_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf'
-# '20240920_03_trace_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf'
 # '20240910_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
 
 
+# '20241013_01_control_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+# '20241013_02_control_2p-2_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+# '20241007_03_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+# '20241009_03_delay_2p-9_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
 
-imaging_path = path_home / 'Imaging'
+# '20241024_02_delay_2p-2_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+# '20240926_03_trace_2p-9_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+# '20240919_03_control_2p-1_mitfaminusminus,elavl3h2bgcamp6s_5dpf'
+# '20240911_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+# '20240415_02_delay_2p-2_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+# '20240416_01_delay_2p-3_mitfaminusminus,elavl3h2bgcamp6f_6dpf'
+# '20240415_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
 
 
-# for fish_i, fish_name in enumerate(fish_names_list):
 
-# 	try:
+# 20240927_02_control_2p-5_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf
 
-imaging_path_ = imaging_path / fish_name / 'Imaging'
 
+# '20241015_03_delay_2p-9_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf'
+
+# '20240926_03_trace_2p-9_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+# '20240927_02_control_2p-5_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+# '20240920_03_trace_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf'
+
+behavior_path = path_home / fish_name / 'Behavior'
+imaging_path = path_home / fish_name / 'Imaging'
+results_path = path_home / fish_name / 'Results'
+
+# Create the directory if it does not exist
+(results_path / 'ROI traces').mkdir(parents=True, exist_ok=True)
+(results_path / 'Videos with deltaF over F').mkdir(parents=True, exist_ok=True)
+(results_path / 'Anatomy with ROIs').mkdir(parents=True, exist_ok=True)
 
 path_pkl_after_motion_correction = path_home / fish_name / (fish_name + '_after motion correction' + '.pkl')
 
 
-# h5_path = path_home / fish_name / (fish_name + '_before_motion_correction.h5')
+		# path_home = Path(r'E:\2024 09_Delay 2-P 4 planes JC neurons')
+		# # Path(r'E:\2024 10_Delay 2-P single plane')
+		# # Path(r'E:\2024 03_Delay 2-P 15 planes top part')
+		# # Path(r'E:\2024 10_Delay 2-P 15 planes ca8 neurons')
+		# # Path(r'E:\2024 09_Delay 2-P zoom in multiplane imaging')
 
-# h5_path = imaging_path_ / (fish_name + '_before_motion_correction.h5')
+		# # fish_list = [f for f in (path_home / 'Imaging').iterdir() if f.is_dir()]
+		# # fish_names_list = [f.stem for f in fish_list]
 
-# h5_path = r"E:\2024 03_Delay 2-P 15 planes top part\Imaging\20240910_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf\Imaging\20240910_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf_before_motion_correction.h5"
+		# fish_name = r'20241013_01_control_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+		# # '20241015_03_delay_2p-9_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf'
+		# # '20240919_03_control_2p-1_mitfaminusminus,elavl3h2bgcamp6s_5dpf'
+		# # '20240911_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+		# # '20240415_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+		# # !'20240919_03_control_2p-1_mitfaminusminus,elavl3h2bgcamp6s_5dpf'
+		# #! 20240416_01_delay_2p-3_mitfaminusminus,elavl3h2bgcamp6f_6dpf
+		# #! 20240415_02_delay_2p-2_mitfaminusminus,elavl3h2bgcamp6f_5dpf
+		# #! 20240926_03_trace_2p-9_mitfaminusminus,elavl3h2bgcamp6f_5dpf
+
+		# # '20240927_02_control_2p-5_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+		# # r'20240926_03_trace_2p-9_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+		# # '20241015_03_delay_2p-9_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf'
+		# # '20240920_03_trace_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf'
+		# # '20240910_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+
+
+
+		# imaging_path = path_home / 'Imaging'
+
+
+		# # for fish_i, fish_name in enumerate(fish_names_list):
+
+		# # 	try:
+
+		# imaging_path_ = imaging_path / fish_name / 'Imaging'
+
+
+		# path_pkl_after_motion_correction = path_home / fish_name / (fish_name + '_after motion correction' + '.pkl')
+
+
+		# # h5_path = path_home / fish_name / (fish_name + '_before_motion_correction.h5')
+
+		# # h5_path = imaging_path_ / (fish_name + '_before_motion_correction.h5')
+
+		# # h5_path = r"E:\2024 03_Delay 2-P 15 planes top part\Imaging\20240910_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf\Imaging\20240910_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf_before_motion_correction.h5"
 
 #endregion
 
+
+
+border_size = 2*p.voxel_bin_size
+correlation_thr = 0.3
+median_thr = 5
 
 
 if 'delay' in fish_name:
@@ -149,27 +188,30 @@ shape_ = all_data.planes[0].trials[0].images.shape[1:]
 
 # x_black_box_beg, x_black_box_end, y_black_box_beg, y_black_box_end = all_data.black_box
 
+x_black_box_beg = shape_[0] - 20
+x_black_box_end = shape_[0] - 5
+y_black_box_beg = shape_[1] - 20
+y_black_box_end = shape_[1] - 5
+			# if ('ca8' in str(path_home)) | ('4' in str(path_home)):
+			# 	x_black_box_beg = shape_[0] - 20
+			# 	x_black_box_end = shape_[0] - 5
+			# 	y_black_box_beg = shape_[1] - 20
+			# 	y_black_box_end = shape_[1] - 5
 
-if ('ca8' in str(path_home)) | ('4' in str(path_home)):
-	x_black_box_beg = shape_[0] - 20
-	x_black_box_end = shape_[0] - 5
-	y_black_box_beg = shape_[1] - 20
-	y_black_box_end = shape_[1] - 5
 
+			# elif 'single' in str(path_home):
+					
+					
+			# 	x_black_box_beg = shape_[0] - 10
+			# 	x_black_box_end = shape_[0] - 5
+			# 	y_black_box_beg = shape_[1] - 10
+			# 	y_black_box_end = shape_[1] - 5
 
-elif 'single' in str(path_home):
-		
-		
-	x_black_box_beg = shape_[0] - 10
-	x_black_box_end = shape_[0] - 5
-	y_black_box_beg = shape_[1] - 10
-	y_black_box_end = shape_[1] - 5
-
-else:
-	x_black_box_beg = 330
-	x_black_box_end = 345
-	y_black_box_beg = 594
-	y_black_box_end = 609
+			# else:
+			# 	x_black_box_beg = 330
+			# 	x_black_box_end = 345
+			# 	y_black_box_beg = 594
+			# 	y_black_box_end = 609
 
 
 
@@ -183,8 +225,8 @@ def add_colors_to_world(anatomy, color_frame_original):
 	
 	image = (np.stack([trial_red_channel,trial_green_channel,trial_blue_channel], axis=-1)*255).astype(np.uint8)
 	
-	plt.imshow(image)
-	plt.show()
+	# plt.imshow(image, interpolation='none')
+	# plt.show()
 
 	return image
 
@@ -203,14 +245,16 @@ plt.figure()
 plt.imshow(all_data.planes[0].trials[0].images[100][x_black_box_beg:x_black_box_end, y_black_box_beg:y_black_box_end], vmin=0, vmax=None)
 plt.colorbar(shrink=0.5)
 
+
+
 plt.imshow(all_data.planes[0].trials[0].images.mean('Time (ms)'), vmin=10, vmax=100)
 plt.colorbar(shrink=0.5)
 
 
+len(all_data.planes)
 
 
-
-H
+# H
 
 
 
@@ -232,6 +276,794 @@ for plane_i, plane in enumerate(all_data.planes):
 
 # ALL_DATA = deepcopy(all_data)
 # all_data = deepcopy(ALL_DATA)
+
+
+
+# region Voxel analysis
+#* Voxel analysis
+
+#* Bin the 2D images.
+#! 15-plane experiment
+# for plane_i, plane in enumerate(all_data.planes):
+# 	for trial_i, trial in enumerate(reversed(plane.trials)):
+
+# 		trial_i = len(plane.trials) - trial_i - 1
+# 	# 	break
+# 	# break
+
+
+# #!!!!!!!!!!!!!!!!!!!!
+# 		# trial_i=3
+# 		# plane_i=12
+# #!!!!!!!!!!!!!!!!!!!!
+
+
+# 		protocol = all_data.planes[plane_i].trials[trial_i].protocol
+
+# 		cs_beg_time = protocol.loc[protocol['CS beg']!=0, 'Time (ms)'].values[0]
+# 		cs_end_time = protocol.loc[protocol['CS end']!=0, 'Time (ms)'].values[0]
+				
+# 		if (us_beg_time := protocol.loc[protocol['US beg']!=0, 'Time (ms)']).empty:
+# 			us_beg_time = cs_beg_time + interval_between_CS_onset_US_onset*1000
+# 			us_end_time = us_beg_time + 100
+# 		else:
+# 			us_beg_time = us_beg_time.values[0]
+# 			us_end_time = protocol.loc[protocol['US end']!=0, 'Time (ms)'].values[0]
+# 		# us_beg_time = protocol.loc[protocol['US beg']!=0, 'Time (ms)'].values[0]
+
+# 		trial_images = all_data.planes[plane_i].trials[trial_i].images
+# 		trial_images.values = fi.align_frames(trial_images.to_numpy(), np.stack([trial_images['shift correction in X'].to_numpy(), trial_images['shift correction in Y'].to_numpy()]).swapaxes(0,1))
+
+
+# 		trial_images_good = trial_images.sel({'Time (ms)':trial_images['mask good frames']}).copy()
+
+
+# 		#* Calcultate the correlation map.
+# 		# Inspired in Suit2p. There, the function that computes the correlation map is celldetect2.getVmap.
+# 		correlation_map = np.linalg.norm(ndimage.gaussian_filter(trial_images_good, sigma=p.correlation_map_sigma, axes=(1,2)), axis=0)**2 / ndimage.gaussian_filter(np.linalg.norm(trial_images_good, axis=0), sigma=p.
+# 		correlation_map_sigma)**2
+
+# 		# Set the correlation around the image to 0
+# 		correlation_map[:border_size, :] = 0
+# 		correlation_map[-border_size:, :] = 0
+# 		correlation_map[:, :border_size] = 0
+# 		correlation_map[:, -border_size:] = 0
+
+# 		# plt.figure('Correlation map')
+# 		# plt.imshow(correlation_map, interpolation='none', vmin=0.3)
+# 		# plt.colorbar(shrink=0.5)
+# 		# plt.show()
+
+# 		##* Set to 0 pixels where the correlation is below a threshold.
+# 		trial_images_good = trial_images_good.where(correlation_map > correlation_thr, 0)
+
+
+# 		# Take the median of trial_images_good over time
+# 		median_image = np.median(trial_images_good, axis=0)
+
+# 		##* Set to 0 pixels where the median is below a threshold.
+# 		trial_images_good = trial_images_good.where(median_image >= median_thr, 0)
+
+# 		# plt.imshow(trial_images_good.mean(dim='Time (ms)'))
+		
+
+# 		trial_images_good_binned = block_reduce(trial_images_good, block_size=(1, p.voxel_bin_size, p.voxel_bin_size), func=np.mean, cval=0)
+
+# 		trial_images_good_binned = xr.DataArray(trial_images_good_binned, coords={'index': ('Time (ms)', trial_images_good.index.values), 'Time (ms)': trial_images_good.coords['Time (ms)'].values, 'x': np.arange(trial_images_good_binned.shape[1]), 'y': np.arange(trial_images_good_binned.shape[2]) }, name='trial_images_good_binned',  dims=['Time (ms)', 'x', 'y'])
+
+# 		# plt.imshow(trial_images_good_binned.mean(dim='Time (ms)'), interpolation='none')
+# 		# plt.colorbar(shrink=0.5)
+
+# 		baseline_images = trial_images_good_binned.loc[trial_images_good_binned['Time (ms)'] < cs_beg_time]
+# 		# CS_US_images = trial_images_good_binned.loc[(trial_images_good_binned['Time (ms)'] > cs_beg_time) & (trial_images_good_binned['Time (ms)'] < us_beg_time)]
+
+
+# 		cs_beg_position = np.where(trial_images_good_binned['Time (ms)'].values >= cs_beg_time)[0][0]
+# 		cs_end_position = np.where(trial_images_good_binned['Time (ms)'].values <= cs_end_time)[0][-1]
+# 		us_beg_position = np.where(trial_images_good_binned['Time (ms)'].values >= us_beg_time)[0][0]
+# 		us_end_position = np.where(trial_images_good_binned['Time (ms)'].values <= us_end_time)[0][-1]
+
+
+# 		# cs_beg_time = trial_images_good_binned.sel({'Time (ms)' : cs_beg}, method='bfill')['Time (ms)'].values
+# 		# cs_end_time = trial_images_good_binned.sel({'Time (ms)' : cs_end}, method='bfill')['Time (ms)'].values
+# 		# us_beg_time = trial_images_good_binned.sel({'Time (ms)' : us_beg}, method='bfill')['Time (ms)'].values
+# 		# us_end_time = trial_images_good_binned.sel({'Time (ms)' : us_end}, method='bfill')['Time (ms)'].values
+
+# 		cs_beg_index = trial_images_good_binned.sel({'Time (ms)' : cs_beg_time}, method='bfill')['Time (ms)'].index.values
+# 		cs_end_index = trial_images_good_binned.sel({'Time (ms)' : cs_end_time}, method='bfill')['Time (ms)'].index.values
+# 		us_beg_index = trial_images_good_binned.sel({'Time (ms)' : us_beg_time}, method='bfill')['Time (ms)'].index.values
+# 		us_end_index = trial_images_good_binned.sel({'Time (ms)' : us_end_time}, method='bfill')['Time (ms)'].index.values
+
+# 		##* Calculate deltaF/F for each pixel
+# 		# baseline = trial_images_good_binned.sel({'Time (ms)': slice(0, 'CS beg')}).mean(dim='Time (ms)')
+
+# 		baseline = baseline_images.mean(dim='Time (ms)')
+# 		# plt.imshow(baseline, interpolation='none', cmap='viridis')
+# 		deltaF = (trial_images_good_binned - baseline) / (baseline + softthresh)
+# 		# deltaF = (trial_images_good_binned - baseline) / baseline
+
+# 				# # Get a list of traces for each pixel
+# 				# traces = []
+# 				# for x in range(deltaF.shape[1]):
+# 				# 	for y in range(deltaF.shape[2]):
+# 				# 		traces.append(deltaF[:, x, y])
+
+
+# 		# deltaF = (np.clip(deltaF, 1, 3.5) - 1 )/ 2.5
+
+# 		#* Give some colors to the world.
+
+# 		##* Background color
+
+# 		anatomy = trial_images_good_binned.mean(dim='Time (ms)')
+# 		anatomy /= np.median(anatomy *30)
+# 		anatomy = np.clip(anatomy,0,1).fillna(0)
+
+# 		deltaF_images = []
+
+# 		for frame_i, frame in enumerate(deltaF):
+
+# 			# anatomy = trial_images_good_binned[frame_i]
+# 			# anatomy /= np.median(anatomy *30)
+# 			# anatomy = np.clip(anatomy,0,1)
+			
+# 			color_frame_original = (np.clip(frame, 0.5, 3) - 0.5) / 3
+		
+# 			frame = add_colors_to_world(anatomy, color_frame_original)
+
+# 			deltaF_images.append(frame)
+
+# 			if cs_beg_position <= frame_i <= cs_end_position:
+# 				frame = cv2.rectangle(frame, (frame.shape[1] - 10, 0), (frame.shape[1], 10), (255, 255, 0), -1)
+
+# 			# break
+
+		
+
+# 		#* Save deltaF as a multipage TIFF
+# 		deltaF_images = [Image.fromarray(frame) for frame in deltaF_images]
+# 		tiff_path = results_path / 'Videos with deltaF over F' / f"{fish_name}_deltaF_voxels_plane_{plane_i, trial_i}.tiff"
+# 		deltaF_images[0].save(tiff_path, save_all=True, append_images=deltaF_images[1:])
+
+
+# 		# # Save deltaF as a multipage TIFF
+# 		# deltaF_images = [Image.fromarray((frame.values * 255).astype(np.uint8)) for frame in deltaF]
+# 		# tiff_path = results_path / 'Videos with deltaF over F' / f"{fish_name}_deltaF_voxels_plane_{plane_i, trial_i}.tiff"
+# 		# deltaF_images[0].save(tiff_path, save_all=True, append_images=deltaF_images[1:])
+
+
+# 		if trial_i == 3:
+# 			ROI_list = []
+# 			# Create a matplotlib figure
+# 			fig, axs = plt.subplots(1, 4, figsize=(30, 6), squeeze=False, sharey=True)
+
+# 		if trial_i in [2,3]:
+
+# 			# Get a list of traces for each pixel along with their coordinates
+# 			traces = []
+# 			coords = []
+# 			for x in range(deltaF.shape[1]):
+# 				for y in range(deltaF.shape[2]):
+# 					traces.append(deltaF[:, x, y])
+# 					coords.append((x, y))
+
+# 			# Add traces for each pixel
+# 			for trace, (x, y) in zip(traces, coords):
+# 				if max(trace[cs_beg_position:us_beg_position].values) > 3:
+# 					axs[0,trial_i].plot(trace['Time (ms)'], trace.values, color='k', linewidth=1, label=f'Pixel ({x}, {y})', alpha=0.7)
+# 					ROI_list.append((x,y))
+
+# 			# # Add vertical lines for CS and US events
+# 			# axs[0,trial_i].axvline(x=cs_beg_time, color='green', linestyle='--', label='CS Begin')
+# 			# axs[0,trial_i].axvline(x=cs_end_time, color='green', linestyle='--', label='CS End')
+# 			# axs[0,trial_i].axvline(x=us_beg_time, color='red', linestyle='--', label='US Begin')
+# 			# axs[0,trial_i].axvline(x=us_end_time, color='red', linestyle='--', label='US End')
+
+# 			# # Update layout
+# 			# axs[0,trial_i].set_title('DeltaF/F Traces for Each Pixel plane ' + str(plane_i) + ' trial ' + str(trial_i))
+# 			# axs[0,trial_i].set_xlabel('Time (ms)')
+# 			# axs[0,trial_i].set_ylabel('DeltaF/F')
+# 			# axs[0,trial_i].legend(loc='upper left', bbox_to_anchor=(1, 1))
+
+
+
+# 			anatomy_binarized = trial_images_good_binned.mean(dim='Time (ms)')
+# 			anatomy_binarized = np.where(anatomy_binarized > 0, 0.3,0)
+
+# 			anatomy_binarized_rgb = np.stack([anatomy_binarized, anatomy_binarized, anatomy_binarized], axis=-1) 
+
+# 			# mark in the anatomy_binarized image the coords of the pixels in ROI_list
+# 			for x,y in ROI_list:
+# 				anatomy_binarized_rgb[x,y] = [1,0,0]
+
+# 			anatomy_binarized_rgb = Image.fromarray((anatomy_binarized_rgb * 255).astype(np.uint8))
+
+# 			# Save the anatomy_binarized_rgb image as a PNG file
+# 			anatomy_binarized_rgb = anatomy_binarized_rgb.resize((anatomy_binarized_rgb.width * 5, anatomy_binarized_rgb.height * 5))
+# 			anatomy_binarized_rgb.save(results_path / 'Anatomy with ROIs' / (f'{fish_name}_CS ROIs during train_plane ' + str(plane_i) + ' trial ' + str(trial_i) + '.png'), dpi=(600, 600))
+
+
+
+# 		if trial_i in [0,1]:
+
+# 			# Plot the traces of the pixels with the coordinates in ROI_list.
+# 			# Create a matplotlib figure
+# 			# fig, axs[0,trial_i] = plt.subplots(figsize=(15, 6))
+
+# 			ROI_list_before_training = []
+
+# 			for x,y in ROI_list:
+# 				trace = deltaF[:, x, y]
+# 				# Add traces for each pixel
+# 				axs[0,trial_i].plot(trace['Time (ms)'], trace.values, color='k', linewidth=1, label=f'Pixel ({x}, {y})', alpha=0.7)
+
+# 				if max(trace[cs_beg_position:us_beg_position].values) > 3:
+# 					ROI_list_before_training.append((x,y))
+
+# 			anatomy_binarized = trial_images_good_binned.mean(dim='Time (ms)')
+# 			anatomy_binarized = np.where(anatomy_binarized > 0, 0.3,0)
+
+# 			anatomy_binarized_rgb = np.stack([anatomy_binarized, anatomy_binarized, anatomy_binarized], axis=-1)
+
+# 			# mark in the anatomy_binarized image the coords of the pixels in ROI_list
+# 			for x,y in ROI_list_before_training:
+# 				anatomy_binarized_rgb[x,y] = [0,1,0]
+
+# 			anatomy_binarized_rgb = Image.fromarray((anatomy_binarized_rgb * 255).astype(np.uint8))
+			
+# 			# Save the anatomy_binarized_rgb image as a PNG file
+# 			anatomy_binarized_rgb = anatomy_binarized_rgb.resize((anatomy_binarized_rgb.width * 5, anatomy_binarized_rgb.height * 5))
+# 			anatomy_binarized_rgb.save(results_path / 'Anatomy with ROIs' / (f'{fish_name}_CS ROIs before train from CS ROIs during train_plane ' + str(plane_i) + ' trial ' + str(trial_i) + '.png'), dpi=(600, 600))
+
+
+
+
+
+# 		# Add vertical lines for CS and US events
+# 		axs[0,trial_i].axvline(x=cs_beg_time, color='green', linestyle='--', label='CS Begin')
+# 		axs[0,trial_i].axvline(x=cs_end_time, color='green', linestyle='--', label='CS End')
+# 		axs[0,trial_i].axvline(x=us_beg_time, color='red', linestyle='--', label='US Begin')
+# 		axs[0,trial_i].axvline(x=us_end_time, color='red', linestyle='--', label='US End')
+
+# 		# Update layout
+# 		axs[0,trial_i].set_title('DeltaF/F Traces for Each Pixel plane ' + str(plane_i) + ' trial ' + str(trial_i))
+# 		axs[0,trial_i].set_xlabel('Time (ms)')
+# 		axs[0,trial_i].set_ylabel('DeltaF/F')
+# 		axs[0,trial_i].legend(loc='upper left', bbox_to_anchor=(1, 1))
+
+# 		if trial_i == 0:
+# 			# Save the figure as a png with tight_layout
+# 			fig.tight_layout()
+# 			fig.savefig(results_path / 'ROI traces' / f"{fish_name}_traces deltaF over F_plane {plane_i}.png")
+
+# 		# break
+# 	# break
+
+
+
+
+
+
+
+
+#! 4-plane experiment
+
+# number_imaged_planes = 4
+# number_reps_plane_consective = 2
+# # relevant_cs = [range(5,15),
+# # 			  range(15,25), range(25,55), range(55,45), range(45,55),
+# # 			  range(55,65), range(65,75), range(75,85)]
+# relevant_cs = [range(5,13),
+# 				range(15,23), range(25,33), range(35,43), range(45,53),
+# 				range(55,63), range(67,75), range(77,85)]
+# index_list = [np.concatenate([[i+number_reps_plane_consective*x*number_imaged_planes, i+number_reps_plane_consective*x*number_imaged_planes+1] for x in range(len(relevant_cs))]) for i in range(0, number_reps_plane_consective * number_imaged_planes, number_reps_plane_consective)]
+
+
+trials_list = [11, 12] + list(range(0,10)) + list(range(13,16))
+
+# plane_images.shape
+plane_anatomy = [[] for _ in range(len(all_data.planes))]
+
+for plane_i, plane in tqdm(enumerate(all_data.planes)):
+
+	for trial_i in tqdm(range(len(all_data.planes[0].trials))):
+
+		trial_images = all_data.planes[plane_i].trials[trial_i].images
+		trial_images.values = fi.align_frames(trial_images.to_numpy(), np.stack([trial_images['shift correction in X'].to_numpy(), trial_images['shift correction in Y'].to_numpy()]).swapaxes(0,1))
+		trial_images = trial_images.sel({'Time (ms)':trial_images['mask good frames']})
+
+		plane_anatomy[plane_i].append(trial_images.values)
+		# plane_images[plane_i] += trial_images.mean(dim='Time (ms)')
+		# if trial_i == 1:
+		# 	break
+		# break
+	plane_anatomy[plane_i] = np.concatenate(plane_anatomy[plane_i], axis=0)
+	# break
+	# plane_images[plane_i] /= len(trials_list)
+
+	#* Calcultate the correlation map.
+	# Inspired in Suit2p. There, the function that computes the correlation map is celldetect2.getVmap.
+	correlation_map = np.linalg.norm(ndimage.gaussian_filter(plane_anatomy[plane_i], sigma=p.correlation_map_sigma, axes=(1,2)), axis=0)**2 / ndimage.gaussian_filter(np.linalg.norm(plane_anatomy[plane_i], axis=0), sigma=p.correlation_map_sigma)**2
+
+	# Set the correlation around the image to 0
+	correlation_map[:border_size, :] = 0
+	correlation_map[-border_size:, :] = 0
+	correlation_map[:, :border_size] = 0
+	correlation_map[:, -border_size:] = 0
+
+	# plt.figure('Correlation map')
+	# plt.imshow(correlation_map, interpolation='none', vmin=0.3)
+	# plt.colorbar(shrink=0.5)
+	# plt.show()
+	# break
+
+	##* Set to 0 pixels where the correlation is below a threshold.
+	plane_anatomy[plane_i] = np.mean(plane_anatomy[plane_i], axis=0)
+	plane_anatomy[plane_i] = np.where(correlation_map > correlation_thr, plane_anatomy[plane_i], 0)
+
+# plt.imshow(np.mean(plane_images[0],axis=0), interpolation='none')
+# plt.colorbar(shrink=0.5)
+
+
+for plane_i, plane in tqdm(enumerate(all_data.planes)):
+
+	# if plane_i not in [0,1]:
+	# 	continue
+
+	plane_anatomy_mask = np.where(plane_anatomy[plane_i] > 0, 0.5, 0).copy()
+
+	for trial_i in tqdm(trials_list):
+
+	# 	break
+	# break
+
+#!!!!!!!!!!!!!!!!!!!!
+		# trial_i=3
+		# plane_i=12
+#!!!!!!!!!!!!!!!!!!!!
+
+		protocol = all_data.planes[plane_i].trials[trial_i].protocol
+
+		cs_beg_time = protocol.loc[protocol['CS beg']!=0, 'Time (ms)'].values[0]
+		cs_end_time = protocol.loc[protocol['CS end']!=0, 'Time (ms)'].values[0]
+				
+		if (us_beg_time := protocol.loc[protocol['US beg']!=0, 'Time (ms)']).empty:
+			us_beg_time = cs_beg_time + interval_between_CS_onset_US_onset*1000
+			us_end_time = us_beg_time + 100
+		else:
+			us_beg_time = us_beg_time.values[0]
+			us_end_time = protocol.loc[protocol['US end']!=0, 'Time (ms)'].values[0]
+		# us_beg_time = protocol.loc[protocol['US beg']!=0, 'Time (ms)'].values[0]
+
+		trial_images = all_data.planes[plane_i].trials[trial_i].images
+		trial_images.values = fi.align_frames(trial_images.to_numpy(), np.stack([trial_images['shift correction in X'].to_numpy(), trial_images['shift correction in Y'].to_numpy()]).swapaxes(0,1))
+
+
+		trial_images_good = trial_images.sel({'Time (ms)':trial_images['mask good frames']}).copy()
+
+
+		# #* Calcultate the correlation map.
+		# # Inspired in Suit2p. There, the function that computes the correlation map is celldetect2.getVmap.
+		# correlation_map = np.linalg.norm(ndimage.gaussian_filter(trial_images_good, sigma=p.correlation_map_sigma, axes=(1,2)), axis=0)**2 / ndimage.gaussian_filter(np.linalg.norm(trial_images_good, axis=0), sigma=p.
+		# correlation_map_sigma)**2
+
+		# # Set the correlation around the image to 0
+		# correlation_map[:border_size, :] = 0
+		# correlation_map[-border_size:, :] = 0
+		# correlation_map[:, :border_size] = 0
+		# correlation_map[:, -border_size:] = 0
+
+		# # plt.figure('Correlation map')
+		# # plt.imshow(correlation_map, interpolation='none', vmin=0.3)
+		# # plt.colorbar(shrink=0.5)
+		# # plt.show()
+
+		# ##* Set to 0 pixels where the correlation is below a threshold.
+		# trial_images_good = trial_images_good.where(correlation_map > correlation_thr, 0)
+
+
+		# # Take the median of trial_images_good over time
+		# median_image = np.median(trial_images_good, axis=0)
+
+		# ##* Set to 0 pixels where the median is below a threshold.
+		# trial_images_good = trial_images_good.where(median_image >= median_thr, 0)
+
+		# # plt.imshow(trial_images_good.mean(dim='Time (ms)'))
+		
+
+		##* Set to 0 pixels where the anatomy mask is below a threshold.
+		trial_images_good = trial_images_good.where(plane_anatomy_mask > 0, 0)
+		# plt.imshow(np.mean(trial_images_good, axis=0))
+
+
+		trial_images_good_binned = block_reduce(trial_images_good, block_size=(1, p.voxel_bin_size, p.voxel_bin_size), func=np.mean, cval=0)
+
+		trial_images_good_binned = xr.DataArray(trial_images_good_binned, coords={'index': ('Time (ms)', trial_images_good.index.values), 'Time (ms)': trial_images_good.coords['Time (ms)'].values, 'x': np.arange(trial_images_good_binned.shape[1]), 'y': np.arange(trial_images_good_binned.shape[2]) }, name='trial_images_good_binned',  dims=['Time (ms)', 'x', 'y'])
+
+		# plt.imshow(trial_images_good_binned.mean(dim='Time (ms)'), interpolation='none')
+		# plt.colorbar(shrink=0.5)
+
+		baseline_images = trial_images_good_binned.loc[trial_images_good_binned['Time (ms)'] < cs_beg_time]
+		# CS_US_images = trial_images_good_binned.loc[(trial_images_good_binned['Time (ms)'] > cs_beg_time) & (trial_images_good_binned['Time (ms)'] < us_beg_time)]
+
+
+		cs_beg_position = np.where(trial_images_good_binned['Time (ms)'].values >= cs_beg_time)[0][0]
+		cs_end_position = np.where(trial_images_good_binned['Time (ms)'].values <= cs_end_time)[0][-1]
+		us_beg_position = np.where(trial_images_good_binned['Time (ms)'].values >= us_beg_time)[0][0]
+		us_end_position = np.where(trial_images_good_binned['Time (ms)'].values <= us_end_time)[0][-1]
+
+
+		# cs_beg_time = trial_images_good_binned.sel({'Time (ms)' : cs_beg}, method='bfill')['Time (ms)'].values
+		# cs_end_time = trial_images_good_binned.sel({'Time (ms)' : cs_end}, method='bfill')['Time (ms)'].values
+		# us_beg_time = trial_images_good_binned.sel({'Time (ms)' : us_beg}, method='bfill')['Time (ms)'].values
+		# us_end_time = trial_images_good_binned.sel({'Time (ms)' : us_end}, method='bfill')['Time (ms)'].values
+
+		cs_beg_index = trial_images_good_binned.sel({'Time (ms)' : cs_beg_time}, method='bfill')['Time (ms)'].index.values
+		cs_end_index = trial_images_good_binned.sel({'Time (ms)' : cs_end_time}, method='bfill')['Time (ms)'].index.values
+		us_beg_index = trial_images_good_binned.sel({'Time (ms)' : us_beg_time}, method='bfill')['Time (ms)'].index.values
+		us_end_index = trial_images_good_binned.sel({'Time (ms)' : us_end_time}, method='bfill')['Time (ms)'].index.values
+
+		##* Calculate deltaF/F for each pixel
+		# baseline = trial_images_good_binned.sel({'Time (ms)': slice(0, 'CS beg')}).mean(dim='Time (ms)')
+
+		baseline = baseline_images.mean(dim='Time (ms)')
+		# plt.imshow(baseline, interpolation='none', cmap='viridis')
+		deltaF = (trial_images_good_binned - baseline) / (baseline + softthresh)
+		# deltaF = (trial_images_good_binned - baseline) / baseline
+
+				# # Get a list of traces for each pixel
+				# traces = []
+				# for x in range(deltaF.shape[1]):
+				# 	for y in range(deltaF.shape[2]):
+				# 		traces.append(deltaF[:, x, y])
+
+
+		# deltaF = (np.clip(deltaF, 1, 3.5) - 1 )/ 2.5
+
+		#* Give some colors to the world.
+
+		##* Background color
+
+		anatomy = trial_images_good_binned.mean(dim='Time (ms)')
+		anatomy /= np.median(anatomy *30)
+		anatomy = np.clip(anatomy,0,1).fillna(0)
+
+		deltaF_images = []
+
+		for frame_i, frame in enumerate(deltaF):
+
+			# anatomy = trial_images_good_binned[frame_i]
+			# anatomy /= np.median(anatomy *30)
+			# anatomy = np.clip(anatomy,0,1)
+			
+			color_frame_original = (np.clip(frame, 0.5, 3) - 0.5) / 3
+		
+			frame = add_colors_to_world(anatomy, color_frame_original)
+
+			deltaF_images.append(frame)
+
+			if cs_beg_position <= frame_i <= cs_end_position:
+				frame = cv2.rectangle(frame, (frame.shape[1] - 10, 0), (frame.shape[1], 10), (255, 255, 0), -1)
+
+			# break
+
+		
+
+		#* Save deltaF as a multipage TIFF
+		deltaF_images = [Image.fromarray(frame) for frame in deltaF_images]
+		tiff_path = results_path / 'Videos with deltaF over F' / f"{fish_name}_deltaF_voxels_plane_{plane_i, trial_i}.tiff"
+		deltaF_images[0].save(tiff_path, save_all=True, append_images=deltaF_images[1:])
+
+
+		# # Save deltaF as a multipage TIFF
+		# deltaF_images = [Image.fromarray((frame.values * 255).astype(np.uint8)) for frame in deltaF]
+		# tiff_path = results_path / 'Videos with deltaF over F' / f"{fish_name}_deltaF_voxels_plane_{plane_i, trial_i}.tiff"
+		# deltaF_images[0].save(tiff_path, save_all=True, append_images=deltaF_images[1:])
+
+
+		if trial_i == 11:
+			ROI_list = []
+			# Create a matplotlib figure
+			fig, axs = plt.subplots(1, len(all_data.planes[0].trials), figsize=(60, 6), squeeze=False, sharey=True)
+
+		if trial_i in [11,12]:
+
+			# Get a list of traces for each pixel along with their coordinates
+			traces = []
+			coords = []
+			for x in range(deltaF.shape[1]):
+				for y in range(deltaF.shape[2]):
+					traces.append(deltaF[:, x, y])
+					coords.append((x, y))
+
+			# Add traces for each pixel
+			for trace, (x, y) in zip(traces, coords):
+				if max(trace[cs_beg_position:us_beg_position].values) > 3:
+					axs[0,trial_i].plot(trace['Time (ms)'], trace.values, color='k', linewidth=1, label=f'Pixel ({x}, {y})', alpha=0.7)
+					ROI_list.append((x,y))
+
+			# # Add vertical lines for CS and US events
+			# axs[0,trial_i].axvline(x=cs_beg_time, color='green', linestyle='--', label='CS Begin')
+			# axs[0,trial_i].axvline(x=cs_end_time, color='green', linestyle='--', label='CS End')
+			# axs[0,trial_i].axvline(x=us_beg_time, color='red', linestyle='--', label='US Begin')
+			# axs[0,trial_i].axvline(x=us_end_time, color='red', linestyle='--', label='US End')
+
+			# # Update layout
+			# axs[0,trial_i].set_title('DeltaF/F Traces for Each Pixel plane ' + str(plane_i) + ' trial ' + str(trial_i))
+			# axs[0,trial_i].set_xlabel('Time (ms)')
+			# axs[0,trial_i].set_ylabel('DeltaF/F')
+			# axs[0,trial_i].legend(loc='upper left', bbox_to_anchor=(1, 1))
+
+
+
+			# anatomy_binarized = trial_images_good_binned.mean(dim='Time (ms)')
+			anatomy_binarized = block_reduce(plane_anatomy[plane_i], block_size=(p.voxel_bin_size, p.voxel_bin_size), func=np.mean, cval=0)
+			anatomy_binarized = np.where(anatomy_binarized > 0, 0.5, 0)
+
+			anatomy_binarized_rgb = np.stack([anatomy_binarized, anatomy_binarized, anatomy_binarized], axis=-1) 
+
+			# mark in the anatomy_binarized image the coords of the pixels in ROI_list
+			for x,y in ROI_list:
+				anatomy_binarized_rgb[x,y] = [1,0,0]
+
+			anatomy_binarized_rgb = Image.fromarray((anatomy_binarized_rgb * 255).astype(np.uint8))
+
+			# Save the anatomy_binarized_rgb image as a PNG file
+			anatomy_binarized_rgb = anatomy_binarized_rgb.resize((anatomy_binarized_rgb.width * 5, anatomy_binarized_rgb.height * 5))
+			anatomy_binarized_rgb.save(results_path / 'Anatomy with ROIs' / (f'{fish_name}_CS ROIs during train_plane ' + str(plane_i) + ' trial ' + str(trial_i) + '.png'), dpi=(600, 600))
+
+
+
+		# if trial_i in [0,1]:
+		else:
+
+			# Plot the traces of the pixels with the coordinates in ROI_list.
+			# Create a matplotlib figure
+			# fig, axs[0,trial_i] = plt.subplots(figsize=(15, 6))
+
+			ROI_list_before_training = []
+
+			for x,y in ROI_list:
+				trace = deltaF[:, x, y]
+				# Add traces for each pixel
+				axs[0,trial_i].plot(trace['Time (ms)'], trace.values, color='k', linewidth=1, label=f'Pixel ({x}, {y})', alpha=0.7)
+
+				if max(trace[cs_beg_position:us_beg_position].values) > 3:
+					ROI_list_before_training.append((x,y))
+
+			# anatomy_binarized = trial_images_good_binned.mean(dim='Time (ms)')
+			anatomy_binarized = block_reduce(plane_anatomy[plane_i], block_size=(p.voxel_bin_size, p.voxel_bin_size), func=np.mean, cval=0)
+			anatomy_binarized = np.where(anatomy_binarized > 0, 0.5, 0)
+
+			anatomy_binarized_rgb = np.stack([anatomy_binarized, anatomy_binarized, anatomy_binarized], axis=-1)
+
+			# mark in the anatomy_binarized image the coords of the pixels in ROI_list
+			for x,y in ROI_list_before_training:
+				anatomy_binarized_rgb[x,y] = [0,1,0]
+
+			anatomy_binarized_rgb = Image.fromarray((anatomy_binarized_rgb * 255).astype(np.uint8))
+			
+			# Save the anatomy_binarized_rgb image as a PNG file
+			anatomy_binarized_rgb = anatomy_binarized_rgb.resize((anatomy_binarized_rgb.width * 5, anatomy_binarized_rgb.height * 5))
+			anatomy_binarized_rgb.save(results_path / 'Anatomy with ROIs' / (f'{fish_name}_CS ROIs before train from CS ROIs during train_plane ' + str(plane_i) + ' trial ' + str(trial_i) + '.png'), dpi=(600, 600))
+
+
+		# Add vertical lines for CS and US events
+		axs[0,trial_i].axvline(x=cs_beg_time, color='green', linestyle='--', label='CS Begin')
+		axs[0,trial_i].axvline(x=cs_end_time, color='green', linestyle='--', label='CS End')
+		axs[0,trial_i].axvline(x=us_beg_time, color='red', linestyle='--', label='US Begin')
+		axs[0,trial_i].axvline(x=us_end_time, color='red', linestyle='--', label='US End')
+
+		# Update layout
+		axs[0,trial_i].set_title('DeltaF/F Traces for Each Pixel plane ' + str(plane_i) + ' trial ' + str(trial_i))
+		axs[0,trial_i].set_xlabel('Time (ms)')
+		axs[0,trial_i].set_ylabel('DeltaF/F')
+		axs[0,trial_i].legend(loc='upper left', bbox_to_anchor=(1, 1))
+
+		if trial_i == len(trials_list):
+			# Save the figure as a png with tight_layout
+			fig.tight_layout()
+			fig.savefig(results_path / 'ROI traces' / f"{fish_name}_traces deltaF over F_plane {plane_i}.png")
+
+
+
+	# 	break
+	# break
+
+
+
+
+
+
+
+
+
+
+trial_images_good = trial_images.sel({'Time (ms)':trial_images['mask good frames']}).copy()
+
+A = trial_images_good.copy()
+A.values = np.array([trial_images_good.median(dim='Time (ms)').values]*trial_images_good.shape[0])
+# A = trial_images_good.median(dim='Time (ms)')
+
+
+B = np.where(A < 0,0,trial_images_good)
+A.shape
+B.shape
+trial_images_good.shape
+# B = trial_images_good.where(A > 0,0,1)
+
+plt.imshow(A.mean(dim='Time (ms)'), interpolation='none')
+
+plt.imshow(B.mean(axis=0), vmax=10)
+plt.colorbar(shrink=0.5)
+
+
+
+
+trial_images_good_fish = np.where(np.median(trial_images_good, axis=0) <= 0, 0, 1).astype(dtype='bool')
+trial_images_good_fish = xr.DataArray(
+	np.where(np.median(trial_images_good, axis=0) <= 0, 0, 1).astype(dtype='bool'),
+	dims=['x', 'y'],
+	coords={'x': trial_images_good.coords['x'], 'y': trial_images_good.coords['y']}
+)
+
+
+trial_images_good.sel({'Time (ms)':trial_images_good_fish})
+
+trial_template_aligned = f.get_template_image(trial_images_aligned.sel(time=trial_images['mask good frames']))
+
+
+
+
+
+
+
+
+# Plot all traces in a line plot with grey color
+fig, ax = plt.subplots(figsize=(50, 6))
+for trace in traces:
+	ax.plot(trace['Time (ms)'], trace.values, color='grey', alpha=0.5)
+
+ax.plot(trace['Time (ms)'], np.zeros(len(trace)), color='white', alpha=0)
+
+ax.set_xlabel('Time (ms)')
+ax.set_ylabel('DeltaF/F')
+ax.set_title('DeltaF/F Traces for Each Pixel')
+
+
+# ax.axvline(x=cs_beg_index, color='green', linestyle='--', label='CS Begin')
+# ax.axvline(x=cs_end_index, color='green', linestyle='--', label='CS End')
+# ax.axvline(x=us_beg_index, color='red', linestyle='--', label='US Begin')
+# ax.axvline(x=us_end_index, color='red', linestyle='--', label='US End')
+
+ax.axvline(x=cs_beg_time, color='green', linestyle='--', label='CS Begin')
+ax.axvline(x=cs_end_time, color='green', linestyle='--', label='CS End')
+ax.axvline(x=us_beg_time, color='red', linestyle='--', label='US Begin')
+ax.axvline(x=us_end_time, color='red', linestyle='--', label='US End')
+
+ax.legend()
+
+
+
+
+
+# Get a list of traces for each pixel along with their coordinates
+traces = []
+coords = []
+for x in range(deltaF.shape[1]):
+	for y in range(deltaF.shape[2]):
+		traces.append(deltaF[:, x, y])
+		coords.append((x, y))
+
+
+ROI_list = []
+
+# Create a matplotlib figure
+fig, ax = plt.subplots(figsize=(15, 6))
+# Add traces for each pixel
+for trace, (x, y) in zip(traces, coords):
+	if max(trace[cs_beg_position:cs_end_position].values) > 3:
+		ax.plot(trace['Time (ms)'], trace.values, color='grey', linewidth=1, label=f'Pixel ({x}, {y})')
+		ROI_list.append((x,y))
+
+# Add vertical lines for CS and US events
+ax.axvline(x=cs_beg_time, color='green', linestyle='--', label='CS Begin')
+ax.axvline(x=cs_end_time, color='green', linestyle='--', label='CS End')
+ax.axvline(x=us_beg_time, color='red', linestyle='--', label='US Begin')
+ax.axvline(x=us_end_time, color='red', linestyle='--', label='US End')
+
+# Update layout
+ax.set_title('DeltaF/F Traces for Each Pixel')
+ax.set_xlabel('Time (ms)')
+ax.set_ylabel('DeltaF/F')
+ax.legend()
+plt.show()
+
+
+
+
+
+
+# Get a list of traces for each pixel along with their coordinates
+traces = []
+coords = []
+for x in range(deltaF.shape[1]):
+	for y in range(deltaF.shape[2]):
+		traces.append(deltaF[:, x, y])
+		coords.append((x, y))
+
+# Create a plotly figure
+fig = go.Figure()
+
+# Add traces for each pixel
+for trace, (x, y) in zip(traces, coords):
+	if max(trace[cs_beg_position:cs_end_position].values) > 3:
+		fig.add_trace(go.Scatter(x=trace['Time (ms)'], y=trace.values, mode='lines', line=dict(color='grey', width=1), name=f'Pixel ({x}, {y})'))
+
+# Add vertical lines for CS and US events
+fig.add_vline(x=cs_beg_time, line=dict(color='green', dash='dash'), name='CS Begin')
+fig.add_vline(x=cs_end_time, line=dict(color='green', dash='dash'), name='CS End')
+fig.add_vline(x=us_beg_time, line=dict(color='red', dash='dash'), name='US Begin')
+fig.add_vline(x=us_end_time, line=dict(color='red', dash='dash'), name='US End')
+
+# Update layout
+fig.update_layout(
+	title='DeltaF/F Traces for Each Pixel',
+	xaxis_title='Time (ms)',
+	yaxis_title='DeltaF/F',
+	showlegend=False,
+	width=1500,
+	height=600
+)
+
+fig.update_layout(showlegend=True)
+
+fig.show()
+
+
+plt.imshow(trial_images_good_binned.mean(dim='Time (ms)'), interpolation='none')
+
+plt.imshow((CS_US_images.mean(dim='Time (ms)') - baseline)/(baseline + softthresh), interpolation='none')
+
+plt.imshow(CS_US_images.mean(dim='Time (ms)'), interpolation='none')
+
+
+
+
+
+
+#* Save rois_zscore_over_time as a TIFF file.
+tifffile.imwrite(imaging_path_ /  fish_name / (fish_name + '_deltaF_voxels_plane ' + str(plane_i) + '.tif'), deltaF.astype('float32'))
+
+# endregion
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 #* Split data into 3 periods: before CS, from CS onset to US onset and after US onset.
@@ -663,8 +1495,8 @@ plt.show()
 # eye_mask[:50, 350:450] = False
 # plt.imshow(eye_mask)
 
-# # # A = ndimage.uniform_filter(plane_trials_good_images, size=(30, 30), axes=(1,2))
-# # ndimage.gaussian_filter(plane_trials_good_images, sigma=gaussian_filter_sigma, axes=(1,2))
+# # # A = ndimage.uniform_filter(trial_images_good, size=(30, 30), axes=(1,2))
+# # ndimage.gaussian_filter(trial_images_good, sigma=gaussian_filter_sigma, axes=(1,2))
 
 # # plt.imshow(np.mean(A, axis=0))
 # # plt.colorbar()
@@ -725,10 +1557,10 @@ plt.show()
 # 	#* Discard good frames due to motion, gating of the PMT or plane change.
 # 	plane_trials_mask_good_frames = np.concatenate([t.mask_good_frames for t in plane.trials])
 # 	plane_bad_frames_index = np.where(plane_trials_mask_good_frames)[0]
-# 	plane_trials_good_images = plane_trials_all_images[~plane_trials_mask_good_frames].copy()
+# 	trial_images_good = plane_trials_all_images[~plane_trials_mask_good_frames].copy()
 
 # 	plt.title('All good images from plane')
-# 	plt.imshow(np.mean(plane_trials_good_images, axis=0))
+# 	plt.imshow(np.mean(trial_images_good, axis=0))
 # 	plt.colorbar
 # 	plt.show()
 
@@ -742,10 +1574,10 @@ plt.show()
 
 # #! not doing anything here
 # 	#* Filter in space.
-# 	plane_trials_good_images_filtered = ndimage.gaussian_filter(plane_trials_good_images, sigma=gaussian_filter_sigma, axes=(1,2))
+# 	trial_images_good_filtered = ndimage.gaussian_filter(trial_images_good, sigma=gaussian_filter_sigma, axes=(1,2))
 
 # 	plt.title('All good images from plane filtered')
-# 	plt.imshow(np.mean(plane_trials_good_images_filtered, axis=0))
+# 	plt.imshow(np.mean(trial_images_good_filtered, axis=0))
 # 	plt.colorbar
 
 
@@ -760,7 +1592,7 @@ plt.show()
 # #!!!!!!!!!!!!!!!!! move it further down
 # 	#* Calcultate the correlation map.
 # 	# Inspired in Suit2p. There, the function that computes the correlation map is celldetect2.getVmap.
-# 	correlation_map = np.linalg.norm(ndimage.gaussian_filter(plane_trials_good_images, sigma=correlation_map_sigma, axes=(1,2)), axis=0)**2 / ndimage.gaussian_filter(np.linalg.norm(plane_trials_good_images, axis=0), sigma=correlation_map_sigma)**2
+# 	correlation_map = np.linalg.norm(ndimage.gaussian_filter(trial_images_good, sigma=correlation_map_sigma, axes=(1,2)), axis=0)**2 / ndimage.gaussian_filter(np.linalg.norm(trial_images_good, axis=0), sigma=correlation_map_sigma)**2
 
 # 	plt.figure('Correlation map')
 # 	plt.imshow(correlation_map, interpolation='none')
@@ -774,24 +1606,24 @@ plt.show()
 
 # 	#* Subtract the background.
 # 	# Pixel values equal to 0 are ignored to discard the artificial edges of the images that were introduced during the motion correction.
-# 	images_mean = np.nanmean(np.where(plane_trials_good_images == 0, np.nan, plane_trials_good_images), axis=(1,2))
+# 	images_mean = np.nanmean(np.where(trial_images_good == 0, np.nan, trial_images_good), axis=(1,2))
 
-# 	images_mean = np.nanmean(plane_trials_good_images, axis=(1,2))
-# 	for image_i in range(plane_trials_good_images.shape[0]):
-# 		plane_trials_good_images[image_i] -= images_mean[image_i]
+# 	images_mean = np.nanmean(trial_images_good, axis=(1,2))
+# 	for image_i in range(trial_images_good.shape[0]):
+# 		trial_images_good[image_i] -= images_mean[image_i]
 
 # 	del images_mean
 
 # 	#* Mask the background.
-# 	plane_images_mask_fish = np.where(np.median(plane_trials_good_images, axis=0) <= 0, 0, 1).astype(dtype='bool')
+# 	plane_images_mask_fish = np.where(np.median(trial_images_good, axis=0) <= 0, 0, 1).astype(dtype='bool')
 
 # 	plane_images_mask_fish_without_eyes = plane_images_mask_fish & eye_mask
 
 # 	#* Set to 0 the pixels that are not part of the fish in the images. Also, mask the eyes.
-# 	plane_trials_good_images = np.where(plane_images_mask_fish_without_eyes, plane_trials_good_images, 0)
+# 	trial_images_good = np.where(plane_images_mask_fish_without_eyes, trial_images_good, 0)
 
 # 	plt.title('All good images from plane masked background')
-# 	plt.imshow(np.mean(plane_trials_good_images, axis=0))
+# 	plt.imshow(np.mean(trial_images_good, axis=0))
 # 	plt.colorbar(shrink=0.5)
 # 	plt.show()
 
@@ -804,20 +1636,20 @@ plt.show()
 # 	#* Bin the 2D images.
 	
 
-# 	plane_trials_good_images_binned = block_reduce(plane_trials_good_images, block_size=(1, voxel_bin_size, voxel_bin_size), func=np.mean, cval=0)
+# 	trial_images_good_binned = block_reduce(trial_images_good, block_size=(1, voxel_bin_size, voxel_bin_size), func=np.mean, cval=0)
 
-# 	plt.imshow(np.mean(plane_trials_good_images_binned, axis=0), interpolation='none')
+# 	plt.imshow(np.mean(trial_images_good_binned, axis=0), interpolation='none')
 
 
-# 	plane_trials_good_images_binned_ = np.empty(tuple([plane_trials_all_images.shape[0]] + list(plane_trials_good_images_binned.shape[1:]))) * np.nan
-# 	plane_trials_good_images_binned_[~plane_trials_mask_good_frames, :, :] = plane_trials_good_images_binned
+# 	trial_images_good_binned_ = np.empty(tuple([plane_trials_all_images.shape[0]] + list(trial_images_good_binned.shape[1:]))) * np.nan
+# 	trial_images_good_binned_[~plane_trials_mask_good_frames, :, :] = trial_images_good_binned
 
-# 	plane_trials_good_images_binned = plane_trials_good_images_binned_.copy()
+# 	trial_images_good_binned = trial_images_good_binned_.copy()
 
-# 	del plane_trials_good_images_binned_
+# 	del trial_images_good_binned_
 
 # 	plt.title('All good images from plane binned')
-# 	plt.imshow(np.mean(plane_trials_good_images_binned, axis=0))
+# 	plt.imshow(np.mean(trial_images_good_binned, axis=0))
 # 	plt.colorbar(shrink=0.5)
 # 	plt.show()
 
@@ -828,22 +1660,22 @@ plt.show()
 
 # 	for i in range(len(cs_indices)):
 
-# 		baseline = np.nanmean(plane_trials_good_images_binned[[cs_indices[i, 0] - 20, cs_indices[i, 0]]], axis=0)
+# 		baseline = np.nanmean(trial_images_good_binned[[cs_indices[i, 0] - 20, cs_indices[i, 0]]], axis=0)
 		
-# 		during_cs = np.nanmean(plane_trials_good_images_binned[[cs_indices[i, 0], cs_indices[i, 1]]], axis=0)
+# 		during_cs = np.nanmean(trial_images_good_binned[[cs_indices[i, 0], cs_indices[i, 1]]], axis=0)
 
 # 		deltaF_ratio.append((during_cs - baseline) / baseline)
 
 # 		if i == 0:
 			
-# 			deltaF.append((plane_trials_good_images_binned[ : plane_trials_number_images[0]] - baseline) / baseline)
+# 			deltaF.append((trial_images_good_binned[ : plane_trials_number_images[0]] - baseline) / baseline)
 
 # 		elif i < len(cs_indices)-1:
 
-# 			deltaF.append((plane_trials_good_images_binned[np.cumsum(plane_trials_number_images)[i-1] : np.cumsum(plane_trials_number_images)[i]] - baseline) / baseline)
+# 			deltaF.append((trial_images_good_binned[np.cumsum(plane_trials_number_images)[i-1] : np.cumsum(plane_trials_number_images)[i]] - baseline) / baseline)
 
 # 		else:
-# 			deltaF.append((plane_trials_good_images_binned[np.cumsum(plane_trials_number_images)[i-1] : ] - baseline) / baseline)
+# 			deltaF.append((trial_images_good_binned[np.cumsum(plane_trials_number_images)[i-1] : ] - baseline) / baseline)
 
 # 	deltaF = np.concatenate(deltaF)
 
@@ -923,7 +1755,7 @@ plt.show()
 
 # 	#* ROIs for the all the trials of the same plane.
 # 	#TODO need to rewrite all this part, using Mike's and Ruben's code
-# 	all_traces, all_rois, used_pixels, correlation_map_ = f.get_ROIs(Nrois=100, correlation_map=correlation_map, images=plane_trials_good_images_filtered, threshold=0.3, max_pixels=60)
+# 	all_traces, all_rois, used_pixels, correlation_map_ = f.get_ROIs(Nrois=100, correlation_map=correlation_map, images=trial_images_good_filtered, threshold=0.3, max_pixels=60)
 
 # 	plt.imshow(zscore(all_traces, 1), aspect="auto", cmap="RdBu_r")
 # 	plt.savefig(imaging_path_ / fish_name / (fish_name + 'zscore ' + str(plane_i) + '.tif'))
@@ -1295,10 +2127,10 @@ plt.show()
 # 	#* Discard good frames due to motion, gating of the PMT or plane change.
 # 	plane_trials_mask_good_frames = np.concatenate([t.mask_good_frames for t in plane.trials])
 # 	plane_bad_frames_index = np.where(plane_trials_mask_good_frames)[0]
-# 	plane_trials_good_images = plane_trials_all_images[~plane_trials_mask_good_frames].copy()
+# 	trial_images_good = plane_trials_all_images[~plane_trials_mask_good_frames].copy()
 
 # 	plt.title('All good images from plane')
-# 	plt.imshow(np.mean(plane_trials_good_images, axis=0))
+# 	plt.imshow(np.mean(trial_images_good, axis=0))
 # 	plt.colorbar
 # 	plt.show()
 
@@ -1312,16 +2144,16 @@ plt.show()
 
 
 # 	#* Filter in space.
-# 	plane_trials_good_images_filtered = ndimage.gaussian_filter(plane_trials_good_images, sigma=gaussian_filter_sigma, axes=(1,2))
+# 	trial_images_good_filtered = ndimage.gaussian_filter(trial_images_good, sigma=gaussian_filter_sigma, axes=(1,2))
 
 # 	plt.title('All good images from plane filtered')
-# 	plt.imshow(np.mean(plane_trials_good_images_filtered, axis=0))
+# 	plt.imshow(np.mean(trial_images_good_filtered, axis=0))
 # 	plt.colorbar
 
 # #!!!!!!!!!!!!!!!!! move it further down
 # 	#* Calcultate the correlation map.
 # 	# Inspired in Suit2p. There, the function that computes the correlation map is celldetect2.getVmap.
-# 	correlation_map = np.linalg.norm(ndimage.gaussian_filter(plane_trials_good_images, sigma=correlation_map_sigma, axes=(1,2)), axis=0)**2 / ndimage.gaussian_filter(np.linalg.norm(plane_trials_good_images, axis=0), sigma=correlation_map_sigma)**2
+# 	correlation_map = np.linalg.norm(ndimage.gaussian_filter(trial_images_good, sigma=correlation_map_sigma, axes=(1,2)), axis=0)**2 / ndimage.gaussian_filter(np.linalg.norm(trial_images_good, axis=0), sigma=correlation_map_sigma)**2
 
 # 	plt.figure('Correlation map')
 # 	plt.imshow(correlation_map)
@@ -1335,24 +2167,24 @@ plt.show()
 
 # 	#* Subtract the background.
 # 	# Pixel values equal to 0 are ignored to discard the artificial edges of the images that were introduced during the motion correction.
-# 	images_mean = np.nanmean(np.where(plane_trials_good_images == 0, np.nan, plane_trials_good_images), axis=(1,2))
+# 	images_mean = np.nanmean(np.where(trial_images_good == 0, np.nan, trial_images_good), axis=(1,2))
 
-# 	images_mean = np.nanmean(plane_trials_good_images, axis=(1,2))
-# 	for image_i in range(plane_trials_good_images.shape[0]):
-# 		plane_trials_good_images[image_i] -= images_mean[image_i]
+# 	images_mean = np.nanmean(trial_images_good, axis=(1,2))
+# 	for image_i in range(trial_images_good.shape[0]):
+# 		trial_images_good[image_i] -= images_mean[image_i]
 
 # 	del images_mean
 
 # 	#* Mask the background.
-# 	plane_images_mask_fish = np.where(np.median(plane_trials_good_images, axis=0) <= 0, 0, 1).astype(dtype='bool')
+# 	plane_images_mask_fish = np.where(np.median(trial_images_good, axis=0) <= 0, 0, 1).astype(dtype='bool')
 
 # 	plane_images_mask_fish_without_eyes = plane_images_mask_fish & eye_mask
 
 # 	#* Set to 0 the pixels that are not part of the fish in the images. Also, mask the eyes.
-# 	plane_trials_good_images = np.where(plane_images_mask_fish_without_eyes, plane_trials_good_images, 0)
+# 	trial_images_good = np.where(plane_images_mask_fish_without_eyes, trial_images_good, 0)
 
 # 	plt.title('All good images from plane masked background')
-# 	plt.imshow(np.mean(plane_trials_good_images, axis=0))
+# 	plt.imshow(np.mean(trial_images_good, axis=0))
 # 	plt.colorbar(shrink=0.5)
 # 	plt.show()
 
@@ -1380,7 +2212,7 @@ plt.show()
 
 # 	#* ROIs for the all the trials of the same plane.
 # 	#TODO need to rewrite all this part, using Mike's and Ruben's code
-# 	all_traces, all_rois, used_pixels, correlation_map_ = f.get_ROIs(Nrois=100, correlation_map=correlation_map, images=plane_trials_good_images_filtered, threshold=0.3, max_pixels=60)
+# 	all_traces, all_rois, used_pixels, correlation_map_ = f.get_ROIs(Nrois=100, correlation_map=correlation_map, images=trial_images_good_filtered, threshold=0.3, max_pixels=60)
 
 # 	plt.imshow(zscore(all_traces, 1), aspect="auto", cmap="RdBu_r")
 # 	plt.savefig(imaging_path_ / fish_name / (fish_name + 'zscore ' + str(plane_i) + '.tif'))
