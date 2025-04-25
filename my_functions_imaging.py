@@ -2499,14 +2499,22 @@ def scale_slide(plane_anatomy_slice, min_intensity_threshold):
 	return anatomy
 
 
-
 def normalize_image(image, quantiles=(0.05, 0.95)):
+    q_min_val = np.quantile(image, quantiles[0])
+    q_max_val = np.quantile(image, quantiles[1])
 
-	q_min_val = np.quantile(image, quantiles[0])
-	q_max_val = np.quantile(image, quantiles[1])
-	
-	# clip the values to 0 and 1
-	return np.clip(image, q_min_val, q_max_val)
+    # Clip the values to the calculated quantile range
+    clipped_image = np.clip(image, q_min_val, q_max_val)
+
+    # Normalize the clipped values to the range [0, 1]
+    # Avoid division by zero if q_min_val and q_max_val are the same
+    if q_max_val == q_min_val:
+        normalized_image = np.zeros_like(clipped_image) # Or handle as appropriate for your data
+    else:
+        normalized_image = (clipped_image - q_min_val) / (q_max_val - q_min_val)
+
+    return normalized_image
+
 
 
 def calculate_anatomy(plane_aligned_frames, border_size):

@@ -115,6 +115,8 @@ median_thr = 5
 
 softthresh=100
 
+step = 2 # Process trials in pairs
+
 
 if 'delay' in fish_name:
 	interval_between_cs_onset_us_onset = 9  # s
@@ -141,11 +143,6 @@ print('Analyzing fish: ', fish_name)
 
 # endregion
 
-# all_data.__dict__.keys()
-
-# all_data.planes[3].trials[3].shift_correction
-
-
 
 shape_ = all_data.planes[0].trials[0].images.shape[1:]
 
@@ -159,25 +156,8 @@ shape_ = all_data.planes[0].trials[0].images.shape[1:]
 
 
 
-# plt.figure()
-# plt.imshow(all_data.planes[0].trials[0].images[100][x_black_box_beg:x_black_box_end, y_black_box_beg:y_black_box_end], vmin=0, vmax=None)
-# plt.colorbar(shrink=0.5)
-
-
-
-# plt.imshow(all_data.planes[0].trials[0].images.mean('Time (ms)'), vmin=10, vmax=100)
-# plt.colorbar(shrink=0.5)
-
-
-len(all_data.planes)
-
-
-
 #* Split data into 3 periods: before cs, from cs onset to us onset and after us onset.
-for plane_i, plane in enumerate(all_data.planes):
-
-	#! anatomies = all_data.planes[plane_i].anatomy_channel
-
+for plane_i, plane in tqdm(enumerate(all_data.planes)):
 	for trial_i, trial in enumerate(plane.trials):
 
 		# if trial_i != 2:
@@ -221,7 +201,6 @@ for plane_i, plane in enumerate(all_data.planes):
 
 
 
-fig, axs = plt.subplots(len(all_data.planes), len(plane.trials), figsize=(30, 67), squeeze=False)
 
 for plane_i, plane in enumerate(all_data.planes):
 	for trial_i, trial in enumerate(plane.trials):
@@ -233,88 +212,78 @@ for plane_i, plane in enumerate(all_data.planes):
 
 		# anatomy = fi.normalize_image(fi.calculate_anatomy(trial_images.values.astype(np.float64), border_size), (0.01,0.99))
 
-		# plt.imshow(anatomy)
-		# plt.colorbar()
-			
 		# anatomy = anatomies[trial_i//2]
-		anatomy = fi.scale_slide(all_data.planes[plane_i].trials[trial_i].template_image, p.min_intensity_threshold)
+		# trial.anatomy = fi.scale_slide(all_data.planes[plane_i].trials[trial_i].template_image, p.min_intensity_threshold) / 5
+		trial.anatomy = fi.normalize_image(all_data.planes[plane_i].trials[trial_i].template_image, (0.01,0.99)) / 10
 
 		#* Give some colors to the world.
 		# color_frame_original = fi.scale_slide(trial.cs_us_vs_pre, p.min_intensity_threshold)
 		# color_frame_original.max()
-		###* CS responses
+
 		# plt.imshow(fi.add_colors_to_world(anatomy/5, color_frame_original), interpolation='none')
 		# plt.imshow(fi.add_colors_to_world_improved(anatomy, color_frame_original, activity_scaling=2.0, anatomy_brightness=0.5), interpolation='none')
 
 
-
-		####* CS positive response
-		color_frame_original = fi.normalize_image(trial.cs_us_vs_pre, quantiles=(0, 1))
-		
-		axs[plane_i,trial_i].imshow(fi.add_colors_to_world_improved_2(anatomy/5, color_frame_original, colormap='inferno', activity_threshold=0.2, alpha=1))
-		axs[plane_i,trial_i].axis('off')
-		# plt.imshow(fi.add_colors_to_world_improved_2(anatomy/5, color_frame_original, colormap='inferno', activity_threshold=0.5, alpha=1), interpolation=None)
-		# plt.axis('off')
-		# plt.show()
-
-fig.subplots_adjust(hspace=0, wspace=0)
-fig.savefig(results_figs_path_save / '7. Responses to cs.png', dpi=800, facecolor='white', bbox_inches='tight')
-
-
-
-fig.set_size_inches(30, 67)
-
-
-
-
-
-
-
-
-
-
-
-fig, axs = plt.subplots(len(all_data.planes), len(plane.trials), figsize=(10, 50), squeeze=False)
-
-for plane_i in range(len(all_data.planes)):
-	for trial_i in range(len(plane.trials)):
-		
-		
-		# plane_numbers[plane_i,trial_i] = all_data.planes[plane_i].trials[trial_i].position_anatomical_stack
-
-
-		# position = plane_position_stack[plane_i]
-		# all_data.planes[plane_i].template_image_position_anatomical_stack
-		# print(position)
-		
-		axs[plane_i,trial_i].imshow(all_data.planes[plane_i].trials[trial_i].cs_positive_response)
-		axs[plane_i,trial_i].axis('off')
-
-
-# plane_numbers = plane_numbers.astype('int')
-
-# plane_position_stack = np.argsort(plane_numbers[:,0])
-	# break
-fig.subplots_adjust(hspace=0, wspace=0)
-
-fig.set_size_inches(30, 70)
-
-fig.savefig(imaging_path_ / 'CS positive response.png', dpi=400)
-
-
-
-
-
-
-
-
-
-fig.set_size_inches(25, 60)
-fig.subplots_adjust(hspace=0, wspace=0)
-fig.savefig(results_figs_path_save / '8. Responses to cs.png', dpi=800, facecolor='white', bbox_inches='tight')
-
 with open(path_pkl_responses, 'wb') as file:
 	pickle.dump(all_data, file)
+
+
+
+
+
+##* CS positive response
+fig, axs = plt.subplots(len(all_data.planes), len(plane.trials), figsize=(15, 32), squeeze=False)
+for plane_i, plane in enumerate(all_data.planes):
+	for trial_i, trial in enumerate(plane.trials):
+		response = np.where(trial.cs_us_vs_pre > 0, trial.cs_us_vs_pre, 0)
+		response_frame = fi.normalize_image(response, quantiles=(0, 1))
+		# response_thr = np.quantile(response_frame, 0.99)
+		axs[plane_i,trial_i].imshow(fi.add_colors_to_world_improved_2(trial.anatomy, response, colormap='inferno', activity_threshold=0.3, alpha=1), interpolation='none')
+		axs[plane_i,trial_i].axis('off')
+		# plt.imshow(fi.add_colors_to_world_improved_2(anatomy/5, color_frame_original, colormap='inferno', activity_threshold=0.5, alpha=1), interpolation=None)
+fig.subplots_adjust(hspace=0.01, wspace=0)
+fig.suptitle('Positive responses to CS', fontsize=10, y=0.91)
+fig.savefig(results_figs_path_save / '6. Positive responses to CS.png', dpi=600, facecolor='white', bbox_inches='tight')
+
+##* CS negative response
+fig, axs = plt.subplots(len(all_data.planes), len(plane.trials), figsize=(15, 32), squeeze=False)
+for plane_i, plane in enumerate(all_data.planes):
+	for trial_i, trial in enumerate(plane.trials):
+		response = np.where(trial.cs_us_vs_pre < 0, trial.cs_us_vs_pre, 0)
+		response_frame = fi.normalize_image(-response, quantiles=(0, 1))
+		# response_thr = np.quantile(response_frame, 0.99)
+		axs[plane_i,trial_i].imshow(fi.add_colors_to_world_improved_2(trial.anatomy, response_frame, colormap='inferno', activity_threshold=0.5, alpha=1), interpolation='none')
+		axs[plane_i,trial_i].axis('off')
+fig.subplots_adjust(hspace=0.01, wspace=0)
+fig.suptitle('Negative responses to CS', fontsize=10, y=0.91)
+fig.savefig(results_figs_path_save / '7. Negative responses to CS.png', dpi=600, facecolor='white', bbox_inches='tight')
+
+##* US positive response
+fig, axs = plt.subplots(len(all_data.planes), len(plane.trials), figsize=(15, 32), squeeze=False)
+for plane_i, plane in enumerate(all_data.planes):
+	for trial_i, trial in enumerate(plane.trials):
+		response = np.where(trial.post_us_vs_pre > 0, trial.post_us_vs_pre, 0)
+		response_frame = fi.normalize_image(response, quantiles=(0, 1))
+		axs[plane_i,trial_i].imshow(fi.add_colors_to_world_improved_2(trial.anatomy, response_frame, colormap='inferno', activity_threshold=0.3, alpha=1), interpolation='none')
+		axs[plane_i,trial_i].axis('off')
+fig.subplots_adjust(hspace=0.01, wspace=0)
+fig.suptitle('Positive responses to US', fontsize=10, y=0.91)
+fig.savefig(results_figs_path_save / '8. Positive responses to US.png', dpi=600, facecolor='white', bbox_inches='tight')
+
+##* US negative response
+fig, axs = plt.subplots(len(all_data.planes), len(plane.trials), figsize=(15, 32), squeeze=False)
+for plane_i, plane in enumerate(all_data.planes):
+	for trial_i, trial in enumerate(plane.trials):
+		response = np.where(trial.post_us_vs_pre < 0, trial.cs_us_vs_pre, 0)
+		response_frame = fi.normalize_image(-response, quantiles=(0, 1))
+		axs[plane_i,trial_i].imshow(fi.add_colors_to_world_improved_2(trial.anatomy, response_frame, colormap='inferno', activity_threshold=0, alpha=1), interpolation='none')
+		axs[plane_i,trial_i].axis('off')
+fig.subplots_adjust(hspace=0.01, wspace=0)
+fig.suptitle('Negative responses to US', fontsize=10, y=0.91)
+fig.savefig(results_figs_path_save / '9. Negative responses to US.png', dpi=600, facecolor='white', bbox_inches='tight')
+
+
+
 
 
 
@@ -338,7 +307,6 @@ with open(path_pkl_responses, 'wb') as file:
 
 
 num_templates_plane = len(all_data.planes[0].trials) + 1
-step = 2 # Process trials in pairs
 
 
 
@@ -415,53 +383,6 @@ fig.savefig(results_figs_path_save / '7. Planes anatomy.png', dpi=600, facecolor
 
 
 
-
-
-
-
-voxelsssss
-
-
-	# 	break
-	# break
-
-
-
-	# 	overlaid_image = fi.add_colors_to_world_improved(anatomy, color_frame_original, activity_scaling=0.5, anatomy_brightness=0.4)
-	# 	plt.imshow(overlaid_image)
-
-
-
-	# 	###* cs negative response
-	# 	# color_frame_original = np.clip(-trial.cs_us_vs_pre*5, 0, 1)
-	# 	# trial.cs_negative_response = fi.add_colors_to_world(anatomy, color_frame_original)
-
-
-	# 	###* us positive response
-	# 	color_frame_original = np.clip(trial.post_us_vs_pre, 0, 1)
-	# 	trial.cs_positive_response = fi.add_colors_to_world(anatomy, color_frame_original)
-	# 	plt.imshow(trial.cs_positive_response)
-
-
-	# 	# ###* us negative response
-	# 	# color_frame_original = np.clip(-trial.post_us_vs_pre*5, 0, 1)
-	# 	# trial.cs_negative_response = fi.add_colors_to_world(anatomy, color_frame_original)
-
-
-
-		# trial.images = trial_images
-
-
-# all_data.planes[plane_i].trials[trial_i].images['shift_correction in X'].values
-
-# __dict__.keys()
-
-
-
-
-
-
-
 # #* Using a general template per plane
 
 # for plane_i, plane in enumerate(all_data.planes):
@@ -492,58 +413,14 @@ voxelsssss
 
 # all_data = c.Data(all_data.planes, anatomical_stack_images)
 
-path_pkl_analysis_1 = path_home / fish_name / (fish_name + '_analysis 1' + '.pkl')
-
-with open(path_pkl_analysis_1, 'wb') as file:
-	pickle.dump(all_data, file)
-
-
-print('END')
 
 
 
-fig, axs = plt.subplots(len(all_data.planes), len(plane.trials), figsize=(10, 50), squeeze=False)
-
-for plane_i in range(len(all_data.planes)):
-	for trial_i in range(len(plane.trials)):
-		
-		
-		# plane_numbers[plane_i,trial_i] = all_data.planes[plane_i].trials[trial_i].position_anatomical_stack
-
-
-		# position = plane_position_stack[plane_i]
-		# all_data.planes[plane_i].template_image_position_anatomical_stack
-		# print(position)
-		
-		axs[plane_i,trial_i].imshow(all_data.planes[plane_i].trials[trial_i].cs_positive_response)
-		axs[plane_i,trial_i].set_xticks([])
-		axs[plane_i,trial_i].set_yticks([])
-
-
-
-# plane_numbers = plane_numbers.astype('int')
-
-# plane_position_stack = np.argsort(plane_numbers[:,0])
-	# break
-
-fig.set_size_inches(50, 30)
-fig.subplots_adjust(hspace=0.05, wspace=0.02)
-
-fig.tight_layout()
-
-fig.savefig(imaging_path_ / 'CS positive response 2.png', dpi=400)
-
-
-
+#* Save the images as a multipage tiff
+#region Save the images as a multipage tiff
 tifffile = []
-
 for trial_i, trial in enumerate(all_data.planes[2].trials):
-
 	tifffile.append(Image.fromarray(trial.cs_positive_response))
-
-
-
-
 
 # Save tifffile as a multipage tiff
 tiff_path = imaging_path_ / 'cs_positive_response_multipage new 1.tiff'
@@ -565,21 +442,6 @@ plt.title(f'Labeled Frame {1}')
 plt.colorbar()
 plt.show()
 
-
-
-
-
-
-
-# all_data.planes[plane_i].trials[0].__dict__.keys()
-
-
-
-
-
-
-
-# #!!!!!!!!!!!!!!!!!!!!!!
 
 
 
@@ -827,108 +689,108 @@ plt.show()
 
 
 
-# 	# region Voxel analysis
-# 	#* Voxel analysis
+	# region Voxel analysis
+	#* Voxel analysis
 
-# 	#* Bin the 2D images.
+	#* Bin the 2D images.
 	
 
-# 	trial_images_good_binned = block_reduce(trial_images_good, block_size=(1, voxel_bin_size, voxel_bin_size), func=np.mean, cval=0)
+	trial_images_good_binned = block_reduce(trial_images_good, block_size=(1, voxel_bin_size, voxel_bin_size), func=np.mean, cval=0)
 
-# 	plt.imshow(np.mean(trial_images_good_binned, axis=0), interpolation='none')
-
-
-# 	trial_images_good_binned_ = np.empty(tuple([plane_trials_all_images.shape[0]] + list(trial_images_good_binned.shape[1:]))) * np.nan
-# 	trial_images_good_binned_[~plane_trials_mask_good_frames, :, :] = trial_images_good_binned
-
-# 	trial_images_good_binned = trial_images_good_binned_.copy()
-
-# 	del trial_images_good_binned_
-
-# 	plt.title('All good images from plane binned')
-# 	plt.imshow(np.mean(trial_images_good_binned, axis=0))
-# 	plt.colorbar(shrink=0.5)
-# 	plt.show()
+	plt.imshow(np.mean(trial_images_good_binned, axis=0), interpolation='none')
 
 
+	trial_images_good_binned_ = np.empty(tuple([plane_trials_all_images.shape[0]] + list(trial_images_good_binned.shape[1:]))) * np.nan
+	trial_images_good_binned_[~plane_trials_mask_good_frames, :, :] = trial_images_good_binned
 
-# 	deltaF = []
-# 	deltaF_ratio = []
+	trial_images_good_binned = trial_images_good_binned_.copy()
 
-# 	for i in range(len(cs_indices)):
+	del trial_images_good_binned_
 
-# 		baseline = np.nanmean(trial_images_good_binned[[cs_indices[i, 0] - 20, cs_indices[i, 0]]], axis=0)
+	plt.title('All good images from plane binned')
+	plt.imshow(np.mean(trial_images_good_binned, axis=0))
+	plt.colorbar(shrink=0.5)
+	plt.show()
+
+
+
+	deltaF = []
+	deltaF_ratio = []
+
+	for i in range(len(cs_indices)):
+
+		baseline = np.nanmean(trial_images_good_binned[[cs_indices[i, 0] - 20, cs_indices[i, 0]]], axis=0)
 		
-# 		during_cs = np.nanmean(trial_images_good_binned[[cs_indices[i, 0], cs_indices[i, 1]]], axis=0)
+		during_cs = np.nanmean(trial_images_good_binned[[cs_indices[i, 0], cs_indices[i, 1]]], axis=0)
 
-# 		deltaF_ratio.append((during_cs - baseline) / baseline)
+		deltaF_ratio.append((during_cs - baseline) / baseline)
 
-# 		if i == 0:
+		if i == 0:
 			
-# 			deltaF.append((trial_images_good_binned[ : plane_trials_number_images[0]] - baseline) / baseline)
+			deltaF.append((trial_images_good_binned[ : plane_trials_number_images[0]] - baseline) / baseline)
 
-# 		elif i < len(cs_indices)-1:
+		elif i < len(cs_indices)-1:
 
-# 			deltaF.append((trial_images_good_binned[np.cumsum(plane_trials_number_images)[i-1] : np.cumsum(plane_trials_number_images)[i]] - baseline) / baseline)
+			deltaF.append((trial_images_good_binned[np.cumsum(plane_trials_number_images)[i-1] : np.cumsum(plane_trials_number_images)[i]] - baseline) / baseline)
 
-# 		else:
-# 			deltaF.append((trial_images_good_binned[np.cumsum(plane_trials_number_images)[i-1] : ] - baseline) / baseline)
+		else:
+			deltaF.append((trial_images_good_binned[np.cumsum(plane_trials_number_images)[i-1] : ] - baseline) / baseline)
 
-# 	deltaF = np.concatenate(deltaF)
+	deltaF = np.concatenate(deltaF)
 
-# 	deltaF = np.where(np.isnan(deltaF), 0, deltaF)
+	deltaF = np.where(np.isnan(deltaF), 0, deltaF)
 
-# 	deltaF_ratio = np.array(deltaF_ratio)
-
-
-# 	for i in range(len(cs_indices)):
-# 		plt.imshow(deltaF_ratio[i], interpolation='none', vmin=-10, vmax=10, cmap='RdBu_r')
-# 		plt.colorbar(shrink=0.5)
-# 		plt.title('DeltaF_SR')
-# 		plt.show()
+	deltaF_ratio = np.array(deltaF_ratio)
 
 
-# 	A = np.mean(np.array([deltaF_ratio[0], deltaF_ratio[1]]), axis=0)
-# 	B = np.mean(np.array([deltaF_ratio[2], deltaF_ratio[3]]), axis=0)
+	for i in range(len(cs_indices)):
+		plt.imshow(deltaF_ratio[i], interpolation='none', vmin=-10, vmax=10, cmap='RdBu_r')
+		plt.colorbar(shrink=0.5)
+		plt.title('DeltaF_SR')
+		plt.show()
+
+
+	A = np.mean(np.array([deltaF_ratio[0], deltaF_ratio[1]]), axis=0)
+	B = np.mean(np.array([deltaF_ratio[2], deltaF_ratio[3]]), axis=0)
 
 
 
-# 	plt.imshow(A, interpolation='none', vmin=-10, vmax=10, cmap='RdBu_r')
-# 	plt.colorbar(shrink=0.5)
-# 	plt.title('DeltaF_SR A')
-# 	plt.show()
+	plt.imshow(A, interpolation='none', vmin=-10, vmax=10, cmap='RdBu_r')
+	plt.colorbar(shrink=0.5)
+	plt.title('DeltaF_SR A')
+	plt.show()
 
-# 	plt.imshow(B, interpolation='none', vmin=-10, vmax=10, cmap='RdBu_r')
-# 	plt.colorbar(shrink=0.5)
-# 	plt.title('DeltaF_SR B')
-# 	plt.show()
+	plt.imshow(B, interpolation='none', vmin=-10, vmax=10, cmap='RdBu_r')
+	plt.colorbar(shrink=0.5)
+	plt.title('DeltaF_SR B')
+	plt.show()
 
-# 	plt.imshow(B/A, interpolation='none', vmin=-100, vmax=100, cmap='RdBu_r')
-# 	plt.colorbar(shrink=0.5)
-# 	plt.title('DeltaF_SR B / DeltaF_SR A')
-# 	plt.savefig(imaging_path_ /  fish_name / (fish_name + '_deltaF_SR_voxels_plane ' + str(plane_i) + '.tif'))
-# 	plt.show()
+	plt.imshow(B/A, interpolation='none', vmin=-100, vmax=100, cmap='RdBu_r')
+	plt.colorbar(shrink=0.5)
+	plt.title('DeltaF_SR B / DeltaF_SR A')
+	plt.savefig(imaging_path_ /  fish_name / (fish_name + '_deltaF_SR_voxels_plane ' + str(plane_i) + '.tif'))
+	plt.show()
 
-# 	deltaF_ratio = np.concatenate(deltaF_ratio)
+	deltaF_ratio = np.concatenate(deltaF_ratio)
 
-# #!!!
-# 	# deltaF_ = np.empty(tuple([plane_trials_all_images.shape[0]] + list(deltaF.shape[1:]))) * np.nan
-# 	# deltaF_[~plane_trials_mask_good_frames, :, :] = deltaF
+#!!!
+	# deltaF_ = np.empty(tuple([plane_trials_all_images.shape[0]] + list(deltaF.shape[1:]))) * np.nan
+	# deltaF_[~plane_trials_mask_good_frames, :, :] = deltaF
 
-# 	# deltaF = deltaF_.copy()
+	# deltaF = deltaF_.copy()
 
-# 	# del deltaF_
+	# del deltaF_
 
-# 	for i in range(len(cs_indices)):
-# 		deltaF[cs_indices[i,0]:cs_indices[i,1],:20,-20:] = -100
+	for i in range(len(cs_indices)):
+		deltaF[cs_indices[i,0]:cs_indices[i,1],:20,-20:] = -100
 
-# 	plt.imshow(np.nanmean(deltaF, axis=0))
-# 	plt.colorbar(shrink=0.5)
+	plt.imshow(np.nanmean(deltaF, axis=0))
+	plt.colorbar(shrink=0.5)
 
-# 	#* Save rois_zscore_over_time as a TIFF file.
-# 	tifffile.imwrite(imaging_path_ /  fish_name / (fish_name + '_deltaF_voxels_plane ' + str(plane_i) + '.tif'), deltaF.astype('float32'))
+	#* Save rois_zscore_over_time as a TIFF file.
+	tifffile.imwrite(imaging_path_ /  fish_name / (fish_name + '_deltaF_voxels_plane ' + str(plane_i) + '.tif'), deltaF.astype('float32'))
 
-# 	# endregion
+	# endregion
 
 
 
