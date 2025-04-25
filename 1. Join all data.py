@@ -11,6 +11,7 @@ import pickle
 from importlib import reload
 from pathlib import Path
 
+import cv2
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
@@ -24,6 +25,7 @@ from tqdm import tqdm
 
 #* Load custom functions and classes
 import my_classes as c
+# import my_experiment_specific_variables as spec_var
 import my_functions_imaging as fi
 import my_parameters as p
 from my_general_variables import *
@@ -43,26 +45,33 @@ reload(p)
 pio.templates.default = "plotly_dark"
 
 pd.set_option("mode.copy_on_write", True)
-# pd.set_option("compute.use_numba", True)
+pd.set_option("compute.use_numba", True)
 pd.set_option("compute.use_numexpr", True)
 pd.set_option("compute.use_bottleneck", True)
 #endregion
 
 
+
 #* Paths
 ##   
 # region Paths
-path_home = Path(r'C:\Users\joaqc\Desktop\WIP')
-# Path(r'E:\2024 03_Delay 2-P 15 planes top part')
+path_home = Path(r'D:\2024 03_Delay 2-P 15 planes top part')
+# spec_var.path_home
 # Path(r'E:\2024 09_Delay 2-P 4 planes JC neurons')
 # Path(r'E:\2024 10_Delay 2-P single plane')
 # Path(r'E:\2024 10_Delay 2-P 15 planes ca8 neurons')
 # Path(r'E:\2024 09_Delay 2-P zoom in multiplane imaging')
 
+path_results_save = Path(r'F:\Results (paper)') / path_home.stem
+
 # fish_list = [f for f in (path_home / 'Imaging').iterdir() if f.is_dir()]
 # fish_names_list = [f.stem for f in fish_list]
 
-fish_name = r'20241007_03_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+fish_name = r'20240415_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+# '20240416_01_delay_2p-3_mitfaminusminus,elavl3h2bgcamp6f_6dpf'
+
+
+# '20241007_03_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
 
 # '20240910_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
 
@@ -80,22 +89,39 @@ fish_name = r'20241007_03_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
 # '20240416_01_delay_2p-3_mitfaminusminus,elavl3h2bgcamp6f_6dpf'
 # '20240415_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
 
-
-
 # 20240927_02_control_2p-5_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf
 
-
 # '20241015_03_delay_2p-9_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf'
-
-
-
 
 # '20240926_03_trace_2p-9_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
 # '20240927_02_control_2p-5_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
 # '20240920_03_trace_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf'
 
-behavior_path = path_home / fish_name / 'Behavior'
-imaging_path = path_home / fish_name / 'Imaging'
+
+fish_ID = '_'.join(fish_name.split('_')[:2])
+
+
+behavior_path_home = path_home / 'Tail'
+imaging_path_home = path_home / 'Neurons' / fish_name
+
+behavior_path_save = path_results_save / 'Tail'
+results_figs_path_save = path_results_save / 'Neurons' / fish_name
+
+whole_data_path_save = Path(r'H:\2-P imaging') / path_home.stem / fish_name
+os.makedirs(whole_data_path_save, exist_ok=True)
+
+path_pkl_before_motion_correction = whole_data_path_save / (fish_ID + '_1. Before motion correction.pkl')
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -106,7 +132,7 @@ imaging_path = path_home / fish_name / 'Imaging'
 
 # imaging_path_ = imaging_path / 'Imaging'
 
-if (path_pkl_before_motion_correction := imaging_path / fish_name / (fish_name + '_before motion correction' + '.pkl')).exists():
+if path_pkl_before_motion_correction.exists():
 
 	print('Already preprocessed: ', fish_name)
 	print(path_pkl_before_motion_correction)
@@ -115,14 +141,22 @@ if (path_pkl_before_motion_correction := imaging_path / fish_name / (fish_name +
 
 print('Analyzing fish: ', fish_name)
 
-protocol_path = behavior_path / (fish_name + '_stim control.txt')
-camera_path = behavior_path / (fish_name + '_cam.txt')
-tracking_path = behavior_path / (fish_name + '_mp tail tracking.txt')
 
-galvo_path = imaging_path / 'signalsfeedback.xls'
-images_path = imaging_path / (fish_name + '_green.tif')
 
-anatomy_1_path = imaging_path / 'Anatomical stack 1.tif'
+
+
+
+
+
+
+protocol_path = behavior_path_home / (fish_name + '_stim control.txt')
+camera_path = behavior_path_home / (fish_name + '_cam.txt')
+tracking_path = behavior_path_home / (fish_name + '_mp tail tracking.txt')
+
+galvo_path = imaging_path_home / 'Imaging' / 'signalsfeedback.xls'
+images_path = imaging_path_home / 'Imaging' / (fish_name + '_green.tif')
+
+anatomy_1_path = imaging_path_home / 'Anatomical stack 1' / 'Anatomical stack 1.tif'
 # anatomy_1_filtered_path = imaging_path / fish_name / 'Anatomical stack 1 binned and filtered.tif'
 
 #endregion
@@ -135,11 +169,11 @@ else:
 	Summer_time = False
 
 
-
+relevant_cs = []
 
 match str(path_home):
 
-	case r'E:\2024 03_Delay 2-P 15 planes top part' | r'E:\2024 10_Delay 2-P 15 planes bottom part' | r'E:\2024 10_Delay 2-P 15 planes ca8 neurons' | r'C:\Users\joaqc\Desktop\WIP':
+	case r'D:\2024 03_Delay 2-P 15 planes top part' | r'E:\2024 10_Delay 2-P 15 planes bottom part' | r'E:\2024 10_Delay 2-P 15 planes ca8 neurons' | r'C:\Users\joaqc\Desktop\WIP':
 
 		number_imaged_planes = 15
 		number_reps_plane_consective = 2
@@ -157,47 +191,28 @@ match str(path_home):
 	case r'E:\2024 09_Delay 2-P 4 planes JC neurons':
 
 		#! one of the planes it's when the drift correction happens
-		number_imaged_planes = 4
-		number_reps_plane_consective = 2
-		# relevant_cs = [range(5,15),
-		# 			  range(15,25), range(25,55), range(55,45), range(45,55),
-		# 			  range(55,65), range(65,75), range(75,85)]
-		relevant_cs = [range(5,13),
-					  range(15,23), range(25,33), range(35,43), range(45,53),
-					  range(55,63), range(67,75), range(77,85)]
-		index_list = [np.concatenate([[i+number_reps_plane_consective*x*number_imaged_planes, i+number_reps_plane_consective*x*number_imaged_planes+1] for x in range(len(relevant_cs))]) for i in range(0, number_reps_plane_consective * number_imaged_planes, number_reps_plane_consective)]
+		num_planes = 4  # number_imaged_planes
+		num_reps_per_plane = 2  # number_reps_plane_consective
+
+		relevant_cs = [range(5,15),
+					range(15,25), range(25,55), range(55,45), range(45,55),
+					range(55,65), range(65,75), range(75,85)]
+
+		# Build index_list efficiently and with clearer variable names
+		index_list = [
+			np.concatenate([
+				[i + num_reps_per_plane * x * num_planes, i + num_reps_per_plane * x * num_planes + 1]
+				for x in range(len(relevant_cs))
+			])
+			for i in range(0, num_reps_per_plane * num_planes, num_reps_per_plane)
+		]
 		# [np.array([0,1, 10,11, 20,21, 30,31, 40,41, 50,51, 62,63, 72,73]),
 		# 	np.array([2,3, 12,13, 22,23, 32,33, 42,43, 52,53, 64,65, 74,75]),
 		# 	np.array([4,5, 14,15, 24,25, 34,35, 44,45, 54,55, 66,67, 76,77]),
 		# 	np.array([6,7, 16,17, 26,27, 36,37, 46,47, 56,57, 68,69, 78,79])]
-		
-		
 
-
-
-
-
-
-
-
-
-
-
-#! one of the planes it's when the drift correction happens
-number_imaged_planes = 4
-number_reps_plane_consective = 2
-# relevant_cs = [range(5,15),
-# 			  range(15,25), range(25,55), range(55,45), range(45,55),
-# 			  range(55,65), range(65,75), range(75,85)]
-relevant_cs = [range(5,13),
-				range(15,23), range(25,33), range(35,43), range(45,53),
-				range(55,63), range(67,75), range(77,85)]
-index_list = [np.concatenate([[i+number_reps_plane_consective*x*number_imaged_planes, i+number_reps_plane_consective*x*number_imaged_planes+1] for x in range(len(relevant_cs))]) for i in range(0, number_reps_plane_consective * number_imaged_planes, number_reps_plane_consective)]
-# [np.array([0,1, 10,11, 20,21, 30,31, 40,41, 50,51, 62,63, 72,73]),
-# 	np.array([2,3, 12,13, 22,23, 32,33, 42,43, 52,53, 64,65, 74,75]),
-# 	np.array([4,5, 14,15, 24,25, 34,35, 44,45, 54,55, 66,67, 76,77]),
-# 	np.array([6,7, 16,17, 26,27, 36,37, 46,47, 56,57, 68,69, 78,79])]
 relevant_cs = np.concatenate(relevant_cs)
+
 
 
 
@@ -218,20 +233,11 @@ relevant_cs = np.concatenate(relevant_cs)
 
 
 
-
-
-
-
-
-
-
-
 #* Read the behavior camera data and preprocess it.
 ##   
 # region Behavior camera
 data = fi.read_camera(camera_path)
 
-# camera = pd.read_csv(r"C:\Users\joaqc\Desktop\WIP\20240910_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf\Behavior\20240910_02_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_6dpf_cam.txt", engine='pyarrow', sep=' ', header=0, decimal='.')
 
 data['AbsoluteTime'] = data['AbsoluteTime'].astype('float64')
 
@@ -242,8 +248,8 @@ print('Behavior camera started: ', pd.to_datetime(data['AbsoluteTime'].iat[0], u
 #* Estimate the true framerate.
 predicted_framerate, reference_frame_id = fi.framerate_and_reference_frame(data)
 
-
-data = data.drop(columns=ela_time)
+if ela_time in data.columns:
+	data = data.drop(columns=ela_time)
 
 #* Discard frames that will not be used (in camera and hence further down).
 # The calculated interframe interval before the reference frame is variable. Discard what happens up to then (also achieved by using how='inner' in merge_camera_with_data).
@@ -268,9 +274,15 @@ data = data[data['Frame number'] >= reference_frame_id]
 
 #* Fix 'AbsoluteTime' so that the time of each frame becomes closer to the time at which the frames were acquired by the data and not when they were caught by the computer.
 # The delay between acquiring and catching the frame is unknown and therefore disregarded.
-data['AbsoluteTime'] = np.linspace(data['AbsoluteTime'].iat[0], data['AbsoluteTime'].iat[0] + len(data) * (1000 / predicted_framerate), len(data))
+# Use vectorized calculation for linspace start/stop
+abs_time_start = data['AbsoluteTime'].iat[0]
+abs_time_stop = abs_time_start + len(data) * (1000 / predicted_framerate)
+data['AbsoluteTime'] = np.linspace(abs_time_start, abs_time_stop, len(data))
 
 #! Need to join with galvo before doing this.
+#! #* Interpolate data to the expected framerate.
+# data = interpolate_data(data, predicted_framerate)
+#end#! Need to join with galvo before doing this.
 #! #* Interpolate data to the expected framerate.
 # data = interpolate_data(data, predicted_framerate)
 #endregion
@@ -423,7 +435,7 @@ axs[3].set_xlabel('Interframe interval (ms)')
 axs[3].set_ylabel('Galvo value')
 # fig.show()
 
-fig.savefig(path_home / fish_name / 'Galvo signal and frames.png')
+fig.savefig(results_figs_path_save / '1. Galvo signal and frames.png')
 #endregion
 
 #* Read the behavior data.
@@ -675,7 +687,9 @@ for stim_number_i, stim_number in enumerate(stim_numbers):
 	# data__.plot(x='Time (ms)', y=['Frame beg', 'Image mean', us, us_end], ls='.')
 
 	# break
-fig.savefig(path_home / fish_name / 'US and frames alignment.png')
+
+
+fig.savefig(results_figs_path_save / '2. US and frames alignment.png')
 
 
 del data_, data_plot
@@ -744,8 +758,8 @@ for plane_i, plane_cs_onset_indices in tqdm(enumerate(planes_cs_onset_indices)):
 		protocol_ = protocol_[protocol_['CS'] > 0]
 
 		
-		cs_beg = protocol_[protocol_['CS'].ne(protocol_['CS'].shift(periods=1))]
-		cs_beg.rename(columns={'CS' : 'CS beg'}, inplace=True)
+		cs_beg_time = protocol_[protocol_['CS'].ne(protocol_['CS'].shift(periods=1))]
+		cs_beg_time.rename(columns={'CS' : 'CS beg'}, inplace=True)
 
 		cs_end = protocol_[protocol_['CS'].ne(protocol_['CS'].shift(periods=-1))]
 		cs_end.rename(columns={'CS' : 'CS end'}, inplace=True)
@@ -755,13 +769,13 @@ for plane_i, plane_cs_onset_indices in tqdm(enumerate(planes_cs_onset_indices)):
 
 		protocol_ = protocol_[protocol_['US'] > 0]
 		
-		us_beg = protocol_[protocol_['US'].ne(protocol_['US'].shift(periods=1))]
-		us_beg.rename(columns={'US' : 'US beg'}, inplace=True)
+		us_beg_time = protocol_[protocol_['US'].ne(protocol_['US'].shift(periods=1))]
+		us_beg_time.rename(columns={'US' : 'US beg'}, inplace=True)
 
 		us_end = protocol_[protocol_['US'].ne(protocol_['US'].shift(periods=-1))]
 		us_end.rename(columns={'US' : 'US end'}, inplace=True)
 
-		trial_protocol = pd.concat([cs_beg, cs_end, us_beg, us_end])
+		trial_protocol = pd.concat([cs_beg_time, cs_end, us_beg_time, us_end])
 
 		trial_protocol = trial_protocol.sort_values(by='Time (ms)').fillna(0)
 		trial_protocol[['CS beg', 'CS end', 'US beg', 'US end']] = trial_protocol[['CS beg', 'CS end', 'US beg', 'US end']].astype(pd.SparseDtype("int", 0), copy=False)
@@ -782,7 +796,8 @@ for plane_i, plane_cs_onset_indices in tqdm(enumerate(planes_cs_onset_indices)):
 # del trials_list, protocol_, trial_protocol, trial_cs_onset_index, time_start, time_end, plane_cs_onset_indices, index_list, relevant_cs, predicted_framerate, reference_frame_id, interframe_interval_array, interframe_interval, beg_first_image, beg_first_image_time, peaks, number_peaks, beg_image_to_consider_index, beg_image_to_consider_time, number_images_before_first_image_to_consider, bytes_header, height, width, bytes_header_and_image, number_images, images_mean, stim_numbers, fig, axs, protocol, behavior, images
 
 
-fig, axs = plt.subplots(len(all_data), len(all_data[0].trials), figsize=(10, 50), squeeze=False)
+fig, axs = plt.subplots(len(all_data), len(all_data[0].trials), figsize=(10, 40), squeeze=False)
+fig.patch.set_facecolor('white') # Set figure background to white
 
 for i in range(len(all_data)):
 	for j in range(len(all_data[0].trials)):
@@ -790,11 +805,15 @@ for i in range(len(all_data)):
 		axs[i,j].imshow(np.mean(all_data[i].trials[j].images, axis=0), vmin=0, vmax=500)
 		axs[i,j].set_xticks([])
 		axs[i,j].set_yticks([])
+		# Optional: Set axes background if needed
+		# axs[i,j].set_facecolor('white')
 
-fig.set_size_inches(40, 50)
+fig.set_size_inches(10, 28)
 fig.subplots_adjust(hspace=0, wspace=0)
 
-fig.savefig(path_home / fish_name / 'Summary of imaged planes.png')
+fig.savefig(results_figs_path_save / '3. Summary of imaged planes.png', facecolor='white')
+
+
 
 #endregion
 
@@ -805,6 +824,8 @@ fig.savefig(path_home / fish_name / 'Summary of imaged planes.png')
 # region Anatomical stack
 anatomical_stack_images = tifffile.imread(anatomy_1_path).astype('float32')
 # anatomical_stack_images = tifffile.imread(anatomy_1_filtered_path).astype('float32')
+
+
 
 #!!!!!!!!!!!!!!!
 
@@ -826,11 +847,6 @@ all_data = c.Data(all_data, anatomical_stack_images)
 #* Save the data.
 ##   
 # region Save the data
-
-
-path_pkl_before_motion_correction = path_home / fish_name / (fish_name + '_before motion correction' + '.pkl')
-os.makedirs(os.path.dirname(path_pkl_before_motion_correction), exist_ok=True)
-
 with open(path_pkl_before_motion_correction, 'wb') as file:
 	pickle.dump(all_data, file)
 
@@ -838,21 +854,6 @@ with open(path_pkl_before_motion_correction, 'wb') as file:
 print('END')
 
 
-
-
-fig, axs = plt.subplots(len(all_data.planes), len(all_data.planes[0].trials), figsize=(50, 50), squeeze=False)
-
-for i in range(len(all_data.planes)):
-	for j in range(len(all_data.planes[0].trials)):
-
-		axs[i,j].imshow(np.mean(all_data.planes[i].trials[j].images, axis=0), vmin=0, vmax=500)
-		axs[i,j].set_xticks([])
-		axs[i,j].set_yticks([])
-
-fig.set_size_inches(15, 35)
-fig.subplots_adjust(hspace=0, wspace=0)
-
-fig.savefig(path_home / fish_name / 'Summary of imaged planes.png')
 
 
 
@@ -909,3 +910,39 @@ fig.savefig(path_home / fish_name / 'Summary of imaged planes.png')
 
 # # # Run the next script, where some plots are made.
 # # exec(open('2. Motion correction.py').read())
+
+from collections import namedtuple
+from dataclasses import dataclass
+
+
+@dataclass
+class Data:
+	
+	planes : list['Plane']
+	anatomical_stack : xr.DataArray
+
+
+	def get_planes(self, plane_numbers: list[int]):
+		
+		return [self.planes[i] for i in plane_numbers]
+
+
+	def get_trials(self, plane_numbers: list[int] | str, trial_numbers: list[int]):
+		
+		if plane_numbers == 'all':
+			
+			plane_numbers = range(len(self.planes))
+
+		return [self.planes[i].trials[j] for i in plane_numbers for j in trial_numbers]
+
+
+	# def get_images(self, plane_numbers: list[int] | str, trial_numbers: list[int]):
+		
+	# 	if plane_numbers is None:
+			
+	# 		plane_numbers = len(self.planes)
+
+	# 	return [self.planes[i].trials[j].images for i in plane_numbers for j in trial_numbers]
+
+
+# endregion

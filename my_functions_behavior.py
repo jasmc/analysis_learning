@@ -739,19 +739,19 @@ def stim_in_data(data, protocol):
 
 	for i, [cs_b, cs_e] in enumerate(protocol.loc['Cycle', [beg, end]].to_numpy()):
 		# print('hi')
-		data.loc[data.iloc[:,0].astype('int') == cs_b, cs_beg] = int(i + 1)
+		data.loc[data.iloc[:,0].astype('int') == cs_b, cs_beg_time] = int(i + 1)
 		data.loc[data.iloc[:,0].astype('int') == cs_e, cs_end] = int(i + 1)
 		
 	if protocol.index.isin(['Reinforcer']).any():
 
 		for i, [us_b, us_e] in enumerate(protocol.loc['Reinforcer', [beg, end]].to_numpy()):
-			data.loc[data.iloc[:,0].astype('int') == us_b, us_beg] = int(i + 1)
+			data.loc[data.iloc[:,0].astype('int') == us_b, us_beg_time] = int(i + 1)
 			data.loc[data.iloc[:,0].astype('int') == us_e, us_end] = int(i + 1)
 
 
 	# data.loc[:,cols_stim[:4]] = data.loc[:,cols_stim[:4]].astype('category')
-	data.loc[:, cs_beg] = data.loc[:, cs_beg].astype(CategoricalDtype(categories=data[cs_beg].unique().sort(), ordered=True))		
-	data.loc[:, us_beg] = data.loc[:, us_beg].astype(CategoricalDtype(categories=data[us_beg].unique().sort(), ordered=True))
+	data.loc[:, cs_beg_time] = data.loc[:, cs_beg_time].astype(CategoricalDtype(categories=data[cs_beg_time].unique().sort(), ordered=True))		
+	data.loc[:, us_beg_time] = data.loc[:, us_beg_time].astype(CategoricalDtype(categories=data[us_beg_time].unique().sort(), ordered=True))
 	data.loc[:, cs_end] = data.loc[:, cs_end].astype(CategoricalDtype(categories=data[cs_end].unique().sort(), ordered=True))
 	data.loc[:, us_end] = data.loc[:, us_end].astype(CategoricalDtype(categories=data[us_end].unique().sort(), ordered=True))
 
@@ -920,10 +920,10 @@ def findStim(data):
 
 	# Time needs to be in data's first column.
 
-	cs_beg_array = data.loc[data[cs_beg] != 0, data.columns[0]].to_numpy()
+	cs_beg_array = data.loc[data[cs_beg_time] != 0, data.columns[0]].to_numpy()
 	cs_end_array = data.loc[data[cs_end] != 0, data.columns[0]].to_numpy()
 
-	us_beg_array = data.loc[data[us_beg] != 0, data.columns[0]].to_numpy()
+	us_beg_array = data.loc[data[us_beg_time] != 0, data.columns[0]].to_numpy()
 	us_end_array = data.loc[data[us_end] != 0, data.columns[0]].to_numpy()
 
 
@@ -1412,9 +1412,9 @@ def setDtypesAndSortIndex(data):
 	#* Set the columns' dtypes.
 	data = data.astype({
 		time_trial:'int32',
-		cs_beg:	CategoricalDtype(categories=np.sort(data[cs_beg].unique()).astype('int64'), ordered=True),
+		cs_beg_time:	CategoricalDtype(categories=np.sort(data[cs_beg_time].unique()).astype('int64'), ordered=True),
 		cs_end:	CategoricalDtype(categories=np.sort(data[cs_end].unique()).astype('int64'), ordered=True),
-		us_beg:	CategoricalDtype(categories=np.sort(data[us_beg].unique()).astype('int64'), ordered=True),
+		us_beg_time:	CategoricalDtype(categories=np.sort(data[us_beg_time].unique()).astype('int64'), ordered=True),
 		us_end:	CategoricalDtype(categories=np.sort(data[us_end].unique()).astype('int64'), ordered=True),
 		number_trial:	CategoricalDtype(categories=np.sort(data[number_trial].unique()).astype('int64'), ordered=True),
 		# tail_angle:'float32',

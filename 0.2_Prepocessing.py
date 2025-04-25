@@ -327,7 +327,7 @@ data[vigor_raw] = data[vigor_raw].astype('float32')
 data[time_trial] = data[time_trial].astype('int')
 data[cols_bout] = data[cols_bout].astype(pd.SparseDtype('bool'))
 
-for col_s in [cs_beg, cs_end, us_beg, us_end, number_trial]:
+for col_s in [cs_beg_time, cs_end, us_beg_time, us_end, number_trial]:
 	data[col_s] = data[col_s].astype('int')
 	data[col_s] = data[col_s].astype(CategoricalDtype(categories=np.sort(data[col_s].unique()), ordered=True))
 

@@ -700,7 +700,7 @@ for plane_i, plane in tqdm(enumerate(all_data.planes)):
 		trial_images = trial.images.values
 
 		# Mask with True where the frames are bad (due to gating of the PMT or motion).
-		mask_good_frames = (~fi.get_good_images_indices_1(trial_images)) | (np.where(fi.get_total_motion(motions[trial_i]) > p.motion_thr_from_trial_average, True, False))
+		mask_good_frames = (~fi.get_good_images_indices(trial_images)) | (np.where(fi.get_total_motion(motions[trial_i]) > p.motion_thr_from_trial_average, True, False))
 
 		all_data.planes[plane_i].trials[trial_i].mask_good_frames = mask_good_frames
 

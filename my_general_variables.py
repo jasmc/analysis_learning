@@ -164,9 +164,9 @@ ela_time = 'ElapsedTime'
 cs: Final = 'CS'
 us: Final = 'US'
 
-cs_beg: Final = 'CS beg'
+cs_beg_time: Final = 'CS beg'
 cs_end: Final = 'CS end'
-us_beg: Final = 'US beg'
+us_beg_time: Final = 'US beg'
 us_end: Final = 'US end'
 
 vigor_bout_detection: Final = 'Vigour for bout detection (deg/ms)'
@@ -279,7 +279,7 @@ for i in range(chosen_tail_point+int(math.floor(space_bcf_window/2))):
 cols = [0] * len(cols_to_use_orig)
 cols[1:] = ['Angle of point {} (deg)'.format(i) for i in range(len(cols)-1)]
 
-cols_stim = [cs_beg, cs_end, us_beg, us_end, type_trial_csus, number_trial, block_name]
+cols_stim = [cs_beg_time, cs_end, us_beg_time, us_end, type_trial_csus, number_trial, block_name]
 
 cols_bout = [bout_beg, bout_end, bout]
 

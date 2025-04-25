@@ -1,108 +1,211 @@
-#* Imports
-
 # %%
+##   
 # region Imports
-
+from copy import deepcopy
 import os
 import pickle
-from copy import deepcopy
 from importlib import reload
 from pathlib import Path
 
-import h5py
+import cv2
+# import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 import plotly.io as pio
 import scipy.ndimage as ndimage
 import seaborn as sns
+import tifffile
+import tifffile as tiff
 import xarray as xr
 from PIL import Image
+from scipy import signal
 from scipy.ndimage import gaussian_filter
+from skimage.measure import block_reduce
 from tqdm import tqdm
 
 #* Load custom functions and classes
 import my_classes as c
+# import my_experiment_specific_variables as spec_var
 import my_functions_imaging as fi
 import my_parameters as p
 from my_general_variables import *
-from PIL import ImageSequence
-from PIL import ImageDraw, ImageFont
+
+# Save all data in a single pickle file.
+# Anatomical stack images and imaging data are median filtered.
+
+
+#* Imports
+
+
+# endregion
 
 reload(fi)
 reload(c)
 reload(p)
-# endregion
 
 #* Settings
-# %% Settings
+##    Settings
 # region Settings
+
+# %matplotlib ipympl
+
 pio.templates.default = "plotly_dark"
+
 pd.set_option("mode.copy_on_write", True)
-# pd.set_option("compute.use_numba", True)
+pd.set_option("compute.use_numba", True)
 pd.set_option("compute.use_numexpr", True)
 pd.set_option("compute.use_bottleneck", True)
 #endregion
 
 
 
-
-
-
-range_color_thr = 30
-
-
-
-
-
-
-
-
-
-
-
 #* Paths
-# %%
+##   
 # region Paths
-path_home = Path(r'E:\2024 09_Delay 2-P 4 planes JC neurons')
-# Path(r'E:\2024 03_Delay 2-P 15 planes top part')
+path_home = Path(r'D:\2024 03_Delay 2-P 15 planes top part')
+# Path(r'E:\2024 09_Delay 2-P 4 planes JC neurons')
 # Path(r'E:\2024 10_Delay 2-P single plane')
 # Path(r'E:\2024 10_Delay 2-P 15 planes ca8 neurons')
 # Path(r'E:\2024 09_Delay 2-P zoom in multiplane imaging')
 
+path_results_save = Path(r'F:\Results (paper)') / path_home.stem
+
 # fish_list = [f for f in (path_home / 'Imaging').iterdir() if f.is_dir()]
 # fish_names_list = [f.stem for f in fish_list]
 
-fish_name = r'20241007_03_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
-# '20240911_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+fish_name = r'20240415_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+# '20240416_01_delay_2p-3_mitfaminusminus,elavl3h2bgcamp6f_6dpf'
+
+
+# '20241007_03_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+
 # '20240910_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
-# '20240415_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+
 
 # '20241013_01_control_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+# '20241013_02_control_2p-2_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+# '20241007_03_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+# '20241009_03_delay_2p-9_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
 
-# '20241015_03_delay_2p-9_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf'
+# '20241024_02_delay_2p-2_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+# '20240926_03_trace_2p-9_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
 # '20240919_03_control_2p-1_mitfaminusminus,elavl3h2bgcamp6s_5dpf'
 # '20240911_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+# '20240415_02_delay_2p-2_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+# '20240416_01_delay_2p-3_mitfaminusminus,elavl3h2bgcamp6f_6dpf'
+# '20240415_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
 
-# '20240927_02_control_2p-5_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
-# '20241024_02_delay_2p-2_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+# 20240927_02_control_2p-5_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf
+
 # '20241015_03_delay_2p-9_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf'
-# '20240910_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+
 # '20240926_03_trace_2p-9_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
-# '20240926_03_trace_2p-9_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+# '20240927_02_control_2p-5_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+# '20240920_03_trace_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf'
+
+		# # fish_list = [f for f in (path_home / 'Imaging').iterdir() if f.is_dir()]
+		# # fish_names_list = [f.stem for f in fish_list]
+
+		# fish_name = r'20241013_01_control_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+		# # '20241015_03_delay_2p-9_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf'
+		# # '20240919_03_control_2p-1_mitfaminusminus,elavl3h2bgcamp6s_5dpf'
+		# # '20240911_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+		# # '20240415_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+		# # !'20240919_03_control_2p-1_mitfaminusminus,elavl3h2bgcamp6s_5dpf'
+		# #! 20240416_01_delay_2p-3_mitfaminusminus,elavl3h2bgcamp6f_6dpf
+		# #! 20240415_02_delay_2p-2_mitfaminusminus,elavl3h2bgcamp6f_5dpf
+		# #! 20240926_03_trace_2p-9_mitfaminusminus,elavl3h2bgcamp6f_5dpf
+
+		# # '20240927_02_control_2p-5_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+		# # r'20240926_03_trace_2p-9_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+		# # '20241015_03_delay_2p-9_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf'
+		# # '20240920_03_trace_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf'
+		# # '20240910_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
 
 
-imaging_path = path_home / 'Imaging'
+
+		# imaging_path = path_home / 'Imaging'
 
 
-# for fish_i, fish_name in enumerate(fish_names_list):
+		# # for fish_i, fish_name in enumerate(fish_names_list):
 
-# 	try:
+		# # 	try:
 
-imaging_path_ = imaging_path / fish_name / 'Imaging'
+		# imaging_path_ = imaging_path / fish_name / 'Imaging'
 
 
-path_pkl_analysis_1 = path_home / fish_name / (fish_name + '_analysis 1' + '.pkl')
+		# path_pkl_after_motion_correction = path_home / fish_name / (fish_name + '_after motion correction' + '.pkl')
+
+
+		# # h5_path = path_home / fish_name / (fish_name + '_before_motion_correction.h5')
+
+		# # h5_path = imaging_path_ / (fish_name + '_before_motion_correction.h5')
+
+		# # h5_path = r"E:\2024 03_Delay 2-P 15 planes top part\Imaging\20240910_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf\Imaging\20240910_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf_before_motion_correction.h5"
+
+
+
+fish_ID = '_'.join(fish_name.split('_')[:2])
+
+
+behavior_path_home = path_home / 'Tail'
+imaging_path_home = path_home / 'Neurons' / fish_name
+
+behavior_path_save = path_results_save / 'Tail'
+results_figs_path_save = path_results_save / 'Neurons' / fish_name
+
+whole_data_path_save = Path(r'H:\2-P imaging') / path_home.stem / fish_name
+
+
+path_pkl_before_motion_correction = whole_data_path_save / (fish_ID + '_before motion correction' + '.pkl')
+path_pkl_after_motion_correction = whole_data_path_save / (fish_ID + '_after motion correction' + '.pkl')
+
+
+path_pkl_analysis_1 = Path(r"H:\2-P imaging\2024 03_Delay 2-P 15 planes top part\20240415_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf\20240415_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf_analysis 1.pkl")
+
+path_responses = whole_data_path_save / (fish_ID + '_3. Responses.pkl')
+
+
+			# # Create the directory if it does not exist
+			# (results_path / 'ROI traces').mkdir(parents=True, exist_ok=True)
+			# (results_path / 'Videos with deltaF over F').mkdir(parents=True, exist_ok=True)
+			# (results_path / 'Anatomy with ROIs').mkdir(parents=True, exist_ok=True)
+			# os.makedirs(whole_data_path_save, exist_ok=True)
+
+
+
+
+border_size = 2*p.voxel_bin_size
+correlation_thr = 0.3
+median_thr = 5
+
+softthresh=50
+
+range_color_thr = 30
+
+
+if 'delay' in fish_name:
+	interval_between_CS_onset_US_onset = 9  # s
+elif 'trace' in fish_name:
+	interval_between_CS_onset_US_onset = 13  # s
+elif 'control' in fish_name:
+	interval_between_CS_onset_US_onset = 9  # s
+
+
+
+
+
+#* Load the data before motion correction.
+# region Load the data before motion correction
+with open(path_pkl_analysis_1, 'rb') as file:
+	all_data = pickle.load(file)
+
+
+
+print('Analyzing fish: ', fish_name)
+
 
 
 # h5_path = path_home / fish_name / (fish_name + '_before_motion_correction.h5')
@@ -115,27 +218,9 @@ path_pkl_analysis_1 = path_home / fish_name / (fish_name + '_analysis 1' + '.pkl
 
 
 
-if 'delay' in fish_name:
-	interval_between_CS_onset_US_onset = 9  # s
-if 'trace' in fish_name:
-	interval_between_CS_onset_US_onset = 13  # s
-
-
-#* Load the data before motion correction.
-# %%
-# region Load the data before motion correction
-with open(path_pkl_analysis_1, 'rb') as file:
-	all_data = pickle.load(file)
-
-# endregion
-
-# all_data.__dict__.keys()
-
-# all_data.planes[3].trials[3].shift_correction
 
 
 
-# softthresh=50
 
 plt.imshow((all_data.planes[0].trials[3].images.mean('Time (ms)')))
 
@@ -166,23 +251,6 @@ else:
 	y_black_box_beg = 594
 	y_black_box_end = 609
 
-
-
-
-
-
-
-def add_colors_to_world(anatomy, color_frame_original):
-	trial_red_channel = anatomy * (1 - color_frame_original)
-	trial_green_channel = trial_red_channel + color_frame_original * color_frame_original
-	trial_blue_channel = trial_red_channel
-	
-	image = (np.stack([trial_red_channel,trial_green_channel,trial_blue_channel], axis=-1)*255).astype(np.uint8)
-	
-	plt.imshow(image)
-	plt.show()
-
-	return image
 
 
 
@@ -246,7 +314,7 @@ for plane_i, plane in enumerate(all_data.planes):
 
 		####* CS positive response
 		color_frame_original = np.clip(trial.CS_US_vs_pre, 0, 1)
-		trial.CS_positive_response = add_colors_to_world(anatomy, color_frame_original)
+		trial.CS_positive_response = fi.add_colors_to_world(anatomy, color_frame_original)
 
 
 		###* CS negative response

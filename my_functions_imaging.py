@@ -4,6 +4,7 @@ from pathlib import Path
 from timeit import default_timer as timer
 
 import cv2
+import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -27,8 +28,6 @@ from my_general_variables import *
 # from my_experiment_specific_variables import expected_number_cs
 
 plt.style.use('classic')
-
-
 
 
 
@@ -761,19 +760,19 @@ def stim_in_data(data, protocol):
 
 	for i, [cs_b, cs_e] in enumerate(protocol.loc['Cycle', [beg, end]].to_numpy()):
 		# print('hi')
-		data.loc[data.iloc[:,0].astype('int') == cs_b, cs_beg] = int(i + 1)
+		data.loc[data.iloc[:,0].astype('int') == cs_b, cs_beg_time] = int(i + 1)
 		data.loc[data.iloc[:,0].astype('int') == cs_e, cs_end] = int(i + 1)
 		
 	if protocol.index.isin(['Reinforcer']).any():
 
 		for i, [us_b, us_e] in enumerate(protocol.loc['Reinforcer', [beg, end]].to_numpy()):
-			data.loc[data.iloc[:,0].astype('int') == us_b, us_beg] = int(i + 1)
+			data.loc[data.iloc[:,0].astype('int') == us_b, us_beg_time] = int(i + 1)
 			data.loc[data.iloc[:,0].astype('int') == us_e, us_end] = int(i + 1)
 
 
 	# data.loc[:,cols_stim[:4]] = data.loc[:,cols_stim[:4]].astype('category')
-	data.loc[:, cs_beg] = data.loc[:, cs_beg].astype(CategoricalDtype(categories=data[cs_beg].unique().sort(), ordered=True))		
-	data.loc[:, us_beg] = data.loc[:, us_beg].astype(CategoricalDtype(categories=data[us_beg].unique().sort(), ordered=True))
+	data.loc[:, cs_beg_time] = data.loc[:, cs_beg_time].astype(CategoricalDtype(categories=data[cs_beg_time].unique().sort(), ordered=True))		
+	data.loc[:, us_beg_time] = data.loc[:, us_beg_time].astype(CategoricalDtype(categories=data[us_beg_time].unique().sort(), ordered=True))
 	data.loc[:, cs_end] = data.loc[:, cs_end].astype(CategoricalDtype(categories=data[cs_end].unique().sort(), ordered=True))
 	data.loc[:, us_end] = data.loc[:, us_end].astype(CategoricalDtype(categories=data[us_end].unique().sort(), ordered=True))
 
@@ -942,10 +941,10 @@ def findStim(data):
 
 	# Time needs to be in data's first column.
 
-	cs_beg_array = data.loc[data[cs_beg] != 0, data.columns[0]].to_numpy()
+	cs_beg_array = data.loc[data[cs_beg_time] != 0, data.columns[0]].to_numpy()
 	cs_end_array = data.loc[data[cs_end] != 0, data.columns[0]].to_numpy()
 
-	us_beg_array = data.loc[data[us_beg] != 0, data.columns[0]].to_numpy()
+	us_beg_array = data.loc[data[us_beg_time] != 0, data.columns[0]].to_numpy()
 	us_end_array = data.loc[data[us_end] != 0, data.columns[0]].to_numpy()
 
 
@@ -1435,9 +1434,9 @@ def setDtypesAndSortIndex(data):
 	#* Set the columns' dtypes.
 	data = data.astype({
 		time_trial_f:'int32',
-		cs_beg:	CategoricalDtype(categories=np.sort(data[cs_beg].unique()).astype('int64'), ordered=True),
+		cs_beg_time:	CategoricalDtype(categories=np.sort(data[cs_beg_time].unique()).astype('int64'), ordered=True),
 		cs_end:	CategoricalDtype(categories=np.sort(data[cs_end].unique()).astype('int64'), ordered=True),
-		us_beg:	CategoricalDtype(categories=np.sort(data[us_beg].unique()).astype('int64'), ordered=True),
+		us_beg_time:	CategoricalDtype(categories=np.sort(data[us_beg_time].unique()).astype('int64'), ordered=True),
 		us_end:	CategoricalDtype(categories=np.sort(data[us_end].unique()).astype('int64'), ordered=True),
 		number_trial:	CategoricalDtype(categories=np.sort(data[number_trial].unique()).astype('int64'), ordered=True),
 		# tail_angle:'float32',
@@ -1949,7 +1948,7 @@ def identify_trials(data, protocol):
 
 
 
-def get_good_images_indices_1(images):
+def get_good_images_indices(images, light_percentage_increase_thr):
 
 	# top = np.nanmean(images_subset[:, :p.top_bottom_frame_slice, :], axis=(1,2))
 	# bottom = np.nanmean(images_subset[:, -p.top_bottom_frame_slice:, :], axis=(1,2))
@@ -1962,7 +1961,7 @@ def get_good_images_indices_1(images):
 	light_percentage_change = (np.abs(all - all_median) / all_median * 100)
 
 	#* Discard based on overall light (too low or too high)
-	mask_good_images = light_percentage_change < p.light_percentage_increase_thr
+	mask_good_images = light_percentage_change < light_percentage_increase_thr
 
 	#* And also discard based on the derivative
 	# mask_good_images = mask_good_images & ([True] + list((np.abs(np.diff(top)) < p.average_light_derivative_thr) & (np.abs(np.diff(bottom)) < p.average_light_derivative_thr) & (np.abs(np.diff(front)) < p.average_light_derivative_thr) & (np.abs(np.diff(back)) < p.average_light_derivative_thr) & (np.abs(np.diff(all) < p.average_light_derivative_thr))))
@@ -1988,7 +1987,7 @@ def get_good_images_indices_2(images):
 
 	light_percentage_change = ((all - all_median) / all_median * 100)
 
-	mask_good_images = light_percentage_change > p.light_percentage_decrease_PMT
+	mask_good_images = -light_percentage_change < p.light_percentage_decrease_PMT
 	# mask_good_images[-1] = False
 	# mask_good_images[0] = False
 	
@@ -2000,7 +1999,7 @@ def get_good_images_indices_2(images):
 
 def get_fixed_number_good_last_images(images_subset):
 
-	mask_good_images = get_good_images_indices_1(images_subset)
+	mask_good_images = get_good_images_indices(images_subset)
 
 	#* Discard the first and last frames
 	# mask_good_images[-1] = False
@@ -2033,7 +2032,7 @@ def get_fixed_number_good_last_images(images_subset):
 
 def get_maximum_number_good_last_images(images_subset):
 
-	mask_good_images = get_good_images_indices_1(images_subset)
+	mask_good_images = get_good_images_indices(images_subset)
 
 	#* Discard the first and last frames
 	mask_good_images[:3] = False
@@ -2077,14 +2076,13 @@ def get_template_image(frames):
 
 	print('Template using this number of frames: ', frames.shape[0])
 
-	template_image = np.mean(frames, axis=0)
+	template_image = np.median(frames, axis=0)
 	# ndimage.median_filter(frames, size=p.median_filter_kernel, axes=(1,2))
 	# ndimage.median_filter(np.nanmean(frames, axis=0), size=p.median_filter_kernel)
 
+	template_image = ndimage.median_filter(template_image, size=p.median_filter_kernel, axes=(0,1))
 	template_image = template_image - int(np.quantile(template_image, 0.01))
 	template_image = template_image.clip(0, None)
-	template_image = ndimage.median_filter(template_image, size=p.median_filter_kernel, axes=(0,1))
-
 
 # ##* Subtract the background from the images.
 # for image_i in range(trial_images_.shape[0]):
@@ -2280,4 +2278,272 @@ def get_ROIs(Nrois, correlation_map, images, threshold, max_pixels):
 
 	return all_traces, all_rois, used_pixels, correlation_map_
 
-#endregion
+
+
+# Define sharpness calculation function (requires opencv-python: pip install opencv-python)
+# Ensure cv2 is imported, e.g., import cv2
+def calculate_sharpness(image):
+	"""Calculates sharpness using the variance of the Laplacian."""
+	if image is None or image.size == 0 or np.isnan(image).all():
+		return 0.0
+	# Handle potential NaNs if any exist after clipping/background subtraction
+	image_nonan = np.nan_to_num(image)
+	# Ensure image is float32 for Laplacian calculation
+	image_float = image_nonan.astype(np.float64)
+	# Use a smaller kernel size (ksize=1) for potentially noisy data
+	laplacian = cv2.Laplacian(image_float, cv2.CV_64F, ksize=1)
+	variance = laplacian.var()
+	# Return 0 if variance is NaN (can happen with uniform images)
+	return variance if not np.isnan(variance) else 0.0
+
+
+
+
+
+
+
+def add_colors_to_world(anatomy, color_frame_original):
+	"""Adds color to an anatomical image based on an activity map.
+
+	Args:
+		anatomy: A 2D numpy array representing the anatomical background,
+					typically normalized between 0 and 1.
+		color_frame_original: A 2D numpy array representing the activity map,
+								typically normalized between 0 and 1. Higher values
+								will result in greener pixels.
+
+	Returns:
+		A 3D numpy array (height, width, 3) representing the RGB image
+		with activity overlaid, scaled to 0-255 and dtype uint8.
+	"""
+	trial_red_channel = anatomy * (1 - color_frame_original)
+	trial_green_channel = trial_red_channel + color_frame_original * color_frame_original
+	trial_blue_channel = trial_red_channel
+
+	image = (np.stack([trial_red_channel, trial_green_channel, trial_blue_channel], axis=-1) * 255).astype(np.uint8)
+
+	# plt.imshow(image, interpolation='none')
+	# plt.show()
+
+	return image
+
+
+def add_colors_to_world_improved(anatomy, color_frame_original, activity_scaling=1.0, anatomy_brightness=1.0):
+    """Adds color (green overlay) to an anatomical image based on an activity map
+       with more controlled color mixing.
+
+    Args:
+        anatomy: A 2D numpy array representing the anatomical background,
+                 typically normalized between 0 and 1.
+        color_frame_original: A 2D numpy array representing the activity map,
+                             typically normalized between 0 and 1. Higher values
+                             will result in a stronger green component.
+        activity_scaling: Multiplier for the activity component in the green channel.
+        anatomy_brightness: Multiplier for the anatomy component in all channels.
+
+    Returns:
+        A 3D numpy array (height, width, 3) representing the RGB image
+        with activity overlaid, scaled to 0-255 and dtype uint8.
+    """
+    # Start with the anatomical image in grayscale (equal R, G, B channels)
+    base_color = np.stack([anatomy] * 3, axis=-1) * anatomy_brightness
+
+    # Create the green overlay based on activity
+    green_overlay = np.zeros_like(base_color)
+    # Only put activity in the green channel
+    green_overlay[:, :, 1] = color_frame_original * activity_scaling
+
+    # Combine the base anatomy with the green overlay
+    # We add the green overlay to the green channel of the base anatomy.
+    # We can also reduce the red and blue channels where activity is high
+    # to make the green stand out more and reduce the "washed out" look
+    # that can happen when adding green to a bright grayscale.
+
+    # Option 2a: Simple Addition (might make bright areas yellowish/white)
+    # combined_image = base_color + green_overlay
+
+    # Option 2b: Blend the green in, reducing other channels where activity is high
+    combined_image = np.copy(base_color)
+    
+    # Increase green based on activity
+    combined_image[:, :, 1] = combined_image[:, :, 1] + green_overlay[:, :, 1] * (1 - anatomy) # Add green, less so in dark anatomical areas
+
+    # Optionally, reduce Red and Blue channels where activity is high
+    reduction_factor = color_frame_original * activity_scaling # Reduce more where activity is higher
+    combined_image[:, :, 0] = combined_image[:, :, 0] * (1 - reduction_factor * 0.5) # Reduce red
+    combined_image[:, :, 2] = combined_image[:, :, 2] * (1 - reduction_factor * 0.5) # Reduce blue
+
+
+    # Clip values to stay within [0, 1] after additions/subtractions
+    combined_image = np.clip(combined_image, 0, 1)
+
+    # Scale to 0-255 and convert to uint8
+    image = (combined_image * 255).astype(np.uint8)
+
+    return image
+
+
+
+
+def add_colors_to_world_improved_2(anatomy, color_frame_original, colormap='viridis', activity_threshold=0, alpha=0.5):
+    """Adds color to an anatomical image based on an activity map using colormapping and blending.
+
+    Args:
+        anatomy: A 2D numpy array representing the anatomical background,
+                 typically normalized between 0 and 1.
+        color_frame_original: A 2D numpy array representing the activity map,
+                             typically normalized between 0 and 1. Higher values
+                             will result in colors higher up in the colormap.
+        colormap: The matplotlib colormap to use for the activity overlay (default: 'viridis').
+        activity_threshold: Minimum activity value to show color overlay.
+        alpha: The transparency of the activity overlay (0.0 is fully transparent, 1.0 is fully opaque).
+
+    Returns:
+        A 3D numpy array (height, width, 3) representing the RGB image
+        with activity overlaid, scaled to 0-255 and dtype uint8.
+    """
+    # Ensure anatomy is in RGB format (grayscale replicated across channels)
+    anatomy_rgb = np.stack([anatomy] * 3, axis=-1)
+
+    # Create a colormapped version of the activity map
+    # Apply threshold to only color areas with sufficient activity
+    activity_masked = np.ma.masked_where(color_frame_original <= activity_threshold, color_frame_original)
+    
+    # Get the colormap
+    cmap = cm.get_cmap(colormap)
+    
+    # Apply colormap to the masked activity data
+    activity_colored = cmap(activity_masked)
+
+    # The colormapped data will have an alpha channel. We can use the activity
+    # or a fixed alpha for blending. Let's use a fixed alpha for simplicity here,
+    # but you could also use the activity value to control alpha.
+    
+    # Extract the RGB channels from the colormapped activity
+    activity_rgb = activity_colored[:, :, :3]
+    
+    # Blend the anatomy and the colored activity
+    # blended_image = alpha * activity_rgb + (1 - alpha) * anatomy_rgb # Simple linear blend
+    
+    # A more visually common blending where the anatomy provides the base
+    # and the activity is overlaid, respecting the anatomy's intensity
+    blended_image = np.zeros_like(anatomy_rgb)
+    
+    # Blend where activity is present
+    activity_mask = color_frame_original > activity_threshold
+    activity_mask_3d = np.stack([activity_mask] * 3, axis=-1)
+
+    # Simple alpha blending: result = alpha * foreground + (1 - alpha) * background
+    blended_image[activity_mask_3d] = (alpha * activity_rgb[activity_mask_3d] + 
+                                       (1 - alpha) * anatomy_rgb[activity_mask_3d])
+                                       
+    # Where no activity, just show the anatomy
+    blended_image[~activity_mask_3d] = anatomy_rgb[~activity_mask_3d]
+
+
+    # Scale to 0-255 and convert to uint8
+    image = (blended_image * 255).astype(np.uint8)
+
+    return image
+
+# Example Usage (assuming you have dummy anatomy and activity data)
+# anatomy_data = np.random.rand(100, 100)
+# activity_data = np.random.rand(100, 100)
+
+# overlaid_image = add_colors_to_world_improved1(anatomy_data, activity_data, colormap='hot', activity_threshold=0.3, alpha=0.7)
+
+# plt.imshow(overlaid_image)
+# plt.title("Improved Overlay (Colormapping and Blending)")
+# plt.axis('off')
+# plt.show()
+
+
+def scale_slide(plane_anatomy_slice, min_intensity_threshold):
+	"""
+	Processes a single plane's anatomy data by normalizing and clipping values.
+
+	Args:
+		plane_anatomy_slice (np.ndarray): The anatomy data for a single plane.
+
+	Returns:
+		np.ndarray: The processed anatomy data, normalized and clipped to [0, 1].
+	"""
+	# Get the anatomy image for the current plane and make a copy
+	anatomy = np.nan_to_num(plane_anatomy_slice.copy(), nan=0.0)
+
+	# Select pixels above the threshold for robust normalization
+	meaningful_pixels = anatomy[anatomy > min_intensity_threshold]
+
+	if meaningful_pixels.size > 0:
+		# Normalize using a high percentile (e.g., 99th) of meaningful pixels.
+		# This makes normalization robust to potential outliers or very bright spots.
+		norm_value = np.percentile(meaningful_pixels, 99)
+	else:
+		# Fallback if no pixels are above the threshold (e.g., mostly dark image)
+		norm_value = 1.0 # Avoid division by zero later
+
+	# Avoid division by zero or very small numbers for stability
+	if norm_value > 1e-6:
+		anatomy /= norm_value
+	else:
+		# If normalization factor is too small (e.g., image is essentially black),
+		# set the entire image to zero.
+		anatomy[:] = 0
+
+	# Clip values to ensure they are within the standard [0, 1] range after normalization
+	anatomy = np.clip(anatomy, 0, 1)
+
+	# Ensure pixels that were originally NaN remain 0 after processing
+	anatomy = np.where(np.isnan(plane_anatomy_slice), np.nan, anatomy)
+
+	return anatomy
+
+
+
+def normalize_image(image, quantiles=(0.05, 0.95)):
+
+	q_min_val = np.quantile(image, quantiles[0])
+	q_max_val = np.quantile(image, quantiles[1])
+	
+	# clip the values to 0 and 1
+	return np.clip(image, q_min_val, q_max_val)
+
+
+def calculate_anatomy(plane_aligned_frames, border_size):
+	"""
+	Calculates the correlation map and processes the anatomy for a plane.
+
+	Args:
+		plane_anatomy_ (np.ndarray): Concatenated and aligned images for the plane.
+		border_size (int): Size of the border to set correlation to 0.
+
+	Returns:
+		tuple: A tuple containing:
+			- anatomy (np.ndarray): The processed and normalized anatomy image.
+	"""
+	# Calculate numerator: Gaussian filter of the norm, then square
+	numerator = ndimage.gaussian_filter(np.linalg.norm(plane_aligned_frames, axis=0), sigma=p.correlation_map_sigma)**2
+
+	# Calculate denominator: Norm of the Gaussian filtered data
+	denominator = np.linalg.norm(ndimage.gaussian_filter(plane_aligned_frames, sigma=p.correlation_map_sigma, axes=(1,2)), axis=0)**2
+
+	# Avoid division by zero
+	correlation_map = np.divide(numerator, denominator, out=np.zeros_like(numerator), where=denominator!=0)
+
+	# Set the correlation around the image to 0
+	correlation_map[:border_size, :] = 0
+	correlation_map[-border_size:, :] = 0
+	correlation_map[:, :border_size] = 0
+	correlation_map[:, -border_size:] = 0
+
+	# Determine correlation threshold
+	correlation_thr = np.percentile(correlation_map, 20)
+
+	# Calculate mean anatomy and mask based on correlation threshold
+	plane_anatomy_mean = np.mean(plane_aligned_frames, axis=0)
+	plane_anatomy_mean_masked = np.where(correlation_map > correlation_thr, plane_anatomy_mean, 0)
+
+	# Process the masked anatomy
+	# anatomy = fi.scale_slide(plane_anatomy_mean_masked, p.min_intensity_threshold)
+
+	return plane_anatomy_mean_masked

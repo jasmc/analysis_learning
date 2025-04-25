@@ -4,7 +4,7 @@ import numpy as np
 # %%
 #region Parameters
 light_percentage_increase_thr = 5
-light_percentage_decrease_PMT = -10
+light_percentage_decrease_PMT = 10
 average_light_derivative_thr = 10
 top_bottom_frame_slice = 50  # number pixels
 front_back_frame_slice = 50  # number pixels
@@ -64,3 +64,19 @@ voxel_bin_size = 5
 
 time_bef_cs_onset = 45000  # ms
 time_aft_cs_onset = 35000  # ms
+
+
+image_crop = 5  # number of pixels to crop around the images
+image_crop_template_matching = int(image_crop*1.5)
+
+motion_thr_within_trial = 5  # threshold for motion within trial (number of pixels)
+motion_thr_across_trials = 20 # threshold for motion across trials (number of pixels)
+
+image_crop_ = image_crop + motion_thr_within_trial
+
+number_iterations_within_trial = 3
+
+
+min_intensity_threshold = 1e-3
+
+low_high = 10
