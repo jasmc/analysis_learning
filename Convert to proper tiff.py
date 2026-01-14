@@ -1,3 +1,39 @@
+"""
+TIFF Format Conversion Utility
+
+This utility script converts imaging data to properly formatted TIFF files
+for compatibility with external analysis tools and ImageJ/Fiji.
+
+Purpose:
+- Convert between different TIFF formats (BigTIFF, standard TIFF)
+- Add proper metadata (dimensions, scaling, timestamps)
+- Ensure ImageJ compatibility
+- Prepare data for sharing or archiving
+
+Conversion Features:
+- Multi-page TIFF handling
+- Proper axis ordering (TZCYX)
+- Metadata preservation
+- Compression options (gzip, LZW)
+- BigTIFF support for >4GB files
+
+Common Use Cases:
+- Export motion-corrected data for manual inspection
+- Prepare datasets for publication
+- Convert Suite2p binary outputs to TIFF
+- Share data with collaborators
+
+Output Format:
+- ImageJ-compatible multi-page TIFF
+- Metadata includes: frame rate, pixel size, time stamps
+- Optional compression for reduced file size
+
+Note: This is a utility script for data format conversion.
+Main analysis pipeline uses native formats (pickle, HDF5).
+"""
+
+# TODO: Implement TIFF conversion workflow
+
 import os
 from pathlib import Path
 

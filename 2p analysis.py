@@ -1,3 +1,42 @@
+"""
+General 2-Photon Analysis Utilities
+
+This script contains general-purpose analysis functions and exploratory code
+for 2-photon calcium imaging data analysis.
+
+Purpose:
+- Prototype new analysis methods
+- Test alternative algorithms
+- Generate exploratory visualizations
+- Benchmark different approaches
+
+Common Analyses:
+- Alternative motion correction algorithms
+- ROI detection parameter optimization
+- Response quantification methods
+- Statistical testing approaches
+- Data quality metrics
+
+Development Workflow:
+1. Prototype new analysis in this script
+2. Test on subset of data
+3. Validate against known results
+4. Integrate into main pipeline if successful
+5. Document in appropriate numbered script
+
+Typical Contents:
+- Experimental code snippets
+- Parameter sweep experiments
+- Comparative analyses
+- Debugging utilities
+- Performance profiling
+
+Note: This is a development/testing script.
+Code here is not production-ready and may be incomplete.
+Successful analyses are migrated to numbered scripts (0-5.x).
+"""
+
+# TODO: This script typically contains experimental/development code
 import re
 from pathlib import Path
 
@@ -1044,8 +1083,6 @@ stim_numbers = data.loc[data[us] > 0, us].unique()
 
 
 
-
-
 # data[(data[us].astype('float').diff() > 0)]
 
 # data[(data[us].astype('float').diff().shift(-1) < 0)]
@@ -1166,8 +1203,6 @@ import h5py
 
 with h5py.File(r"I:\20240314_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf\Data.hdf", "w") as file:
 	file.create_dataset("data", data=data, compression="gzip")
-
-
 
 
 
@@ -1645,7 +1680,7 @@ with h5py.File(r"I:\20240314_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf
 # # plt.plot(time, data__[us_end], 'mo')
 
 
-# # data__.plot(x=abs_time, y=['Frame beg', 'Image mean', us_beg, us_end], ls='.')
+# # data__.plot(x=abs_time, y=['Frame beg', 'Image mean', us_beg, us_end], ls='.)
 
 
 
@@ -1809,10 +1844,9 @@ with h5py.File(r"I:\20240314_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf
 
 # 	fig = go.Figure()
 # 	fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space][galvo_value].to_numpy()))
-# 	# fig.add_trace(go.Scattergl(x=galvo[::2].loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space][galvo_value][::2].to_numpy()))
-# 	# fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space]['1diff'].to_numpy()))
-# 	# fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space]['2diff'].to_numpy()))
-# 	# fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space]['3'].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space]['1diff'].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space]['2diff'].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space]['3'].to_numpy()))
 
 # 	# fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time][:-1], y=galvo.loc[index - space : index + space]['2diff'].to_numpy()[1:]))
 # 	# fig.add_trace(go.Scattergl(x=galvo.loc[index - space : index + space][abs_time], y=galvo.loc[index - space : index + space]['2diff'].diff().to_numpy()))
@@ -1829,8 +1863,6 @@ with h5py.File(r"I:\20240314_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf
 # 	# plt.plot(galvo.loc[index - space : index + space][abs_time], galvo.loc[index - space : index + space]['beg'], 'bo')
 
 # 	# plt.show()
-
-
 
 
 
@@ -1881,411 +1913,7 @@ with h5py.File(r"I:\20240314_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf
 
 # # galvo.plot(abs_time, 'GalvoValue')
 
-# # galvo = galvo.drop(columns='GalvoValue')
-
-# # galvo = galvo.rename(columns={'AblationValue' : 'GalvoValue'})
-
-# # galvo = galvo.rename(columns={'FrameID' : 'ID'})
-
-# # galvo = galvo.drop(columns=['ElapsedTime', 'AbsoluteTime'])
-
-
-
-
-# 		# np.median(np.diff(galvo_peaks))
-
-
-
-
-# # fig = go.Figure()
-# # fig.add_trace(go.Scattergl(x=np.arange(len(galvo)), y=galvo['GalvoValue'].to_numpy()))
-# # fig.add_trace(go.Scattergl(x=np.arange(len(galvo)), y=galvo_peaks))
-# # fig.add_trace(go.Scattergl(x=np.arange(len(galvo)), y=galvo['GalvoValue'].to_numpy()))
-
-
-# # fig.write_html(r"C:\Users\joaqc\Desktop\test.html")
-
-
-
-
-
-
-# # galvo['GalvoValue'].iloc[50000:52000].plot()
-# # galvo_peaks.iloc[50000:52000].plot()
-
-# # galvo['GalvoValue'][galvo_peaks>2]
-
-
-
-# 	#! this is for when the galvo signal is saved throgh LabView
-# 	# galvo = pd.read_csv(galvo_path, engine='pyarrow', sep='\t', header=4, decimal='.', na_filter=False)
-
-# 	# galvo.rename(columns={'time' : abs_time, 'Dev1/ai0' : galvo_value}, inplace=True)
-
-# 	# galvo = galvo.iloc[:,[0,1]]
-
-# 	# galvo[abs_time] = galvo[abs_time].astype('datetime64[ns]') - pd.Timedelta('1h')
-
-# 	# # Calculate unixtime in ms
-# 	# galvo[abs_time] = galvo[abs_time].astype('int64') / 10**6
-# 	# # galvo = (galvo[abs_time] - pd.Timestamp("1970-01-01")) // pd.Timedelta('1s')
-# 	# # galvo = galvo[abs_time].map(pd.Timestamp.timestamp)
-
-
-
-# # data = f.highlight_stim_in_data(data, protocol)
-
-
-
-# # del galvo
-
-
-# 		# index_pmt_beg = np.zeros(len(data[data[pmt_off_beg].notna()]))
-# 		# # len(index_pmt_beg)
-
-
-# 		# for index in data.loc[data[pmt_off_beg].notna(), abs_time]:
-
-# 		# 	data = data.loc[data[abs_time].between(index - 1000, index + 3000)]
-			
-			
-# 		# 	plt.plot(data[abs_time], data[pmt_off_beg] + 1, 'ko')
-# 		# 	plt.plot(data[abs_time], data[pmt_off_end] + 1, 'go')
-# 		# 	plt.plot(data[abs_time], data[us_beg] + 1, '.')
-# 		# 	plt.plot(data[abs_time], data[us_end] + 1, '.')
-# 		# 	plt.plot(data[abs_time], data[galvo_value])
-
-
-
-# 		# 	print(data.loc[data[pmt_off_end].notna(), abs_time].to_numpy() - data.loc[data[pmt_off_beg].notna(), abs_time].to_numpy(), data.loc[data[us_beg].notna(), abs_time].to_numpy() - data.loc[data[pmt_off_beg].notna(), abs_time].to_numpy(), data.loc[data[pmt_off_end].notna(), abs_time].to_numpy() - data.loc[data[us_end].notna(), abs_time].to_numpy())
-
-# 		# 	break
-
-
-
-
-
-
-# A = data[galvo_value].diff()
-
-
-
-# A[A>2]
-
-
-# data.iloc[5000:][galvo_value].plot()
-
-
-# len(images_mean)
-
-
-# plt.plot(A.iloc[5000:10000], 'k.')
-# plt.plot(data[galvo_value].iloc[5000:10000], 'g.')
-
-
-
-# plt.plot(images_mean)
-
-
-# #* Pad the image paths
-# # List all files in the folder
-# # files = os.listdir(folder_path)
-# images_paths = [*Path(images_path).glob('*tiff')]
-
-# # Regex pattern to find all integer numbers in the file names
-# pattern = re.compile(r'(\d+)')
-
-# # Iterate through each file and rename it
-# for images_name in images_paths:
-
-# 	new_image_name = re.sub(pattern, lambda x: x.group(1).zfill(10), str(images_name.stem))
-	
-# 	images_name.rename(Path(images_path).joinpath(new_image_name + '.tiff'))
-
-
-# import multipagetiff as mtif
-# s = mtif.read_stack(images_path, units='um')
-# mtif.plot_flatten(s)
-# pages = s.pages
-# pages.shape
-# mtif.Stack(pages)
-
-
-
-# tif = TiffFile(images_path)
-# len(tif.pages)  # number of pages in the file
-
-# np.mean(tif.pages[1000])
-
-
-# imread(images_path, key=-100:)
-
-# imread()
-
-
-
-
-
-
-# #! images_paths = images_path + r"\test_1green.tif"
-
-# im = Image.open(images_path)
-
-# images_mean = []
-
-# ImageSequence.all_frames(im, np.mean)
-
-# try:
-# 	for frame in ImageSequence.Iterator(im):
-		
-# 		images_mean.append(np.sum(frame))
-# except:
-# 	pass
-
-# plt.plot(images_mean)
-
-
-
-# images_mean = np.array(images_mean, dtype='int')
-
-
-
-
-# len(images_mean)
-
-
-
-# data['image'] = 0
-
-
-
-
-# B = data.loc[data['beg'].notna(), 'image'].iloc[::2].index
-
-# data.loc[B, 'image'] = images_mean[1:-1]
-
-
-
-# len(images_mean[1:-1])
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# data.loc[:,[cs_beg, cs_end, us_beg, us_end, 'PMT_OFF beg', 'PMT_OFF end']] = data[[cs_beg, cs_end, us_beg, us_end, 'PMT_OFF beg', 'PMT_OFF end']].fillna(0)
-
-
-# plt.plot(data[abs_time], data['PMT_OFF beg'], 'ko')
-# plt.plot(data[abs_time], data[galvo_value])
-
-# # data = data.dropna(subset='ID')
-
-
-
-
-# data.dtypes
-
-
-
-
-
-
-# #* Fix dtypes.
-# data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']] = data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']].astype(pd.SparseDtype('int', 0))
-
-# data['ID'] = data['ID'].astype('int')
-
-
-
-
-
-
-
-
-
-# plt.plot(data['image'])
-# plt.plot(data['PMT_OFF end'])
-# plt.plot(images_mean*(-1/20000))
-
-# plt.plot(images_mean)
-# plt.plot(A)
-
-
-# A = np.diff(images_mean)
-# # *(-1/20000)
-
-# len(A[A<-50000])
-
-
-# plt.plot(data[abs_time], y=data[galvo_value])
-# plt.plot(data[abs_time], y=data[pmt_off_beg])
-# plt.plot(data[abs_time], y=data[pmt_off_end])
-
-
-# space = 10000
-
-# for index in data[data[us_beg]>0].index:
-	
-# 	data = data.loc[index-space:index+space]
-
-# 	fig = go.Figure()
-# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[galvo_value].to_numpy()))
-# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data['image'].to_numpy()))
-# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_beg].to_numpy()))
-# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_end].to_numpy()))
-
-
-# 	break
-
-# fig.write_html(r"C:\Users\joaqc\Desktop\test.html")
-
-
-
-
-
-
-# #region
-
-# need to find the beginning of each imaging frame
-
-
-
-
-
-
-
-
-
-# # B = data['GalvoValue'] / data[abs_time].diff()
-# # A = data['GalvoValue'] / data[ela_time].diff()
-
-# # fig = go.Figure()
-# # fig.add_trace(go.Scattergl(x=np.arange(len(A)), y=A.to_numpy()))
-# # fig.add_trace(go.Scattergl(x=np.arange(len(B)), y=B.to_numpy()))
-
-# # A = A.dropna()
-
-# # A.median()
-
-# data = data.reset_index(drop=True)
-
-# galvo_peaks = data['GalvoValue'].diff()
-
-# # galvo_peaks[galvo_peaks>1.5]
-
-# galvo_peaks = galvo_peaks.to_numpy()
-
-# # galvo_peaks.where(galvo_peaks > 1.5, False)
-
-# galvo_peaks_index = np.where(galvo_peaks>1.5)[0]
-
-# #* Interval between frames (only works for a lot of frames).
-# interval_between_frames = np.median(np.diff(galvo_peaks_index))
-
-# mask = np.diff(galvo_peaks_index) > 600
-# # (np.diff(galvo_peaks_index) > 340) & (np.diff(galvo_peaks_index) < 360)
-
-# C = data.loc[galvo_peaks_index[1:][mask][0]:]
-# # data.loc[data.index >= galvo_peaks_index[1:][mask][0]]
-
-
-
-# fig = go.Figure()
-# fig.add_trace(go.Scattergl(x=data.index, y=galvo_peaks))
-# fig.add_trace(go.Scattergl(x=data.index, y=data['GalvoValue'].to_numpy()))
-# fig.add_trace(go.Scattergl(x=C.index, y=C['GalvoValue'].to_numpy()))
-
-
-
-# # fig.add_trace(go.Scattergl(x=np.arange(len(data)), y=galvo_peaks))
-# fig.add_trace(go.Scattergl(x=np.arange(len(data)), y=data['GalvoValue'].to_numpy()))
-
-
-# fig.write_html(r"C:\Users\joaqc\Desktop\test.html")
-
-
-
-# #! Improve this part
-# galvo_peaks = C['GalvoValue'].diff()
-# # galvo_peaks[galvo_peaks>1.5]
-# galvo_peaks = galvo_peaks.to_numpy()
-# # galvo_peaks.where(galvo_peaks > 1.5, False)
-# galvo_peaks_index = np.where(galvo_peaks>1.5)[0]
-
-# #? Fix the time of all peaks?
-
-# D = C.iloc[galvo_peaks_index]
-
-# E = np.zeros(len(D))
-# E[:len(images_mean)] = images_mean
-
-# D['Mean of images'] = E
-
-
-# data['Mean of images'] = 0
-
-# data.loc[D.index] = D
-
-
-# x = data[abs_time].to_numpy()
-
-# fig = go.Figure()
-# # fig.add_trace(go.Scattergl(x=x, y=D['GalvoValue'].to_numpy()))
-# fig.add_trace(go.Scattergl(x=x, y=data['Mean of images'].to_numpy()))
-
-# fig.add_trace(go.Scattergl(x=x, y=data['PMT_OFF beg'].to_numpy()*200))
-
-
-
-
-
-# # data[abs_time] -= data[abs_time].iloc[0]
-
-# # fig = go.Figure()
-# # fig.add_trace(go.Scattergl(x=data[abs_time].to_numpy(), y=data['GalvoValue'].to_numpy()))
-# # # fig.add_trace(go.Scattergl(x=np.arange(len(data)), y=galvo_peaks))
-# # fig.add_trace(go.Scattergl(x=np.arange(len(data)), y=data['GalvoValue'].to_numpy()))
-
-
-# #endregion
-
-
-
-
-
-
-
-
-
-
-
-# fig = go.Figure()
-# fig.add_trace(go.Scatter(x=data[abs_time], y=data['GalvoValue'].to_numpy()))
-# fig.add_trace(go.Scatter(x=data[abs_time], y=galvo_peaks))
-
-
-
-
-
-
-
-
-
-
-
-
-# galvo.plot(y='GalvoValue')
-
-# galvo.iloc[15000:20000].plot(y='GalvoValue')
+# # galvo.iloc[15000:20000].plot(y='GalvoValue')
 
 
 
@@ -2380,29 +2008,3238 @@ with h5py.File(r"I:\20240314_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf
 
 
 
-# data.plot()
+
+
+
+# #* Fix dtypes.
+# data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']] = data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']].astype(pd.SparseDtype('int', 0))
+
+# data['ID'] = data['ID'].astype('int')
 
 
 
 
 
 
-# import struct
-# import tifffile
-# import h5py
-
-# galvo_path = Path(r"C:\Users\joaqc\Desktop\monacoshutterSat, Oct 28, 2023 6-04-58 PM.dat")
-
-# # galvo_bits = open(galvo_path, 'rb')
-# # galvo_bits = galvo_bits.read()
-# # struct.unpack('>i', galvo_bits)
 
 
 
 
 
-# # Reading and decoding data from the file
-# with open(str(galvo_path), 'rb') as f:
-# 	binary_data = f.read()
-# 	decoded_data = binary_data.decode('ascii', 'ignore')
-# 	print(decoded_data)
+
+
+# plt.plot(data['image'])
+# plt.plot(data['PMT_OFF end'])
+# plt.plot(images_mean*(-1/20000))
+
+# plt.plot(images_mean)
+# plt.plot(A)
+
+
+# A = np.diff(images_mean)
+# # *(-1/20000)
+
+# len(A[A<-50000])
+
+
+# plt.plot(data[abs_time], y=data[galvo_value])
+# plt.plot(data[abs_time], y=data[pmt_off_beg])
+# plt.plot(data[abs_time], y=data[pmt_off_end])
+
+
+# space = 10000
+
+# for index in data[data[us_beg]>0].index:
+	
+# 	data = data.loc[index-space:index+space]
+
+# 	fig = go.Figure()
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[galvo_value].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data['image'].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_beg].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_end].to_numpy()))
+
+
+# 	break
+
+# fig.write_html(r"C:\Users\joaqc\Desktop\test.html")
+
+
+
+
+
+
+# #region
+
+# need to find the beginning of each imaging frame
+
+
+
+
+
+
+
+
+
+# # B = data['GalvoValue'] / data[abs_time].diff()
+# # A = data['GalvoValue'] / data[ela_time].diff()
+
+# # fig = go.Figure()
+# # fig.add_trace(go.Scattergl(x=np.arange(len(A)), y=A.to_numpy()))
+# # fig.add_trace(go.Scattergl(x=np.arange(len(B)), y=B.to_numpy()))
+
+# # A = A.dropna()
+
+# # A.median()
+
+# data = data.reset_index(drop=True)
+
+# galvo_peaks = data['GalvoValue'].diff()
+
+# # galvo_peaks[galvo_peaks>1.5]
+
+
+# # galvo_peaks = galvo_peaks.to_numpy()
+
+
+# # galvo_peaks = np.where(galvo_peaks>1.5)
+
+# # galvo_peaks = np.where(galvo_peaks>1.5, 5, 0)
+
+
+
+# # galvo.plot(abs_time, 'GalvoValue')
+
+# # galvo.iloc[15000:20000].plot(y='GalvoValue')
+
+
+
+
+
+# data = data.iloc[20000:80000]
+
+
+
+# data['GalvoValue'].iloc[20000:22000].plot()
+
+# data.plot(x='ID', y=abs_time)
+
+
+
+
+
+
+
+
+
+
+# plt.plot(images_mean)
+
+
+
+
+# #! PLOTS
+
+
+
+# data['ID'] -= data['ID'].iat[0]
+
+
+
+
+# # with open(galvo_path, 'rb') as file:
+# #	 binary_string = file.read()
+
+# # # print(binary_string)
+
+# # # with open(r'E:\\data\\test\\zscan\\conversionNEW.txt', 'w') as new_file:
+# # # 	new_file.write(binary_string)
+	
+
+# # text_string = binary_string.decode('')
+# # print(text_string)
+
+
+
+
+
+
+# #! Shape of the galvoValue
+# data.plot('ID', 'GalvoValue')
+
+# data.plot(x='ID', y=['GalvoValue', us_beg, us_end] )
+
+
+# plt.plot(data[us_beg], 'green')
+# plt.plot(data[us_beg], 'red')
+
+
+# data = data[data['ID'].between(8000,45000)]
+# data.plot(x='ID', y=[us_beg, 'PMT_OFF beg'], )
+
+
+# data.plot(x='ID', y=[us_beg, us_end, cs_beg, cs_end], )
+
+
+# data.plot(x='ID', y=[ 'PMT_OFF beg', 'PMT_OFF end'])
+
+# # data[abs_time].diff().plot()
+
+# data.plot(x='ID', y=[us_beg, us_end],)
+
+
+
+# protocol[end] - protocol[beg]
+
+
+
+
+
+
+
+
+
+
+
+# data.dtypes
+
+
+
+
+
+
+# #* Fix dtypes.
+# data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']] = data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']].astype(pd.SparseDtype('int', 0))
+
+# data['ID'] = data['ID'].astype('int')
+
+
+
+
+
+# plt.plot(data['image'])
+# plt.plot(data['PMT_OFF end'])
+# plt.plot(images_mean*(-1/20000))
+
+# plt.plot(images_mean)
+# plt.plot(A)
+
+
+# A = np.diff(images_mean)
+# # *(-1/20000)
+
+# len(A[A<-50000])
+
+
+# plt.plot(data[abs_time], y=data[galvo_value])
+# plt.plot(data[abs_time], y=data[pmt_off_beg])
+# plt.plot(data[abs_time], y=data[pmt_off_end])
+
+
+# space = 10000
+
+# for index in data[data[us_beg]>0].index:
+	
+# 	data = data.loc[index-space:index+space]
+
+# 	fig = go.Figure()
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[galvo_value].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data['image'].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_beg].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_end].to_numpy()))
+
+
+# 	break
+
+# fig.write_html(r"C:\Users\joaqc\Desktop\test.html")
+
+
+
+
+
+
+# #region
+
+# need to find the beginning of each imaging frame
+
+
+
+
+
+
+
+
+
+# # B = data['GalvoValue'] / data[abs_time].diff()
+# # A = data['GalvoValue'] / data[ela_time].diff()
+
+# # fig = go.Figure()
+# # fig.add_trace(go.Scattergl(x=np.arange(len(A)), y=A.to_numpy()))
+# # fig.add_trace(go.Scattergl(x=np.arange(len(B)), y=B.to_numpy()))
+
+# # A = A.dropna()
+
+# # A.median()
+
+# data = data.reset_index(drop=True)
+
+# galvo_peaks = data['GalvoValue'].diff()
+
+# # galvo_peaks[galvo_peaks>1.5]
+
+
+# # galvo_peaks = galvo_peaks.to_numpy()
+
+
+# # galvo_peaks = np.where(galvo_peaks>1.5)
+
+# # galvo_peaks = np.where(galvo_peaks>1.5, 5, 0)
+
+
+
+# # galvo.plot(abs_time, 'GalvoValue')
+
+# # galvo.iloc[15000:20000].plot(y='GalvoValue')
+
+
+
+
+
+# data = data.iloc[20000:80000]
+
+
+
+# data['GalvoValue'].iloc[20000:22000].plot()
+
+# data.plot(x='ID', y=abs_time)
+
+
+
+
+
+
+
+
+
+
+# plt.plot(images_mean)
+
+
+
+
+# #! PLOTS
+
+
+
+# data['ID'] -= data['ID'].iat[0]
+
+
+
+
+# # with open(galvo_path, 'rb') as file:
+# #	 binary_string = file.read()
+
+# # # print(binary_string)
+
+# # # with open(r'E:\\data\\test\\zscan\\conversionNEW.txt', 'w') as new_file:
+# # # 	new_file.write(binary_string)
+	
+
+# # text_string = binary_string.decode('')
+# # print(text_string)
+
+
+
+
+
+
+# #! Shape of the galvoValue
+# data.plot('ID', 'GalvoValue')
+
+# data.plot(x='ID', y=['GalvoValue', us_beg, us_end] )
+
+
+# plt.plot(data[us_beg], 'green')
+# plt.plot(data[us_beg], 'red')
+
+
+# data = data[data['ID'].between(8000,45000)]
+# data.plot(x='ID', y=[us_beg, 'PMT_OFF beg'], )
+
+
+# data.plot(x='ID', y=[us_beg, us_end, cs_beg, cs_end], )
+
+
+# data.plot(x='ID', y=[ 'PMT_OFF beg', 'PMT_OFF end'])
+
+# # data[abs_time].diff().plot()
+
+# data.plot(x='ID', y=[us_beg, us_end],)
+
+
+
+# protocol[end] - protocol[beg]
+
+
+
+
+
+
+
+
+
+
+
+# data.dtypes
+
+
+
+
+
+
+# #* Fix dtypes.
+# data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']] = data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']].astype(pd.SparseDtype('int', 0))
+
+# data['ID'] = data['ID'].astype('int')
+
+
+
+
+
+# plt.plot(data['image'])
+# plt.plot(data['PMT_OFF end'])
+# plt.plot(images_mean*(-1/20000))
+
+# plt.plot(images_mean)
+# plt.plot(A)
+
+
+# A = np.diff(images_mean)
+# # *(-1/20000)
+
+# len(A[A<-50000])
+
+
+# plt.plot(data[abs_time], y=data[galvo_value])
+# plt.plot(data[abs_time], y=data[pmt_off_beg])
+# plt.plot(data[abs_time], y=data[pmt_off_end])
+
+
+# space = 10000
+
+# for index in data[data[us_beg]>0].index:
+	
+# 	data = data.loc[index-space:index+space]
+
+# 	fig = go.Figure()
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[galvo_value].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data['image'].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_beg].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_end].to_numpy()))
+
+
+# 	break
+
+# fig.write_html(r"C:\Users\joaqc\Desktop\test.html")
+
+
+
+
+
+
+# #region
+
+# need to find the beginning of each imaging frame
+
+
+
+
+
+
+
+
+
+# # B = data['GalvoValue'] / data[abs_time].diff()
+# # A = data['GalvoValue'] / data[ela_time].diff()
+
+# # fig = go.Figure()
+# # fig.add_trace(go.Scattergl(x=np.arange(len(A)), y=A.to_numpy()))
+# # fig.add_trace(go.Scattergl(x=np.arange(len(B)), y=B.to_numpy()))
+
+# # A = A.dropna()
+
+# # A.median()
+
+# data = data.reset_index(drop=True)
+
+# galvo_peaks = data['GalvoValue'].diff()
+
+# # galvo_peaks[galvo_peaks>1.5]
+
+
+# # galvo_peaks = galvo_peaks.to_numpy()
+
+
+# # galvo_peaks = np.where(galvo_peaks>1.5)
+
+# # galvo_peaks = np.where(galvo_peaks>1.5, 5, 0)
+
+
+
+# # galvo.plot(abs_time, 'GalvoValue')
+
+# # galvo.iloc[15000:20000].plot(y='GalvoValue')
+
+
+
+
+
+# data = data.iloc[20000:80000]
+
+
+
+# data['GalvoValue'].iloc[20000:22000].plot()
+
+# data.plot(x='ID', y=abs_time)
+
+
+
+
+
+
+
+
+
+
+# plt.plot(images_mean)
+
+
+
+
+# #! PLOTS
+
+
+
+# data['ID'] -= data['ID'].iat[0]
+
+
+
+
+# # with open(galvo_path, 'rb') as file:
+# #	 binary_string = file.read()
+
+# # # print(binary_string)
+
+# # # with open(r'E:\\data\\test\\zscan\\conversionNEW.txt', 'w') as new_file:
+# # # 	new_file.write(binary_string)
+	
+
+# # text_string = binary_string.decode('')
+# # print(text_string)
+
+
+
+
+
+
+# #! Shape of the galvoValue
+# data.plot('ID', 'GalvoValue')
+
+# data.plot(x='ID', y=['GalvoValue', us_beg, us_end] )
+
+
+# plt.plot(data[us_beg], 'green')
+# plt.plot(data[us_beg], 'red')
+
+
+# data = data[data['ID'].between(8000,45000)]
+# data.plot(x='ID', y=[us_beg, 'PMT_OFF beg'], )
+
+
+# data.plot(x='ID', y=[us_beg, us_end, cs_beg, cs_end], )
+
+
+# data.plot(x='ID', y=[ 'PMT_OFF beg', 'PMT_OFF end'])
+
+# # data[abs_time].diff().plot()
+
+# data.plot(x='ID', y=[us_beg, us_end],)
+
+
+
+# protocol[end] - protocol[beg]
+
+
+
+
+
+
+
+
+
+
+
+# data.dtypes
+
+
+
+
+
+
+# #* Fix dtypes.
+# data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']] = data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']].astype(pd.SparseDtype('int', 0))
+
+# data['ID'] = data['ID'].astype('int')
+
+
+
+
+
+# plt.plot(data['image'])
+# plt.plot(data['PMT_OFF end'])
+# plt.plot(images_mean*(-1/20000))
+
+# plt.plot(images_mean)
+# plt.plot(A)
+
+
+# A = np.diff(images_mean)
+# # *(-1/20000)
+
+# len(A[A<-50000])
+
+
+# plt.plot(data[abs_time], y=data[galvo_value])
+# plt.plot(data[abs_time], y=data[pmt_off_beg])
+# plt.plot(data[abs_time], y=data[pmt_off_end])
+
+
+# space = 10000
+
+# for index in data[data[us_beg]>0].index:
+	
+# 	data = data.loc[index-space:index+space]
+
+# 	fig = go.Figure()
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[galvo_value].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data['image'].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_beg].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_end].to_numpy()))
+
+
+# 	break
+
+# fig.write_html(r"C:\Users\joaqc\Desktop\test.html")
+
+
+
+
+
+
+# #region
+
+# need to find the beginning of each imaging frame
+
+
+
+
+
+
+
+
+
+# # B = data['GalvoValue'] / data[abs_time].diff()
+# # A = data['GalvoValue'] / data[ela_time].diff()
+
+# # fig = go.Figure()
+# # fig.add_trace(go.Scattergl(x=np.arange(len(A)), y=A.to_numpy()))
+# # fig.add_trace(go.Scattergl(x=np.arange(len(B)), y=B.to_numpy()))
+
+# # A = A.dropna()
+
+# # A.median()
+
+# data = data.reset_index(drop=True)
+
+# galvo_peaks = data['GalvoValue'].diff()
+
+# # galvo_peaks[galvo_peaks>1.5]
+
+
+# # galvo_peaks = galvo_peaks.to_numpy()
+
+
+# # galvo_peaks = np.where(galvo_peaks>1.5)
+
+# # galvo_peaks = np.where(galvo_peaks>1.5, 5, 0)
+
+
+
+# # galvo.plot(abs_time, 'GalvoValue')
+
+# # galvo.iloc[15000:20000].plot(y='GalvoValue')
+
+
+
+
+
+# data = data.iloc[20000:80000]
+
+
+
+# data['GalvoValue'].iloc[20000:22000].plot()
+
+# data.plot(x='ID', y=abs_time)
+
+
+
+
+
+
+
+
+
+
+# plt.plot(images_mean)
+
+
+
+
+# #! PLOTS
+
+
+
+# data['ID'] -= data['ID'].iat[0]
+
+
+
+
+# # with open(galvo_path, 'rb') as file:
+# #	 binary_string = file.read()
+
+# # # print(binary_string)
+
+# # # with open(r'E:\\data\\test\\zscan\\conversionNEW.txt', 'w') as new_file:
+# # # 	new_file.write(binary_string)
+	
+
+# # text_string = binary_string.decode('')
+# # print(text_string)
+
+
+
+
+
+
+# #! Shape of the galvoValue
+# data.plot('ID', 'GalvoValue')
+
+# data.plot(x='ID', y=['GalvoValue', us_beg, us_end] )
+
+
+# plt.plot(data[us_beg], 'green')
+# plt.plot(data[us_beg], 'red')
+
+
+# data = data[data['ID'].between(8000,45000)]
+# data.plot(x='ID', y=[us_beg, 'PMT_OFF beg'], )
+
+
+# data.plot(x='ID', y=[us_beg, us_end, cs_beg, cs_end], )
+
+
+# data.plot(x='ID', y=[ 'PMT_OFF beg', 'PMT_OFF end'])
+
+# # data[abs_time].diff().plot()
+
+# data.plot(x='ID', y=[us_beg, us_end],)
+
+
+
+# protocol[end] - protocol[beg]
+
+
+
+
+
+
+
+
+
+
+
+# data.dtypes
+
+
+
+
+
+
+# #* Fix dtypes.
+# data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']] = data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']].astype(pd.SparseDtype('int', 0))
+
+# data['ID'] = data['ID'].astype('int')
+
+
+
+
+
+# plt.plot(data['image'])
+# plt.plot(data['PMT_OFF end'])
+# plt.plot(images_mean*(-1/20000))
+
+# plt.plot(images_mean)
+# plt.plot(A)
+
+
+# A = np.diff(images_mean)
+# # *(-1/20000)
+
+# len(A[A<-50000])
+
+
+# plt.plot(data[abs_time], y=data[galvo_value])
+# plt.plot(data[abs_time], y=data[pmt_off_beg])
+# plt.plot(data[abs_time], y=data[pmt_off_end])
+
+
+# space = 10000
+
+# for index in data[data[us_beg]>0].index:
+	
+# 	data = data.loc[index-space:index+space]
+
+# 	fig = go.Figure()
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[galvo_value].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data['image'].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_beg].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_end].to_numpy()))
+
+
+# 	break
+
+# fig.write_html(r"C:\Users\joaqc\Desktop\test.html")
+
+
+
+
+
+
+# #region
+
+# need to find the beginning of each imaging frame
+
+
+
+
+
+
+
+
+
+# # B = data['GalvoValue'] / data[abs_time].diff()
+# # A = data['GalvoValue'] / data[ela_time].diff()
+
+# # fig = go.Figure()
+# # fig.add_trace(go.Scattergl(x=np.arange(len(A)), y=A.to_numpy()))
+# # fig.add_trace(go.Scattergl(x=np.arange(len(B)), y=B.to_numpy()))
+
+# # A = A.dropna()
+
+# # A.median()
+
+# data = data.reset_index(drop=True)
+
+# galvo_peaks = data['GalvoValue'].diff()
+
+# # galvo_peaks[galvo_peaks>1.5]
+
+
+# # galvo_peaks = galvo_peaks.to_numpy()
+
+
+# # galvo_peaks = np.where(galvo_peaks>1.5)
+
+# # galvo_peaks = np.where(galvo_peaks>1.5, 5, 0)
+
+
+
+# # galvo.plot(abs_time, 'GalvoValue')
+
+# # galvo.iloc[15000:20000].plot(y='GalvoValue')
+
+
+
+
+
+# data = data.iloc[20000:80000]
+
+
+
+# data['GalvoValue'].iloc[20000:22000].plot()
+
+# data.plot(x='ID', y=abs_time)
+
+
+
+
+
+
+
+
+
+
+# plt.plot(images_mean)
+
+
+
+
+# #! PLOTS
+
+
+
+# data['ID'] -= data['ID'].iat[0]
+
+
+
+
+# # with open(galvo_path, 'rb') as file:
+# #	 binary_string = file.read()
+
+# # # print(binary_string)
+
+# # # with open(r'E:\\data\\test\\zscan\\conversionNEW.txt', 'w') as new_file:
+# # # 	new_file.write(binary_string)
+	
+
+# # text_string = binary_string.decode('')
+# # print(text_string)
+
+
+
+
+
+
+# #! Shape of the galvoValue
+# data.plot('ID', 'GalvoValue')
+
+# data.plot(x='ID', y=['GalvoValue', us_beg, us_end] )
+
+
+# plt.plot(data[us_beg], 'green')
+# plt.plot(data[us_beg], 'red')
+
+
+# data = data[data['ID'].between(8000,45000)]
+# data.plot(x='ID', y=[us_beg, 'PMT_OFF beg'], )
+
+
+# data.plot(x='ID', y=[us_beg, us_end, cs_beg, cs_end], )
+
+
+# data.plot(x='ID', y=[ 'PMT_OFF beg', 'PMT_OFF end'])
+
+# # data[abs_time].diff().plot()
+
+# data.plot(x='ID', y=[us_beg, us_end],)
+
+
+
+# protocol[end] - protocol[beg]
+
+
+
+
+
+
+
+
+
+
+
+# data.dtypes
+
+
+
+
+
+
+# #* Fix dtypes.
+# data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']] = data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']].astype(pd.SparseDtype('int', 0))
+
+# data['ID'] = data['ID'].astype('int')
+
+
+
+
+
+# plt.plot(data['image'])
+# plt.plot(data['PMT_OFF end'])
+# plt.plot(images_mean*(-1/20000))
+
+# plt.plot(images_mean)
+# plt.plot(A)
+
+
+# A = np.diff(images_mean)
+# # *(-1/20000)
+
+# len(A[A<-50000])
+
+
+# plt.plot(data[abs_time], y=data[galvo_value])
+# plt.plot(data[abs_time], y=data[pmt_off_beg])
+# plt.plot(data[abs_time], y=data[pmt_off_end])
+
+
+# space = 10000
+
+# for index in data[data[us_beg]>0].index:
+	
+# 	data = data.loc[index-space:index+space]
+
+# 	fig = go.Figure()
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[galvo_value].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data['image'].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_beg].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_end].to_numpy()))
+
+
+# 	break
+
+# fig.write_html(r"C:\Users\joaqc\Desktop\test.html")
+
+
+
+
+
+
+# #region
+
+# need to find the beginning of each imaging frame
+
+
+
+
+
+
+
+
+
+# # B = data['GalvoValue'] / data[abs_time].diff()
+# # A = data['GalvoValue'] / data[ela_time].diff()
+
+# # fig = go.Figure()
+# # fig.add_trace(go.Scattergl(x=np.arange(len(A)), y=A.to_numpy()))
+# # fig.add_trace(go.Scattergl(x=np.arange(len(B)), y=B.to_numpy()))
+
+# # A = A.dropna()
+
+# # A.median()
+
+# data = data.reset_index(drop=True)
+
+# galvo_peaks = data['GalvoValue'].diff()
+
+# # galvo_peaks[galvo_peaks>1.5]
+
+
+# # galvo_peaks = galvo_peaks.to_numpy()
+
+
+# # galvo_peaks = np.where(galvo_peaks>1.5)
+
+# # galvo_peaks = np.where(galvo_peaks>1.5, 5, 0)
+
+
+
+# # galvo.plot(abs_time, 'GalvoValue')
+
+# # galvo.iloc[15000:20000].plot(y='GalvoValue')
+
+
+
+
+
+# data = data.iloc[20000:80000]
+
+
+
+# data['GalvoValue'].iloc[20000:22000].plot()
+
+# data.plot(x='ID', y=abs_time)
+
+
+
+
+
+
+
+
+
+
+# plt.plot(images_mean)
+
+
+
+
+# #! PLOTS
+
+
+
+# data['ID'] -= data['ID'].iat[0]
+
+
+
+
+# # with open(galvo_path, 'rb') as file:
+# #	 binary_string = file.read()
+
+# # # print(binary_string)
+
+# # # with open(r'E:\\data\\test\\zscan\\conversionNEW.txt', 'w') as new_file:
+# # # 	new_file.write(binary_string)
+	
+
+# # text_string = binary_string.decode('')
+# # print(text_string)
+
+
+
+
+
+
+# #! Shape of the galvoValue
+# data.plot('ID', 'GalvoValue')
+
+# data.plot(x='ID', y=['GalvoValue', us_beg, us_end] )
+
+
+# plt.plot(data[us_beg], 'green')
+# plt.plot(data[us_beg], 'red')
+
+
+# data = data[data['ID'].between(8000,45000)]
+# data.plot(x='ID', y=[us_beg, 'PMT_OFF beg'], )
+
+
+# data.plot(x='ID', y=[us_beg, us_end, cs_beg, cs_end], )
+
+
+# data.plot(x='ID', y=[ 'PMT_OFF beg', 'PMT_OFF end'])
+
+# # data[abs_time].diff().plot()
+
+# data.plot(x='ID', y=[us_beg, us_end],)
+
+
+
+# protocol[end] - protocol[beg]
+
+
+
+
+
+
+
+
+
+
+
+# data.dtypes
+
+
+
+
+
+
+# #* Fix dtypes.
+# data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']] = data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']].astype(pd.SparseDtype('int', 0))
+
+# data['ID'] = data['ID'].astype('int')
+
+
+
+
+
+# plt.plot(data['image'])
+# plt.plot(data['PMT_OFF end'])
+# plt.plot(images_mean*(-1/20000))
+
+# plt.plot(images_mean)
+# plt.plot(A)
+
+
+# A = np.diff(images_mean)
+# # *(-1/20000)
+
+# len(A[A<-50000])
+
+
+# plt.plot(data[abs_time], y=data[galvo_value])
+# plt.plot(data[abs_time], y=data[pmt_off_beg])
+# plt.plot(data[abs_time], y=data[pmt_off_end])
+
+
+# space = 10000
+
+# for index in data[data[us_beg]>0].index:
+	
+# 	data = data.loc[index-space:index+space]
+
+# 	fig = go.Figure()
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[galvo_value].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data['image'].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_beg].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_end].to_numpy()))
+
+
+# 	break
+
+# fig.write_html(r"C:\Users\joaqc\Desktop\test.html")
+
+
+
+
+
+
+# #region
+
+# need to find the beginning of each imaging frame
+
+
+
+
+
+
+
+
+
+# # B = data['GalvoValue'] / data[abs_time].diff()
+# # A = data['GalvoValue'] / data[ela_time].diff()
+
+# # fig = go.Figure()
+# # fig.add_trace(go.Scattergl(x=np.arange(len(A)), y=A.to_numpy()))
+# # fig.add_trace(go.Scattergl(x=np.arange(len(B)), y=B.to_numpy()))
+
+# # A = A.dropna()
+
+# # A.median()
+
+# data = data.reset_index(drop=True)
+
+# galvo_peaks = data['GalvoValue'].diff()
+
+# # galvo_peaks[galvo_peaks>1.5]
+
+
+# # galvo_peaks = galvo_peaks.to_numpy()
+
+
+# # galvo_peaks = np.where(galvo_peaks>1.5)
+
+# # galvo_peaks = np.where(galvo_peaks>1.5, 5, 0)
+
+
+
+# # galvo.plot(abs_time, 'GalvoValue')
+
+# # galvo.iloc[15000:20000].plot(y='GalvoValue')
+
+
+
+
+
+# data = data.iloc[20000:80000]
+
+
+
+# data['GalvoValue'].iloc[20000:22000].plot()
+
+# data.plot(x='ID', y=abs_time)
+
+
+
+
+
+
+
+
+
+
+# plt.plot(images_mean)
+
+
+
+
+# #! PLOTS
+
+
+
+# data['ID'] -= data['ID'].iat[0]
+
+
+
+
+# # with open(galvo_path, 'rb') as file:
+# #	 binary_string = file.read()
+
+# # # print(binary_string)
+
+# # # with open(r'E:\\data\\test\\zscan\\conversionNEW.txt', 'w') as new_file:
+# # # 	new_file.write(binary_string)
+	
+
+# # text_string = binary_string.decode('')
+# # print(text_string)
+
+
+
+
+
+
+# #! Shape of the galvoValue
+# data.plot('ID', 'GalvoValue')
+
+# data.plot(x='ID', y=['GalvoValue', us_beg, us_end] )
+
+
+# plt.plot(data[us_beg], 'green')
+# plt.plot(data[us_beg], 'red')
+
+
+# data = data[data['ID'].between(8000,45000)]
+# data.plot(x='ID', y=[us_beg, 'PMT_OFF beg'], )
+
+
+# data.plot(x='ID', y=[us_beg, us_end, cs_beg, cs_end], )
+
+
+# data.plot(x='ID', y=[ 'PMT_OFF beg', 'PMT_OFF end'])
+
+# # data[abs_time].diff().plot()
+
+# data.plot(x='ID', y=[us_beg, us_end],)
+
+
+
+# protocol[end] - protocol[beg]
+
+
+
+
+
+
+
+
+
+
+
+# data.dtypes
+
+
+
+
+
+
+# #* Fix dtypes.
+# data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']] = data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']].astype(pd.SparseDtype('int', 0))
+
+# data['ID'] = data['ID'].astype('int')
+
+
+
+
+
+# plt.plot(data['image'])
+# plt.plot(data['PMT_OFF end'])
+# plt.plot(images_mean*(-1/20000))
+
+# plt.plot(images_mean)
+# plt.plot(A)
+
+
+# A = np.diff(images_mean)
+# # *(-1/20000)
+
+# len(A[A<-50000])
+
+
+# plt.plot(data[abs_time], y=data[galvo_value])
+# plt.plot(data[abs_time], y=data[pmt_off_beg])
+# plt.plot(data[abs_time], y=data[pmt_off_end])
+
+
+# space = 10000
+
+# for index in data[data[us_beg]>0].index:
+	
+# 	data = data.loc[index-space:index+space]
+
+# 	fig = go.Figure()
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[galvo_value].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data['image'].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_beg].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_end].to_numpy()))
+
+
+# 	break
+
+# fig.write_html(r"C:\Users\joaqc\Desktop\test.html")
+
+
+
+
+
+
+# #region
+
+# need to find the beginning of each imaging frame
+
+
+
+
+
+
+
+
+
+# # B = data['GalvoValue'] / data[abs_time].diff()
+# # A = data['GalvoValue'] / data[ela_time].diff()
+
+# # fig = go.Figure()
+# # fig.add_trace(go.Scattergl(x=np.arange(len(A)), y=A.to_numpy()))
+# # fig.add_trace(go.Scattergl(x=np.arange(len(B)), y=B.to_numpy()))
+
+# # A = A.dropna()
+
+# # A.median()
+
+# data = data.reset_index(drop=True)
+
+# galvo_peaks = data['GalvoValue'].diff()
+
+# # galvo_peaks[galvo_peaks>1.5]
+
+
+# # galvo_peaks = galvo_peaks.to_numpy()
+
+
+# # galvo_peaks = np.where(galvo_peaks>1.5)
+
+# # galvo_peaks = np.where(galvo_peaks>1.5, 5, 0)
+
+
+
+# # galvo.plot(abs_time, 'GalvoValue')
+
+# # galvo.iloc[15000:20000].plot(y='GalvoValue')
+
+
+
+
+
+# data = data.iloc[20000:80000]
+
+
+
+# data['GalvoValue'].iloc[20000:22000].plot()
+
+# data.plot(x='ID', y=abs_time)
+
+
+
+
+
+
+
+
+
+
+# plt.plot(images_mean)
+
+
+
+
+# #! PLOTS
+
+
+
+# data['ID'] -= data['ID'].iat[0]
+
+
+
+
+# # with open(galvo_path, 'rb') as file:
+# #	 binary_string = file.read()
+
+# # # print(binary_string)
+
+# # # with open(r'E:\\data\\test\\zscan\\conversionNEW.txt', 'w') as new_file:
+# # # 	new_file.write(binary_string)
+	
+
+# # text_string = binary_string.decode('')
+# # print(text_string)
+
+
+
+
+
+
+# #! Shape of the galvoValue
+# data.plot('ID', 'GalvoValue')
+
+# data.plot(x='ID', y=['GalvoValue', us_beg, us_end] )
+
+
+# plt.plot(data[us_beg], 'green')
+# plt.plot(data[us_beg], 'red')
+
+
+# data = data[data['ID'].between(8000,45000)]
+# data.plot(x='ID', y=[us_beg, 'PMT_OFF beg'], )
+
+
+# data.plot(x='ID', y=[us_beg, us_end, cs_beg, cs_end], )
+
+
+# data.plot(x='ID', y=[ 'PMT_OFF beg', 'PMT_OFF end'])
+
+# # data[abs_time].diff().plot()
+
+# data.plot(x='ID', y=[us_beg, us_end],)
+
+
+
+# protocol[end] - protocol[beg]
+
+
+
+
+
+
+
+
+
+
+
+# data.dtypes
+
+
+
+
+
+
+# #* Fix dtypes.
+# data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']] = data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']].astype(pd.SparseDtype('int', 0))
+
+# data['ID'] = data['ID'].astype('int')
+
+
+
+
+
+# plt.plot(data['image'])
+# plt.plot(data['PMT_OFF end'])
+# plt.plot(images_mean*(-1/20000))
+
+# plt.plot(images_mean)
+# plt.plot(A)
+
+
+# A = np.diff(images_mean)
+# # *(-1/20000)
+
+# len(A[A<-50000])
+
+
+# plt.plot(data[abs_time], y=data[galvo_value])
+# plt.plot(data[abs_time], y=data[pmt_off_beg])
+# plt.plot(data[abs_time], y=data[pmt_off_end])
+
+
+# space = 10000
+
+# for index in data[data[us_beg]>0].index:
+	
+# 	data = data.loc[index-space:index+space]
+
+# 	fig = go.Figure()
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[galvo_value].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data['image'].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_beg].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_end].to_numpy()))
+
+
+# 	break
+
+# fig.write_html(r"C:\Users\joaqc\Desktop\test.html")
+
+
+
+
+
+
+# #region
+
+# need to find the beginning of each imaging frame
+
+
+
+
+
+
+
+
+
+# # B = data['GalvoValue'] / data[abs_time].diff()
+# # A = data['GalvoValue'] / data[ela_time].diff()
+
+# # fig = go.Figure()
+# # fig.add_trace(go.Scattergl(x=np.arange(len(A)), y=A.to_numpy()))
+# # fig.add_trace(go.Scattergl(x=np.arange(len(B)), y=B.to_numpy()))
+
+# # A = A.dropna()
+
+# # A.median()
+
+# data = data.reset_index(drop=True)
+
+# galvo_peaks = data['GalvoValue'].diff()
+
+# # galvo_peaks[galvo_peaks>1.5]
+
+
+# # galvo_peaks = galvo_peaks.to_numpy()
+
+
+# # galvo_peaks = np.where(galvo_peaks>1.5)
+
+# # galvo_peaks = np.where(galvo_peaks>1.5, 5, 0)
+
+
+
+# # galvo.plot(abs_time, 'GalvoValue')
+
+# # galvo.iloc[15000:20000].plot(y='GalvoValue')
+
+
+
+
+
+# data = data.iloc[20000:80000]
+
+
+
+# data['GalvoValue'].iloc[20000:22000].plot()
+
+# data.plot(x='ID', y=abs_time)
+
+
+
+
+
+
+
+
+
+
+# plt.plot(images_mean)
+
+
+
+
+# #! PLOTS
+
+
+
+# data['ID'] -= data['ID'].iat[0]
+
+
+
+
+# # with open(galvo_path, 'rb') as file:
+# #	 binary_string = file.read()
+
+# # # print(binary_string)
+
+# # # with open(r'E:\\data\\test\\zscan\\conversionNEW.txt', 'w') as new_file:
+# # # 	new_file.write(binary_string)
+	
+
+# # text_string = binary_string.decode('')
+# # print(text_string)
+
+
+
+
+
+
+# #! Shape of the galvoValue
+# data.plot('ID', 'GalvoValue')
+
+# data.plot(x='ID', y=['GalvoValue', us_beg, us_end] )
+
+
+# plt.plot(data[us_beg], 'green')
+# plt.plot(data[us_beg], 'red')
+
+
+# data = data[data['ID'].between(8000,45000)]
+# data.plot(x='ID', y=[us_beg, 'PMT_OFF beg'], )
+
+
+# data.plot(x='ID', y=[us_beg, us_end, cs_beg, cs_end], )
+
+
+# data.plot(x='ID', y=[ 'PMT_OFF beg', 'PMT_OFF end'])
+
+# # data[abs_time].diff().plot()
+
+# data.plot(x='ID', y=[us_beg, us_end],)
+
+
+
+# protocol[end] - protocol[beg]
+
+
+
+
+
+
+
+
+
+
+
+# data.dtypes
+
+
+
+
+
+
+# #* Fix dtypes.
+# data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']] = data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']].astype(pd.SparseDtype('int', 0))
+
+# data['ID'] = data['ID'].astype('int')
+
+
+
+
+
+# plt.plot(data['image'])
+# plt.plot(data['PMT_OFF end'])
+# plt.plot(images_mean*(-1/20000))
+
+# plt.plot(images_mean)
+# plt.plot(A)
+
+
+# A = np.diff(images_mean)
+# # *(-1/20000)
+
+# len(A[A<-50000])
+
+
+# plt.plot(data[abs_time], y=data[galvo_value])
+# plt.plot(data[abs_time], y=data[pmt_off_beg])
+# plt.plot(data[abs_time], y=data[pmt_off_end])
+
+
+# space = 10000
+
+# for index in data[data[us_beg]>0].index:
+	
+# 	data = data.loc[index-space:index+space]
+
+# 	fig = go.Figure()
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[galvo_value].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data['image'].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_beg].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_end].to_numpy()))
+
+
+# 	break
+
+# fig.write_html(r"C:\Users\joaqc\Desktop\test.html")
+
+
+
+
+
+
+# #region
+
+# need to find the beginning of each imaging frame
+
+
+
+
+
+
+
+
+
+# # B = data['GalvoValue'] / data[abs_time].diff()
+# # A = data['GalvoValue'] / data[ela_time].diff()
+
+# # fig = go.Figure()
+# # fig.add_trace(go.Scattergl(x=np.arange(len(A)), y=A.to_numpy()))
+# # fig.add_trace(go.Scattergl(x=np.arange(len(B)), y=B.to_numpy()))
+
+# # A = A.dropna()
+
+# # A.median()
+
+# data = data.reset_index(drop=True)
+
+# galvo_peaks = data['GalvoValue'].diff()
+
+# # galvo_peaks[galvo_peaks>1.5]
+
+
+# # galvo_peaks = galvo_peaks.to_numpy()
+
+
+# # galvo_peaks = np.where(galvo_peaks>1.5)
+
+# # galvo_peaks = np.where(galvo_peaks>1.5, 5, 0)
+
+
+
+# # galvo.plot(abs_time, 'GalvoValue')
+
+# # galvo.iloc[15000:20000].plot(y='GalvoValue')
+
+
+
+
+
+# data = data.iloc[20000:80000]
+
+
+
+# data['GalvoValue'].iloc[20000:22000].plot()
+
+# data.plot(x='ID', y=abs_time)
+
+
+
+
+
+
+
+
+
+
+# plt.plot(images_mean)
+
+
+
+
+# #! PLOTS
+
+
+
+# data['ID'] -= data['ID'].iat[0]
+
+
+
+
+# # with open(galvo_path, 'rb') as file:
+# #	 binary_string = file.read()
+
+# # # print(binary_string)
+
+# # # with open(r'E:\\data\\test\\zscan\\conversionNEW.txt', 'w') as new_file:
+# # # 	new_file.write(binary_string)
+	
+
+# # text_string = binary_string.decode('')
+# # print(text_string)
+
+
+
+
+
+
+# #! Shape of the galvoValue
+# data.plot('ID', 'GalvoValue')
+
+# data.plot(x='ID', y=['GalvoValue', us_beg, us_end] )
+
+
+# plt.plot(data[us_beg], 'green')
+# plt.plot(data[us_beg], 'red')
+
+
+# data = data[data['ID'].between(8000,45000)]
+# data.plot(x='ID', y=[us_beg, 'PMT_OFF beg'], )
+
+
+# data.plot(x='ID', y=[us_beg, us_end, cs_beg, cs_end], )
+
+
+# data.plot(x='ID', y=[ 'PMT_OFF beg', 'PMT_OFF end'])
+
+# # data[abs_time].diff().plot()
+
+# data.plot(x='ID', y=[us_beg, us_end],)
+
+
+
+# protocol[end] - protocol[beg]
+
+
+
+
+
+
+
+
+
+
+
+# data.dtypes
+
+
+
+
+
+
+# #* Fix dtypes.
+# data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']] = data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']].astype(pd.SparseDtype('int', 0))
+
+# data['ID'] = data['ID'].astype('int')
+
+
+
+
+
+# plt.plot(data['image'])
+# plt.plot(data['PMT_OFF end'])
+# plt.plot(images_mean*(-1/20000))
+
+# plt.plot(images_mean)
+# plt.plot(A)
+
+
+# A = np.diff(images_mean)
+# # *(-1/20000)
+
+# len(A[A<-50000])
+
+
+# plt.plot(data[abs_time], y=data[galvo_value])
+# plt.plot(data[abs_time], y=data[pmt_off_beg])
+# plt.plot(data[abs_time], y=data[pmt_off_end])
+
+
+# space = 10000
+
+# for index in data[data[us_beg]>0].index:
+	
+# 	data = data.loc[index-space:index+space]
+
+# 	fig = go.Figure()
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[galvo_value].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data['image'].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_beg].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_end].to_numpy()))
+
+
+# 	break
+
+# fig.write_html(r"C:\Users\joaqc\Desktop\test.html")
+
+
+
+
+
+
+# #region
+
+# need to find the beginning of each imaging frame
+
+
+
+
+
+
+
+
+
+# # B = data['GalvoValue'] / data[abs_time].diff()
+# # A = data['GalvoValue'] / data[ela_time].diff()
+
+# # fig = go.Figure()
+# # fig.add_trace(go.Scattergl(x=np.arange(len(A)), y=A.to_numpy()))
+# # fig.add_trace(go.Scattergl(x=np.arange(len(B)), y=B.to_numpy()))
+
+# # A = A.dropna()
+
+# # A.median()
+
+# data = data.reset_index(drop=True)
+
+# galvo_peaks = data['GalvoValue'].diff()
+
+# # galvo_peaks[galvo_peaks>1.5]
+
+
+# # galvo_peaks = galvo_peaks.to_numpy()
+
+
+# # galvo_peaks = np.where(galvo_peaks>1.5)
+
+# # galvo_peaks = np.where(galvo_peaks>1.5, 5, 0)
+
+
+
+# # galvo.plot(abs_time, 'GalvoValue')
+
+# # galvo.iloc[15000:20000].plot(y='GalvoValue')
+
+
+
+
+
+# data = data.iloc[20000:80000]
+
+
+
+# data['GalvoValue'].iloc[20000:22000].plot()
+
+# data.plot(x='ID', y=abs_time)
+
+
+
+
+
+
+
+
+
+
+# plt.plot(images_mean)
+
+
+
+
+# #! PLOTS
+
+
+
+# data['ID'] -= data['ID'].iat[0]
+
+
+
+
+# # with open(galvo_path, 'rb') as file:
+# #	 binary_string = file.read()
+
+# # # print(binary_string)
+
+# # # with open(r'E:\\data\\test\\zscan\\conversionNEW.txt', 'w') as new_file:
+# # # 	new_file.write(binary_string)
+	
+
+# # text_string = binary_string.decode('')
+# # print(text_string)
+
+
+
+
+
+
+# #! Shape of the galvoValue
+# data.plot('ID', 'GalvoValue')
+
+# data.plot(x='ID', y=['GalvoValue', us_beg, us_end] )
+
+
+# plt.plot(data[us_beg], 'green')
+# plt.plot(data[us_beg], 'red')
+
+
+# data = data[data['ID'].between(8000,45000)]
+# data.plot(x='ID', y=[us_beg, 'PMT_OFF beg'], )
+
+
+# data.plot(x='ID', y=[us_beg, us_end, cs_beg, cs_end], )
+
+
+# data.plot(x='ID', y=[ 'PMT_OFF beg', 'PMT_OFF end'])
+
+# # data[abs_time].diff().plot()
+
+# data.plot(x='ID', y=[us_beg, us_end],)
+
+
+
+# protocol[end] - protocol[beg]
+
+
+
+
+
+
+
+
+
+
+
+# data.dtypes
+
+
+
+
+
+
+# #* Fix dtypes.
+# data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']] = data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']].astype(pd.SparseDtype('int', 0))
+
+# data['ID'] = data['ID'].astype('int')
+
+
+
+
+
+# plt.plot(data['image'])
+# plt.plot(data['PMT_OFF end'])
+# plt.plot(images_mean*(-1/20000))
+
+# plt.plot(images_mean)
+# plt.plot(A)
+
+
+# A = np.diff(images_mean)
+# # *(-1/20000)
+
+# len(A[A<-50000])
+
+
+# plt.plot(data[abs_time], y=data[galvo_value])
+# plt.plot(data[abs_time], y=data[pmt_off_beg])
+# plt.plot(data[abs_time], y=data[pmt_off_end])
+
+
+# space = 10000
+
+# for index in data[data[us_beg]>0].index:
+	
+# 	data = data.loc[index-space:index+space]
+
+# 	fig = go.Figure()
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[galvo_value].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data['image'].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_beg].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_end].to_numpy()))
+
+
+# 	break
+
+# fig.write_html(r"C:\Users\joaqc\Desktop\test.html")
+
+
+
+
+
+
+# #region
+
+# need to find the beginning of each imaging frame
+
+
+
+
+
+
+
+
+
+# # B = data['GalvoValue'] / data[abs_time].diff()
+# # A = data['GalvoValue'] / data[ela_time].diff()
+
+# # fig = go.Figure()
+# # fig.add_trace(go.Scattergl(x=np.arange(len(A)), y=A.to_numpy()))
+# # fig.add_trace(go.Scattergl(x=np.arange(len(B)), y=B.to_numpy()))
+
+# # A = A.dropna()
+
+# # A.median()
+
+# data = data.reset_index(drop=True)
+
+# galvo_peaks = data['GalvoValue'].diff()
+
+# # galvo_peaks[galvo_peaks>1.5]
+
+
+# # galvo_peaks = galvo_peaks.to_numpy()
+
+
+# # galvo_peaks = np.where(galvo_peaks>1.5)
+
+# # galvo_peaks = np.where(galvo_peaks>1.5, 5, 0)
+
+
+
+# # galvo.plot(abs_time, 'GalvoValue')
+
+# # galvo.iloc[15000:20000].plot(y='GalvoValue')
+
+
+
+
+
+# data = data.iloc[20000:80000]
+
+
+
+# data['GalvoValue'].iloc[20000:22000].plot()
+
+# data.plot(x='ID', y=abs_time)
+
+
+
+
+
+
+
+
+
+
+# plt.plot(images_mean)
+
+
+
+
+# #! PLOTS
+
+
+
+# data['ID'] -= data['ID'].iat[0]
+
+
+
+
+# # with open(galvo_path, 'rb') as file:
+# #	 binary_string = file.read()
+
+# # # print(binary_string)
+
+# # # with open(r'E:\\data\\test\\zscan\\conversionNEW.txt', 'w') as new_file:
+# # # 	new_file.write(binary_string)
+	
+
+# # text_string = binary_string.decode('')
+# # print(text_string)
+
+
+
+
+
+
+# #! Shape of the galvoValue
+# data.plot('ID', 'GalvoValue')
+
+# data.plot(x='ID', y=['GalvoValue', us_beg, us_end] )
+
+
+# plt.plot(data[us_beg], 'green')
+# plt.plot(data[us_beg], 'red')
+
+
+# data = data[data['ID'].between(8000,45000)]
+# data.plot(x='ID', y=[us_beg, 'PMT_OFF beg'], )
+
+
+# data.plot(x='ID', y=[us_beg, us_end, cs_beg, cs_end], )
+
+
+# data.plot(x='ID', y=[ 'PMT_OFF beg', 'PMT_OFF end'])
+
+# # data[abs_time].diff().plot()
+
+# data.plot(x='ID', y=[us_beg, us_end],)
+
+
+
+# protocol[end] - protocol[beg]
+
+
+
+
+
+
+
+
+
+
+
+# data.dtypes
+
+
+
+
+
+
+# #* Fix dtypes.
+# data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']] = data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']].astype(pd.SparseDtype('int', 0))
+
+# data['ID'] = data['ID'].astype('int')
+
+
+
+
+
+# plt.plot(data['image'])
+# plt.plot(data['PMT_OFF end'])
+# plt.plot(images_mean*(-1/20000))
+
+# plt.plot(images_mean)
+# plt.plot(A)
+
+
+# A = np.diff(images_mean)
+# # *(-1/20000)
+
+# len(A[A<-50000])
+
+
+# plt.plot(data[abs_time], y=data[galvo_value])
+# plt.plot(data[abs_time], y=data[pmt_off_beg])
+# plt.plot(data[abs_time], y=data[pmt_off_end])
+
+
+# space = 10000
+
+# for index in data[data[us_beg]>0].index:
+	
+# 	data = data.loc[index-space:index+space]
+
+# 	fig = go.Figure()
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[galvo_value].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data['image'].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_beg].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_end].to_numpy()))
+
+
+# 	break
+
+# fig.write_html(r"C:\Users\joaqc\Desktop\test.html")
+
+
+
+
+
+
+# #region
+
+# need to find the beginning of each imaging frame
+
+
+
+
+
+
+
+
+
+# # B = data['GalvoValue'] / data[abs_time].diff()
+# # A = data['GalvoValue'] / data[ela_time].diff()
+
+# # fig = go.Figure()
+# # fig.add_trace(go.Scattergl(x=np.arange(len(A)), y=A.to_numpy()))
+# # fig.add_trace(go.Scattergl(x=np.arange(len(B)), y=B.to_numpy()))
+
+# # A = A.dropna()
+
+# # A.median()
+
+# data = data.reset_index(drop=True)
+
+# galvo_peaks = data['GalvoValue'].diff()
+
+# # galvo_peaks[galvo_peaks>1.5]
+
+
+# # galvo_peaks = galvo_peaks.to_numpy()
+
+
+# # galvo_peaks = np.where(galvo_peaks>1.5)
+
+# # galvo_peaks = np.where(galvo_peaks>1.5, 5, 0)
+
+
+
+# # galvo.plot(abs_time, 'GalvoValue')
+
+# # galvo.iloc[15000:20000].plot(y='GalvoValue')
+
+
+
+
+
+# data = data.iloc[20000:80000]
+
+
+
+# data['GalvoValue'].iloc[20000:22000].plot()
+
+# data.plot(x='ID', y=abs_time)
+
+
+
+
+
+
+
+
+
+
+# plt.plot(images_mean)
+
+
+
+
+# #! PLOTS
+
+
+
+# data['ID'] -= data['ID'].iat[0]
+
+
+
+
+# # with open(galvo_path, 'rb') as file:
+# #	 binary_string = file.read()
+
+# # # print(binary_string)
+
+# # # with open(r'E:\\data\\test\\zscan\\conversionNEW.txt', 'w') as new_file:
+# # # 	new_file.write(binary_string)
+	
+
+# # text_string = binary_string.decode('')
+# # print(text_string)
+
+
+
+
+
+
+# #! Shape of the galvoValue
+# data.plot('ID', 'GalvoValue')
+
+# data.plot(x='ID', y=['GalvoValue', us_beg, us_end] )
+
+
+# plt.plot(data[us_beg], 'green')
+# plt.plot(data[us_beg], 'red')
+
+
+# data = data[data['ID'].between(8000,45000)]
+# data.plot(x='ID', y=[us_beg, 'PMT_OFF beg'], )
+
+
+# data.plot(x='ID', y=[us_beg, us_end, cs_beg, cs_end], )
+
+
+# data.plot(x='ID', y=[ 'PMT_OFF beg', 'PMT_OFF end'])
+
+# # data[abs_time].diff().plot()
+
+# data.plot(x='ID', y=[us_beg, us_end],)
+
+
+
+# protocol[end] - protocol[beg]
+
+
+
+
+
+
+
+
+
+
+
+# data.dtypes
+
+
+
+
+
+
+# #* Fix dtypes.
+# data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']] = data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']].astype(pd.SparseDtype('int', 0))
+
+# data['ID'] = data['ID'].astype('int')
+
+
+
+
+
+# plt.plot(data['image'])
+# plt.plot(data['PMT_OFF end'])
+# plt.plot(images_mean*(-1/20000))
+
+# plt.plot(images_mean)
+# plt.plot(A)
+
+
+# A = np.diff(images_mean)
+# # *(-1/20000)
+
+# len(A[A<-50000])
+
+
+# plt.plot(data[abs_time], y=data[galvo_value])
+# plt.plot(data[abs_time], y=data[pmt_off_beg])
+# plt.plot(data[abs_time], y=data[pmt_off_end])
+
+
+# space = 10000
+
+# for index in data[data[us_beg]>0].index:
+	
+# 	data = data.loc[index-space:index+space]
+
+# 	fig = go.Figure()
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[galvo_value].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data['image'].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_beg].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_end].to_numpy()))
+
+
+# 	break
+
+# fig.write_html(r"C:\Users\joaqc\Desktop\test.html")
+
+
+
+
+
+
+# #region
+
+# need to find the beginning of each imaging frame
+
+
+
+
+
+
+
+
+
+# # B = data['GalvoValue'] / data[abs_time].diff()
+# # A = data['GalvoValue'] / data[ela_time].diff()
+
+# # fig = go.Figure()
+# # fig.add_trace(go.Scattergl(x=np.arange(len(A)), y=A.to_numpy()))
+# # fig.add_trace(go.Scattergl(x=np.arange(len(B)), y=B.to_numpy()))
+
+# # A = A.dropna()
+
+# # A.median()
+
+# data = data.reset_index(drop=True)
+
+# galvo_peaks = data['GalvoValue'].diff()
+
+# # galvo_peaks[galvo_peaks>1.5]
+
+
+# # galvo_peaks = galvo_peaks.to_numpy()
+
+
+# # galvo_peaks = np.where(galvo_peaks>1.5)
+
+# # galvo_peaks = np.where(galvo_peaks>1.5, 5, 0)
+
+
+
+# # galvo.plot(abs_time, 'GalvoValue')
+
+# # galvo.iloc[15000:20000].plot(y='GalvoValue')
+
+
+
+
+
+# data = data.iloc[20000:80000]
+
+
+
+# data['GalvoValue'].iloc[20000:22000].plot()
+
+# data.plot(x='ID', y=abs_time)
+
+
+
+
+
+
+
+
+
+
+# plt.plot(images_mean)
+
+
+
+
+# #! PLOTS
+
+
+
+# data['ID'] -= data['ID'].iat[0]
+
+
+
+
+# # with open(galvo_path, 'rb') as file:
+# #	 binary_string = file.read()
+
+# # # print(binary_string)
+
+# # # with open(r'E:\\data\\test\\zscan\\conversionNEW.txt', 'w') as new_file:
+# # # 	new_file.write(binary_string)
+	
+
+# # text_string = binary_string.decode('')
+# # print(text_string)
+
+
+
+
+
+
+# #! Shape of the galvoValue
+# data.plot('ID', 'GalvoValue')
+
+# data.plot(x='ID', y=['GalvoValue', us_beg, us_end] )
+
+
+# plt.plot(data[us_beg], 'green')
+# plt.plot(data[us_beg], 'red')
+
+
+# data = data[data['ID'].between(8000,45000)]
+# data.plot(x='ID', y=[us_beg, 'PMT_OFF beg'], )
+
+
+# data.plot(x='ID', y=[us_beg, us_end, cs_beg, cs_end], )
+
+
+# data.plot(x='ID', y=[ 'PMT_OFF beg', 'PMT_OFF end'])
+
+# # data[abs_time].diff().plot()
+
+# data.plot(x='ID', y=[us_beg, us_end],)
+
+
+
+# protocol[end] - protocol[beg]
+
+
+
+
+
+
+
+
+
+
+
+# data.dtypes
+
+
+
+
+
+
+# #* Fix dtypes.
+# data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']] = data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']].astype(pd.SparseDtype('int', 0))
+
+# data['ID'] = data['ID'].astype('int')
+
+
+
+
+
+# plt.plot(data['image'])
+# plt.plot(data['PMT_OFF end'])
+# plt.plot(images_mean*(-1/20000))
+
+# plt.plot(images_mean)
+# plt.plot(A)
+
+
+# A = np.diff(images_mean)
+# # *(-1/20000)
+
+# len(A[A<-50000])
+
+
+# plt.plot(data[abs_time], y=data[galvo_value])
+# plt.plot(data[abs_time], y=data[pmt_off_beg])
+# plt.plot(data[abs_time], y=data[pmt_off_end])
+
+
+# space = 10000
+
+# for index in data[data[us_beg]>0].index:
+	
+# 	data = data.loc[index-space:index+space]
+
+# 	fig = go.Figure()
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[galvo_value].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data['image'].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_beg].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_end].to_numpy()))
+
+
+# 	break
+
+# fig.write_html(r"C:\Users\joaqc\Desktop\test.html")
+
+
+
+
+
+
+# #region
+
+# need to find the beginning of each imaging frame
+
+
+
+
+
+
+
+
+
+# # B = data['GalvoValue'] / data[abs_time].diff()
+# # A = data['GalvoValue'] / data[ela_time].diff()
+
+# # fig = go.Figure()
+# # fig.add_trace(go.Scattergl(x=np.arange(len(A)), y=A.to_numpy()))
+# # fig.add_trace(go.Scattergl(x=np.arange(len(B)), y=B.to_numpy()))
+
+# # A = A.dropna()
+
+# # A.median()
+
+# data = data.reset_index(drop=True)
+
+# galvo_peaks = data['GalvoValue'].diff()
+
+# # galvo_peaks[galvo_peaks>1.5]
+
+
+# # galvo_peaks = galvo_peaks.to_numpy()
+
+
+# # galvo_peaks = np.where(galvo_peaks>1.5)
+
+# # galvo_peaks = np.where(galvo_peaks>1.5, 5, 0)
+
+
+
+# # galvo.plot(abs_time, 'GalvoValue')
+
+# # galvo.iloc[15000:20000].plot(y='GalvoValue')
+
+
+
+
+
+# data = data.iloc[20000:80000]
+
+
+
+# data['GalvoValue'].iloc[20000:22000].plot()
+
+# data.plot(x='ID', y=abs_time)
+
+
+
+
+
+
+
+
+
+
+# plt.plot(images_mean)
+
+
+
+
+# #! PLOTS
+
+
+
+# data['ID'] -= data['ID'].iat[0]
+
+
+
+
+# # with open(galvo_path, 'rb') as file:
+# #	 binary_string = file.read()
+
+# # # print(binary_string)
+
+# # # with open(r'E:\\data\\test\\zscan\\conversionNEW.txt', 'w') as new_file:
+# # # 	new_file.write(binary_string)
+	
+
+# # text_string = binary_string.decode('')
+# # print(text_string)
+
+
+
+
+
+
+# #! Shape of the galvoValue
+# data.plot('ID', 'GalvoValue')
+
+# data.plot(x='ID', y=['GalvoValue', us_beg, us_end] )
+
+
+# plt.plot(data[us_beg], 'green')
+# plt.plot(data[us_beg], 'red')
+
+
+# data = data[data['ID'].between(8000,45000)]
+# data.plot(x='ID', y=[us_beg, 'PMT_OFF beg'], )
+
+
+# data.plot(x='ID', y=[us_beg, us_end, cs_beg, cs_end], )
+
+
+# data.plot(x='ID', y=[ 'PMT_OFF beg', 'PMT_OFF end'])
+
+# # data[abs_time].diff().plot()
+
+# data.plot(x='ID', y=[us_beg, us_end],)
+
+
+
+# protocol[end] - protocol[beg]
+
+
+
+
+
+
+
+
+
+
+
+# data.dtypes
+
+
+
+
+
+
+# #* Fix dtypes.
+# data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']] = data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']].astype(pd.SparseDtype('int', 0))
+
+# data['ID'] = data['ID'].astype('int')
+
+
+
+
+
+# plt.plot(data['image'])
+# plt.plot(data['PMT_OFF end'])
+# plt.plot(images_mean*(-1/20000))
+
+# plt.plot(images_mean)
+# plt.plot(A)
+
+
+# A = np.diff(images_mean)
+# # *(-1/20000)
+
+# len(A[A<-50000])
+
+
+# plt.plot(data[abs_time], y=data[galvo_value])
+# plt.plot(data[abs_time], y=data[pmt_off_beg])
+# plt.plot(data[abs_time], y=data[pmt_off_end])
+
+
+# space = 10000
+
+# for index in data[data[us_beg]>0].index:
+	
+# 	data = data.loc[index-space:index+space]
+
+# 	fig = go.Figure()
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[galvo_value].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data['image'].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_beg].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_end].to_numpy()))
+
+
+# 	break
+
+# fig.write_html(r"C:\Users\joaqc\Desktop\test.html")
+
+
+
+
+
+
+# #region
+
+# need to find the beginning of each imaging frame
+
+
+
+
+
+
+
+
+
+# # B = data['GalvoValue'] / data[abs_time].diff()
+# # A = data['GalvoValue'] / data[ela_time].diff()
+
+# # fig = go.Figure()
+# # fig.add_trace(go.Scattergl(x=np.arange(len(A)), y=A.to_numpy()))
+# # fig.add_trace(go.Scattergl(x=np.arange(len(B)), y=B.to_numpy()))
+
+# # A = A.dropna()
+
+# # A.median()
+
+# data = data.reset_index(drop=True)
+
+# galvo_peaks = data['GalvoValue'].diff()
+
+# # galvo_peaks[galvo_peaks>1.5]
+
+
+# # galvo_peaks = galvo_peaks.to_numpy()
+
+
+# # galvo_peaks = np.where(galvo_peaks>1.5)
+
+# # galvo_peaks = np.where(galvo_peaks>1.5, 5, 0)
+
+
+
+# # galvo.plot(abs_time, 'GalvoValue')
+
+# # galvo.iloc[15000:20000].plot(y='GalvoValue')
+
+
+
+
+
+# data = data.iloc[20000:80000]
+
+
+
+# data['GalvoValue'].iloc[20000:22000].plot()
+
+# data.plot(x='ID', y=abs_time)
+
+
+
+
+
+
+
+
+
+
+# plt.plot(images_mean)
+
+
+
+
+# #! PLOTS
+
+
+
+# data['ID'] -= data['ID'].iat[0]
+
+
+
+
+# # with open(galvo_path, 'rb') as file:
+# #	 binary_string = file.read()
+
+# # # print(binary_string)
+
+# # # with open(r'E:\\data\\test\\zscan\\conversionNEW.txt', 'w') as new_file:
+# # # 	new_file.write(binary_string)
+	
+
+# # text_string = binary_string.decode('')
+# # print(text_string)
+
+
+
+
+
+
+# #! Shape of the galvoValue
+# data.plot('ID', 'GalvoValue')
+
+# data.plot(x='ID', y=['GalvoValue', us_beg, us_end] )
+
+
+# plt.plot(data[us_beg], 'green')
+# plt.plot(data[us_beg], 'red')
+
+
+# data = data[data['ID'].between(8000,45000)]
+# data.plot(x='ID', y=[us_beg, 'PMT_OFF beg'], )
+
+
+# data.plot(x='ID', y=[us_beg, us_end, cs_beg, cs_end], )
+
+
+# data.plot(x='ID', y=[ 'PMT_OFF beg', 'PMT_OFF end'])
+
+# # data[abs_time].diff().plot()
+
+# data.plot(x='ID', y=[us_beg, us_end],)
+
+
+
+# protocol[end] - protocol[beg]
+
+
+
+
+
+
+
+
+
+
+
+# data.dtypes
+
+
+
+
+
+
+# #* Fix dtypes.
+# data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']] = data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']].astype(pd.SparseDtype('int', 0))
+
+# data['ID'] = data['ID'].astype('int')
+
+
+
+
+
+# plt.plot(data['image'])
+# plt.plot(data['PMT_OFF end'])
+# plt.plot(images_mean*(-1/20000))
+
+# plt.plot(images_mean)
+# plt.plot(A)
+
+
+# A = np.diff(images_mean)
+# # *(-1/20000)
+
+# len(A[A<-50000])
+
+
+# plt.plot(data[abs_time], y=data[galvo_value])
+# plt.plot(data[abs_time], y=data[pmt_off_beg])
+# plt.plot(data[abs_time], y=data[pmt_off_end])
+
+
+# space = 10000
+
+# for index in data[data[us_beg]>0].index:
+	
+# 	data = data.loc[index-space:index+space]
+
+# 	fig = go.Figure()
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[galvo_value].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data['image'].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_beg].to_numpy()))
+# 	fig.add_trace(go.Scattergl(x=data[abs_time], y=data[pmt_off_end].to_numpy()))
+
+
+# 	break
+
+# fig.write_html(r"C:\Users\joaqc\Desktop\test.html")
+
+
+
+
+
+
+# #region
+
+# need to find the beginning of each imaging frame
+
+
+
+
+
+
+
+
+
+# # B = data['GalvoValue'] / data[abs_time].diff()
+# # A = data['GalvoValue'] / data[ela_time].diff()
+
+# # fig = go.Figure()
+# # fig.add_trace(go.Scattergl(x=np.arange(len(A)), y=A.to_numpy()))
+# # fig.add_trace(go.Scattergl(x=np.arange(len(B)), y=B.to_numpy()))
+
+# # A = A.dropna()
+
+# # A.median()
+
+# data = data.reset_index(drop=True)
+
+# galvo_peaks = data['GalvoValue'].diff()
+
+# # galvo_peaks[galvo_peaks>1.5]
+
+
+# # galvo_peaks = galvo_peaks.to_numpy()
+
+
+# # galvo_peaks = np.where(galvo_peaks>1.5)
+
+# # galvo_peaks = np.where(galvo_peaks>1.5, 5, 0)
+
+
+
+# # galvo.plot(abs_time, 'GalvoValue')
+
+# # galvo.iloc[15000:20000].plot(y='GalvoValue')
+
+
+
+
+
+# data = data.iloc[20000:80000]
+
+
+
+# data['GalvoValue'].iloc[20000:22000].plot()
+
+# data.plot(x='ID', y=abs_time)
+
+
+
+
+
+
+
+
+
+
+# plt.plot(images_mean)
+
+
+
+
+# #! PLOTS
+
+
+
+# data['ID'] -= data['ID'].iat[0]
+
+
+
+
+# # with open(galvo_path, 'rb') as file:
+# #	 binary_string = file.read()
+
+# # # print(binary_string)
+
+# # # with open(r'E:\\data\\test\\zscan\\conversionNEW.txt', 'w') as new_file:
+# # # 	new_file.write(binary_string)
+	
+
+# # text_string = binary_string.decode('')
+# # print(text_string)
+
+
+
+
+
+
+# #! Shape of the galvoValue
+# data.plot('ID', 'GalvoValue')
+
+# data.plot(x='ID', y=['GalvoValue', us_beg, us_end] )
+
+
+# plt.plot(data[us_beg], 'green')
+# plt.plot(data[us_beg], 'red')
+
+
+# data = data[data['ID'].between(8000,45000)]
+# data.plot(x='ID', y=[us_beg, 'PMT_OFF beg'], )
+
+
+# data.plot(x='ID', y=[us_beg, us_end, cs_beg, cs_end], )
+
+
+# data.plot(x='ID', y=[ 'PMT_OFF beg', 'PMT_OFF end'])
+
+# # data[abs_time].diff().plot()
+
+# data.plot(x='ID', y=[us_beg, us_end],)
+
+
+
+# protocol[end] - protocol[beg]
+
+
+
+
+
+
+
+
+
+
+
+# data.dtypes
+
+
+
+
+
+
+# #* Fix dtypes.
+# data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']] = data[cols_stim + ['PMT_OFF beg', 'PMT_OFF end']].astype(pd.SparseDtype('int', 0))
+
+# data['ID'] = data['ID'].astype('int')
+
+
+
+
+
+# plt.plot(data['image'])
+# plt.plot(data

@@ -1,3 +1,80 @@
+"""
+Data Joining and Preprocessing Pipeline
+========================================
+
+This script integrates multi-modal behavioral and imaging data from 2-photon calcium imaging experiments.
+
+Workflow:
+---------
+1. Load behavioral camera data
+   - Read frame timestamps and frame numbers
+   - Estimate true acquisition framerate
+   - Align timestamps to stable framerate
+   
+2. Load experimental protocol (stim log)
+   - Read stimulus timing (CS/US onsets and offsets)
+   - Label trials based on protocol events
+   
+3. Load galvo signal (imaging trigger signal)
+   - Detect frame acquisition peaks
+   - Calculate interframe intervals
+   - Identify bad frames with irregular timing
+   - Generate precise frame timestamps
+   
+4. Load behavioral tracking data
+   - Read tail tracking angles for 15 points along tail
+   
+5. Synchronize all data streams
+   - Merge galvo timestamps with behavioral camera data
+   - Align behavioral tracking with camera frames
+   - Ensure temporal consistency across all modalities
+   - Discard data before imaging/tracking starts
+   
+6. Load imaging data (raw TIFF)
+   - Read multi-plane 2-photon imaging frames
+   - Align frame data to synchronized timestamps
+   
+7. Verify data alignment
+   - Plot galvo signal, frame markers, and image mean intensities
+   - Confirm all data streams are temporally aligned
+   
+8. Segment data into planes and trials
+   - Extract imaging data for each plane and trial
+   - Extract behavior and protocol data for each trial
+   - Apply median filtering to imaging data
+   - Extract trial windows: [CS onset - {time_bef_cs_onset}] to [CS onset + {time_aft_cs_onset}]
+   
+9. Load anatomical stack reference image
+   - Read volumetric anatomical reference for plane identification
+   - Apply median filtering
+   
+10. Save preprocessed data
+    - Create Data object containing all planes, trials, and anatomical reference
+    - Output pickle file: {fish_ID}_1. Before motion correction.pkl
+
+Output:
+-------
+- Pickle file with synchronized multi-modal data organized by plane and trial
+- Trial images (xarray DataArray): shape (Time, x, y) with median filtering applied
+- Trial behavior: tail angles and timestamps
+- Trial protocol: CS/US timing information
+- Anatomical stack reference image
+
+Configuration:
+- Trial window duration: my_parameters.time_bef_cs_onset, time_aft_cs_onset
+- Median filter kernel: my_parameters.median_filter_kernel
+- Galvo signal processing parameters: my_parameters.nrows
+
+Dependencies:
+- Behavioral camera files: {fish_name}_cam.txt
+- Protocol files: {fish_name}_stim control.txt
+- Tail tracking: {fish_name}_mp tail tracking.txt
+- Imaging data: {fish_name}_green.tif
+- Galvo log: signalsfeedback.xls
+- Anatomical stack: Anatomical stack 1/Anatomical stack 1.tif
+"""
+
+
 # Save all data in a single pickle file.
 # Anatomical stack images and imaging data are median filtered.
 
@@ -8,11 +85,11 @@
 # region Imports
 import os
 import pickle
+import subprocess
+import sys
 from importlib import reload
 from pathlib import Path
 
-import cv2
-import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -21,6 +98,10 @@ import scipy.ndimage as ndimage
 import tifffile
 import xarray as xr
 from scipy import signal
+
+# Upgrade pip
+subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "pip"])
+
 from tqdm import tqdm
 
 #* Load custom functions and classes
@@ -29,6 +110,7 @@ import my_classes as c
 import my_functions_imaging as fi
 import my_parameters as p
 from my_general_variables import *
+from my_paths import fish_name, path_home
 
 # endregion
 
@@ -55,30 +137,49 @@ pd.set_option("compute.use_bottleneck", True)
 #* Paths
 ##   
 # region Paths
-path_home = Path(r'D:\2024 03_Delay 2-P 15 planes top part')
-# spec_var.path_home
-# Path(r'E:\2024 09_Delay 2-P 4 planes JC neurons')
-# Path(r'E:\2024 10_Delay 2-P single plane')
-# Path(r'E:\2024 10_Delay 2-P 15 planes ca8 neurons')
-# Path(r'E:\2024 09_Delay 2-P zoom in multiplane imaging')
+# path_home = Path(r'D:\2024 10_Delay 2-P 15 planes ca8 neurons')
+# Path(r'D:\2024 09_Delay 2-P 4 planes JC neurons')
+# Path(r'D:\2024 10_Delay 2-P 15 planes bottom part')
+# Path(r'D:\2024 03_Delay 2-P 15 planes top part')
+# Path(r'D:\2024 10_Delay 2-P single plane')
+# Path(r'D:\2024 09_Delay 2-P zoom in multiplane imaging')
 
 path_results_save = Path(r'F:\Results (paper)') / path_home.stem
 
-# fish_list = [f for f in (path_home / 'Imaging').iterdir() if f.is_dir()]
-# fish_names_list = [f.stem for f in fish_list]
+# fish_list = [f for f in (path_home / 'Imaging').iterdir() if fi.is_dir()]
+# fish_names_list = [fi.stem for f in fish_list]
 
-fish_name = r'20240415_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
-# '20240416_01_delay_2p-3_mitfaminusminus,elavl3h2bgcamp6f_6dpf'
+# fish_name = r'20241007_01_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+# '20241015_01_delay_2p-7_mitfaminusminus,ca8e1bgcamp6s_6dpf'
 
-
-# '20241007_03_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
-
+# '20241009_02_delay_2p-8_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+# '20241008_03_delay_2p-6_mitfaminusminus,elavl3h2bgcamp6f_6dpf'
+# '20241007_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+# '20241013_03_control_2p-3_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+# '20241013_01_control_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+# '20240930_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+# '20241014_01_trace_2p-4_mitfaminusminus,elavl3h2bgcamp6f_6dpf'
+# '20241014_03_trace_2p-6_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+# '20241010_01_trace_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+# '20241008_02_delay_2p-5_mitfaminusminus,elavl3h2bgcamp6f_6dpf'
+# '20241008_01_delay_2p-4_mitfaminusminus,elavl3h2bgcamp6f_6dpf'
+# '20241017_01_delay_2p-4_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+# r'20241016_02_delay_2p-2_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+# '20240417_01_delay_2p-4_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+# '20240919_03_control_2p-1_mitfaminusminus,elavl3h2bgcamp6s_5dpf'
+# '20240911_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+# '20240927_02_control_2p-5_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
 # '20240910_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+# '20240415_02_delay_2p-2_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+# '20240415_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+# '20240926_03_trace_2p-9_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+# '20240920_03_trace_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf'
+# '20240416_01_delay_2p-3_mitfaminusminus,elavl3h2bgcamp6f_6dpf'
 
 
 # '20241013_01_control_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
 # '20241013_02_control_2p-2_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
-# '20241007_03_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+
 # '20241009_03_delay_2p-9_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
 
 # '20241024_02_delay_2p-2_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
@@ -106,6 +207,8 @@ imaging_path_home = path_home / 'Neurons' / fish_name
 
 behavior_path_save = path_results_save / 'Tail'
 results_figs_path_save = path_results_save / 'Neurons' / fish_name
+os.makedirs(results_figs_path_save, exist_ok=True)
+
 
 whole_data_path_save = Path(r'H:\2-P imaging') / path_home.stem / fish_name
 os.makedirs(whole_data_path_save, exist_ok=True)
@@ -168,12 +271,11 @@ if (date := int(fish_name.split('_')[0][4:6])) >= 4 and date <= 10:
 else:
 	Summer_time = False
 
-
 relevant_cs = []
 
 match str(path_home):
 
-	case r'D:\2024 03_Delay 2-P 15 planes top part' | r'E:\2024 10_Delay 2-P 15 planes bottom part' | r'E:\2024 10_Delay 2-P 15 planes ca8 neurons' | r'C:\Users\joaqc\Desktop\WIP':
+	case r'D:\2024 03_Delay 2-P 15 planes top part' | r'D:\2024 10_Delay 2-P 15 planes bottom part' | r'D:\2024 10_Delay 2-P 15 planes ca8 neurons':
 
 		number_imaged_planes = 15
 		number_reps_plane_consective = 2
@@ -181,14 +283,14 @@ match str(path_home):
 
 		index_list = [np.concatenate([[i+number_reps_plane_consective*x*number_imaged_planes, i+number_reps_plane_consective*x*number_imaged_planes+1] for x in range(len(relevant_cs))]) for i in range(0, number_reps_plane_consective * number_imaged_planes, number_reps_plane_consective)]
 
-	case r'E:\2024 10_Delay 2-P single plane':
+	case r'D:\2024 10_Delay 2-P single plane':
 		number_imaged_planes = 1
 		number_reps_plane_consective = 80
 		relevant_cs = [np.arange(5,85)]
 
 		index_list = relevant_cs
 
-	case r'E:\2024 09_Delay 2-P 4 planes JC neurons':
+	case r'D:\2024 09_Delay 2-P 4 planes JC neurons':
 
 		#! one of the planes it's when the drift correction happens
 		num_planes = 4  # number_imaged_planes
@@ -434,6 +536,8 @@ axs[3].plot(interframe_interval_array, 'k.')
 axs[3].set_xlabel('Interframe interval (ms)')
 axs[3].set_ylabel('Galvo value')
 # fig.show()
+
+
 
 fig.savefig(results_figs_path_save / '1. Galvo signal and frames.png')
 #endregion
@@ -822,9 +926,11 @@ fig.savefig(results_figs_path_save / '3. Summary of imaged planes.png', facecolo
 #* Read the anatomical stack.
 ##   
 # region Anatomical stack
-anatomical_stack_images = tifffile.imread(anatomy_1_path).astype('float32')
+try:
+	anatomical_stack_images = tifffile.imread(anatomy_1_path).astype('float32')
+except:
+	anatomical_stack_images = tifffile.imread(imaging_path_home / 'Anatomical stack 1.tif').astype('float32')
 # anatomical_stack_images = tifffile.imread(anatomy_1_filtered_path).astype('float32')
-
 
 
 #!!!!!!!!!!!!!!!
@@ -851,8 +957,8 @@ with open(path_pkl_before_motion_correction, 'wb') as file:
 	pickle.dump(all_data, file)
 
 
+# exec(open('2.Motion_correction_Suite2p.py').read())
 print('END')
-
 
 
 
@@ -909,40 +1015,4 @@ print('END')
 # 	# 	pass
 
 # # # Run the next script, where some plots are made.
-# # exec(open('2. Motion correction.py').read())
 
-from collections import namedtuple
-from dataclasses import dataclass
-
-
-@dataclass
-class Data:
-	
-	planes : list['Plane']
-	anatomical_stack : xr.DataArray
-
-
-	def get_planes(self, plane_numbers: list[int]):
-		
-		return [self.planes[i] for i in plane_numbers]
-
-
-	def get_trials(self, plane_numbers: list[int] | str, trial_numbers: list[int]):
-		
-		if plane_numbers == 'all':
-			
-			plane_numbers = range(len(self.planes))
-
-		return [self.planes[i].trials[j] for i in plane_numbers for j in trial_numbers]
-
-
-	# def get_images(self, plane_numbers: list[int] | str, trial_numbers: list[int]):
-		
-	# 	if plane_numbers is None:
-			
-	# 		plane_numbers = len(self.planes)
-
-	# 	return [self.planes[i].trials[j].images for i in plane_numbers for j in trial_numbers]
-
-
-# endregion

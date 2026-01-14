@@ -2386,22 +2386,7 @@ def add_colors_to_world_improved(anatomy, color_frame_original, activity_scaling
 
 
 def add_colors_to_world_improved_2(anatomy, color_frame_original, colormap='viridis', activity_threshold=0, alpha=0.5):
-    """Adds color to an anatomical image based on an activity map using colormapping and blending.
 
-    Args:
-        anatomy: A 2D numpy array representing the anatomical background,
-                 typically normalized between 0 and 1.
-        color_frame_original: A 2D numpy array representing the activity map,
-                             typically normalized between 0 and 1. Higher values
-                             will result in colors higher up in the colormap.
-        colormap: The matplotlib colormap to use for the activity overlay (default: 'viridis').
-        activity_threshold: Minimum activity value to show color overlay.
-        alpha: The transparency of the activity overlay (0.0 is fully transparent, 1.0 is fully opaque).
-
-    Returns:
-        A 3D numpy array (height, width, 3) representing the RGB image
-        with activity overlaid, scaled to 0-255 and dtype uint8.
-    """
     # Ensure anatomy is in RGB format (grayscale replicated across channels)
     anatomy_rgb = np.stack([anatomy] * 3, axis=-1)
 
@@ -2436,7 +2421,7 @@ def add_colors_to_world_improved_2(anatomy, color_frame_original, colormap='viri
     # Simple alpha blending: result = alpha * foreground + (1 - alpha) * background
     blended_image[activity_mask_3d] = (alpha * activity_rgb[activity_mask_3d] + 
                                        (1 - alpha) * anatomy_rgb[activity_mask_3d])
-                                       
+
     # Where no activity, just show the anatomy
     blended_image[~activity_mask_3d] = anatomy_rgb[~activity_mask_3d]
 
@@ -2514,6 +2499,26 @@ def normalize_image(image, quantiles=(0.05, 0.95)):
         normalized_image = (clipped_image - q_min_val) / (q_max_val - q_min_val)
 
     return normalized_image
+
+
+
+def correlation_map(frames, border_size, sigma=p.correlation_map_sigma):
+		
+	# Calculate numerator: Gaussian filter of the norm, then square
+	numerator = ndimage.gaussian_filter(np.linalg.norm(frames, axis=0), sigma=sigma)**2
+
+	# Calculate denominator: Norm of the Gaussian filtered data
+	denominator = np.linalg.norm(ndimage.gaussian_filter(frames, sigma=sigma, axes=(1,2)), axis=0)**2
+
+	# Avoid division by zero
+	correlation_map = np.divide(numerator, denominator, out=np.zeros_like(numerator), where=denominator!=0)
+
+	# Set the correlation around the image to 0
+	correlation_map[:border_size, :] = 0
+	correlation_map[-border_size:, :] = 0
+	correlation_map[:, :border_size] = 0
+	correlation_map[:, -border_size:] = 0
+
 
 
 

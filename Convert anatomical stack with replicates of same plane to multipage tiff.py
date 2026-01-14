@@ -1,3 +1,45 @@
+"""
+Anatomical Stack Consolidation Utility
+
+This utility script consolidates replicate images of the same anatomical plane
+into a single multi-page TIFF file with proper ordering.
+
+Purpose:
+- Merge multiple acquisitions of the same Z-plane
+- Average replicate images to improve SNR
+- Create consolidated anatomical reference stack
+- Prepare reference for plane identification
+
+Workflow:
+1. Load anatomical stack TIFF files
+2. Identify replicate planes (same Z-position)
+3. Average or median-filter replicates
+4. Reorder planes in proper Z-sequence
+5. Export consolidated multi-page TIFF
+
+Key Features:
+- Automatic detection of duplicate planes
+- SNR improvement through averaging
+- Maintains Z-spacing metadata
+- ImageJ-compatible output
+
+Applications:
+- Create high-quality anatomical reference
+- Improve plane identification accuracy
+- Reduce storage requirements
+- Simplify visualization
+
+Input:
+- Raw anatomical stack with replicates (multi-page TIFF)
+
+Output:
+- Consolidated anatomical stack (multi-page TIFF)
+- Metadata file with plane mapping
+
+Note: This is a preprocessing utility for anatomical reference data.
+Output is used by script 1.Join_all_data.py and 2.Motion_correction.py.
+"""
+
 import re
 from pathlib import Path
 

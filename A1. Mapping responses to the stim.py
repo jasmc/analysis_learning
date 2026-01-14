@@ -1,3 +1,54 @@
+"""
+Stimulus-Response Mapping Analysis
+
+This exploratory analysis script maps neural responses to specific stimulus features
+and temporal components of the conditioning protocol.
+
+Purpose:
+- Analyze response timing relative to stimulus onset
+- Map response amplitudes across CS and US periods
+- Identify neurons with specific temporal response profiles
+- Generate stimulus-triggered average responses
+
+Analysis Components:
+1. Temporal Response Profiles:
+   - Peri-stimulus time histograms (PSTH)
+   - Response onset latency
+   - Response duration and decay
+   
+2. Stimulus-Specific Responses:
+   - CS-responsive neurons
+   - US-responsive neurons
+   - CS-US associative responses
+   - Inhibitory responses
+
+3. Spatial Mapping:
+   - Topographic organization of response types
+   - Clustering of functionally similar neurons
+   - Anatomical correlation with response properties
+
+Visualization Outputs:
+- Heat maps: response amplitude × time × trial
+- PSTH plots per ROI/pixel
+- Spatial maps of response types
+- Trial-by-trial response evolution
+
+Key Metrics:
+- Response amplitude (ΔF/F₀)
+- Response latency (ms from stimulus onset)
+- Response reliability (fraction of trials)
+- Response selectivity (CS vs US)
+
+Applications:
+- Characterize functional properties of identified neurons
+- Validate learning-induced plasticity
+- Identify candidate neurons for further analysis
+- Generate figures for publication
+
+Note: This is an exploratory analysis script (prefix 'A').
+Results complement but are not required for main analysis pipeline (scripts 0-5).
+"""
+
 # %%
 ##   
 # region Imports
@@ -102,8 +153,8 @@ fish_name = r'20240415_01_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
 # '20241015_03_delay_2p-9_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf'
 
 # '20240926_03_trace_2p-9_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
-# '20240927_02_control_2p-5_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
-# '20240920_03_trace_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf'
+# '20240927_02_control_2p-5_mitfaMinusMinus,elavl3BGCaMP6f_6dpf'
+# '20240920_03_trace_2p-1_mitfaMinusMinus,elavl3BGCaMP6s_6dpf'
 
 		# # fish_list = [f for f in (path_home / 'Imaging').iterdir() if f.is_dir()]
 		# # fish_names_list = [f.stem for f in fish_list]
@@ -540,7 +591,6 @@ plt.show()
 # Save the rotated tifffile as a multipage tiff
 rotated_tiff_path = imaging_path_ / 'CS_positive_response_multipage_rotated.tiff'
 rotated_tifffile[0].save(rotated_tiff_path, save_all=True, append_images=rotated_tifffile[1:])
-
 
 
 

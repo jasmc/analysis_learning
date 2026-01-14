@@ -1,4 +1,53 @@
-import numpy as np
+"""
+Analysis Parameters Configuration
+
+This module defines all tunable parameters for the 2-photon imaging and behavioral analysis pipeline.
+Parameters are organized by processing stage and can be adjusted without modifying core analysis scripts.
+
+Parameter Categories:
+1. Data Loading & Preprocessing
+2. Motion Correction
+3. Anatomical Stack Alignment
+4. Activity Response Calculation
+5. Voxel/Pixel Analysis
+6. ROI Detection
+7. Behavioral Analysis
+8. Visualization
+
+Usage:
+    import my_parameters as p
+    max_shift = p.xy_movement_allowed
+    
+Conventions:
+- Spatial measurements in pixels unless otherwise noted
+- Time measurements in milliseconds
+- Thresholds are inclusive (>= or <=)
+- Frame rates in Hz
+
+Note: When changing parameters, document the rationale and date.
+Critical parameters affecting motion correction and response detection
+should be validated on test datasets before batch processing.
+"""
+
+# TODO: Define parameter values
+# Example structure:
+# # Motion Correction Parameters
+# xy_movement_allowed = 0.1  # Maximum shift as fraction of image size
+# total_motion_thr = 50.0    # Threshold for high-motion trial exclusion (pixels)
+# median_filter_kernel = (1, 3, 3)  # Kernel size for spatial smoothing (time, y, x)
+
+# # Response Analysis Parameters
+# voxel_bin_size = 2  # Spatial binning factor for voxel analysis
+# min_intensity_threshold = 100  # Minimum baseline fluorescence
+# frame_rate = 30  # Imaging frame rate (Hz)
+
+# # Anatomical Alignment Parameters
+# low_high = 10  # Search range for plane identification (planes)
+# image_crop_ = 20  # Pixels to crop from edges for template matching
+# image_crop_template_matching = 40  # Crop for correlation calculation
+
+# # Behavioral Parameters
+# light_percentage_increase_thr = 0.15  # CS detection threshold
 
 #* Parameters
 # %%
@@ -80,3 +129,13 @@ number_iterations_within_trial = 3
 min_intensity_threshold = 1e-3
 
 low_high = 10
+
+
+
+border_size = 2*voxel_bin_size
+correlation_thr = 0.3
+median_thr = 5
+
+softthresh=100
+
+step = 2 # Process trials in pairs

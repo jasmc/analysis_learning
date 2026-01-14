@@ -1,3 +1,55 @@
+"""
+2. Motion Correction (Custom Implementation)
+
+This script performs rigid and non-rigid motion correction on 2-photon calcium imaging data
+using a custom correlation-based registration algorithm.
+
+Workflow:
+1. Loads raw imaging data from pickle file (output of script 1.Join_all_data.py)
+2. Computes reference template for each plane:
+   - Uses median or mean of high-contrast frames
+   - Applies gaussian smoothing for robust template
+3. Within-trial motion correction:
+   - Computes phase correlation or cross-correlation between frames and template
+   - Calculates rigid (x,y) shifts for frame alignment
+   - Optionally applies non-rigid corrections for tissue deformation
+4. Between-trial alignment:
+   - Aligns trial templates to a common reference
+   - Ensures spatial consistency across experimental sessions
+5. Quality control:
+   - Identifies bad frames based on correlation thresholds
+   - Flags frames with excessive motion (> maxshift)
+   - Calculates total motion per trial for exclusion criteria
+6. Generates motion-corrected template images per trial
+7. Saves corrected data and shift vectors to pickle file
+
+Key Parameters (from my_parameters.py):
+- xy_movement_allowed: Maximum allowed shift as fraction of frame size
+- total_motion_thr: Threshold for flagging high-motion trials
+- median_filter_kernel: Spatial smoothing for templates
+- correlation_threshold: Minimum correlation for frame acceptance
+
+Motion Correction Features:
+- Phase correlation for sub-pixel accuracy
+- Iterative template refinement
+- Bidirectional scan correction (optional)
+- ROI-based registration to exclude artifacts
+
+Output Structure:
+- Trial objects with attributes:
+  - template_image: motion-corrected reference
+  - shift_correction: [x, y] displacement per frame
+  - mask_good_frames: boolean mask excluding bad frames
+  - correlation_scores: frame-to-template similarity
+
+Output File:
+- Pickle file: {fish_ID}_2. After motion correction.pkl
+
+Note: For Suite2p-based registration, use 2.Motion_correction_Suite2p.py instead.
+This custom implementation provides more control over registration parameters
+and is optimized for multiplane imaging with large FOVs.
+"""
+
 # Save all data in a single pickle file.
 # Anatomical stack images and imaging data are median filtered.
 
@@ -8,21 +60,18 @@
 # region Imports
 import os
 import pickle
-from copy import deepcopy
 from importlib import reload
 from pathlib import Path
 
-import cv2
-import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import plotly.io as pio
-import scipy.ndimage as ndimage
-import tifffile
 import xarray as xr
-from scipy import signal
+from suite2p.registration import register
 from tqdm import tqdm
+
+refImg = register.pick_initial_reference(ops)
 
 #* Load custom functions and classes
 import my_classes as c
@@ -30,6 +79,7 @@ import my_classes as c
 import my_functions_imaging as fi
 import my_parameters as p
 from my_general_variables import *
+from my_paths import fish_name, path_home
 
 # endregion
 
@@ -52,22 +102,43 @@ pd.set_option("compute.use_bottleneck", True)
 #endregion
 
 
-
 #* Paths
 ##   
 # region Paths
-path_home = Path(r'D:\2024 03_Delay 2-P 15 planes top part')
-# Path(r'E:\2024 09_Delay 2-P 4 planes JC neurons')
-# Path(r'E:\2024 10_Delay 2-P single plane')
-# Path(r'E:\2024 10_Delay 2-P 15 planes ca8 neurons')
-# Path(r'E:\2024 09_Delay 2-P zoom in multiplane imaging')
+# path_home = Path(r'D:\2024 10_Delay 2-P 15 planes ca8 neurons')
+# Path(r'D:\2024 09_Delay 2-P 4 planes JC neurons')
+# Path(r'D:\2024 10_Delay 2-P 15 planes bottom part')
+# Path(r'D:\2024 03_Delay 2-P 15 planes top part')
+# Path(r'D:\2024 10_Delay 2-P single plane')
+# Path(r'D:\2024 09_Delay 2-P zoom in multiplane imaging')
 
 path_results_save = Path(r'F:\Results (paper)') / path_home.stem
 
 # fish_list = [f for f in (path_home / 'Imaging').iterdir() if fi.is_dir()]
 # fish_names_list = [fi.stem for f in fish_list]
 
-fish_name = r'20240926_03_trace_2p-9_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+fish_name = r'20241015_03_delay_2p-9_mitfaminusminus,ca8e1bgcamp6s_6dpf'
+# '20241002_02_delay_2p-1_mitfaMinusMinus,ca8E1BGCaMP6s_6dpf'
+# r'20241022_01_delay_2p-10_mitfaminusminus,ca8e1bgcamp6s_5dpf'
+# '20241015_01_delay_2p-7_mitfaminusminus,ca8e1bgcamp6s_6dpf'
+# '20241008_03_delay_2p-6_mitfaminusminus,elavl3h2bgcamp6f_6dpf'
+# '20241007_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+# r'20241013_03_control_2p-3_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+# '20241013_01_control_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+# '20240930_02_delay_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+# '20241014_01_trace_2p-4_mitfaminusminus,elavl3h2bgcamp6f_6dpf'
+# '20241014_03_trace_2p-6_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+# '20241010_01_trace_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+# '20241008_02_delay_2p-5_mitfaminusminus,elavl3h2bgcamp6f_6dpf'
+# '20241008_01_delay_2p-4_mitfaminusminus,elavl3h2bgcamp6f_6dpf'
+# '20241007_03_delay_2p-1_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+
+# '20241017_01_delay_2p-4_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+# r'20241016_02_delay_2p-2_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+# '20240417_01_delay_2p-4_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
+# '20240416_01_delay_2p-3_mitfaMinusMinus,elavl3H2BGCaMP6f_6dpf'
+# '20240415_02_delay_2p-2_mitfaMinusMinus,elavl3H2BGCaMP6f_5dpf'
+# '20240926_03_trace_2p-9_mitfaminusminus,elavl3h2bgcamp6f_5dpf'
 
 
 # '20240920_03_trace_2p-1_mitfaMinusMinus,elavl3H2BGCaMP6s_6dpf'  not fluroescent
@@ -504,7 +575,7 @@ for plane_i, plane in tqdm(enumerate(all_data.planes)):
 
 
 		#!!!!!!!!!! Discard frames where the motion exceeded the threshold and frames where there was large light changes.
-		#* Motion correction relative to trials .
+		#* Motion correction across trials.
 
 		mask_good_frames_motion = total_motion <= p.motion_thr_within_trial
 		mask_good_frames_no_PMT = fi.get_good_images_indices(trial.images, p.light_percentage_decrease_PMT)
@@ -630,84 +701,84 @@ with open(path_pkl_after_motion_correction, 'wb') as file:
 
 
 
-planes_ = np.round(np.median(plane_numbers, axis=1)).astype('int')
-plane_position_stack = np.argsort(planes_)
+# planes_ = np.round(np.median(plane_numbers, axis=1)).astype('int')
+# plane_position_stack = np.argsort(planes_)
 
-for plane_i in range(len(all_data.planes)):
+# for plane_i in range(len(all_data.planes)):
 	
-	all_data.planes[plane_i].template_image_position_anatomical_stack = int(plane_position_stack[plane_i])
+# 	all_data.planes[plane_i].template_image_position_anatomical_stack = int(plane_position_stack[plane_i])
 
 
 
-fig, axs = plt.subplots(len(all_data.planes), len(plane.trials)+1, figsize=(10, 50), squeeze=False)
+# fig, axs = plt.subplots(len(all_data.planes), len(plane.trials)+1, figsize=(10, 50), squeeze=False)
 
-for plane_i in range(len(all_data.planes)):
-	for trial_i in range(len(plane.trials)):
+# for plane_i in range(len(all_data.planes)):
+# 	for trial_i in range(len(plane.trials)):
 
-		anatomical_plane = anatomical_stack_images[planes_[plane_i],:,:]
+# 		anatomical_plane = anatomical_stack_images[planes_[plane_i],:,:]
 		
-		axs[plane_i,trial_i+1].imshow(all_data.planes[plane_i].trials[trial_i].template_image, interpolation='None')
-		axs[plane_i,trial_i+1].set_xticks([])
-		axs[plane_i,trial_i+1].set_yticks([])
-		# axs.title(f'Plane {plane_i}, Trial {trial_i}, Anat. Pos. {plane_numbers[plane_i, trial_i]}')
-	axs[plane_i,0].imshow(anatomical_plane, interpolation='None', vmin=np.quantile(anatomical_plane, 0.05), vmax=np.quantile(anatomical_plane, 0.99))
-	axs[plane_i,0].set_xticks([])
-	axs[plane_i,0].set_yticks([])
+# 		axs[plane_i,trial_i+1].imshow(all_data.planes[plane_i].trials[trial_i].template_image, interpolation='None')
+# 		axs[plane_i,trial_i+1].set_xticks([])
+# 		axs[plane_i,trial_i+1].set_yticks([])
+# 		# axs.title(f'Plane {plane_i}, Trial {trial_i}, Anat. Pos. {plane_numbers[plane_i, trial_i]}')
+# 	axs[plane_i,0].imshow(anatomical_plane, interpolation='None', vmin=np.quantile(anatomical_plane, 0.05), vmax=np.quantile(anatomical_plane, 0.99))
+# 	axs[plane_i,0].set_xticks([])
+# 	axs[plane_i,0].set_yticks([])
 
-	# break
+# 	# break
 
-fig.set_size_inches(10, 20)
-fig.subplots_adjust(hspace=0, wspace=0)
-
-fig.savefig(results_figs_path_save / '5. Template images.png')
-
-
-
-
-
-
-
-
-fig, axs = plt.subplots(len(all_data.planes), len(plane.trials)+1, figsize=(10, 50), squeeze=False)
-
-for plane_i in range(len(all_data.planes)):
-	for trial_i in range(len(plane.trials)):
-
-		anatomical_plane = anatomical_stack_images[planes_[plane_i],:,:]
-		
-		axs[plane_position_stack[plane_i],trial_i+1].imshow(all_data.planes[plane_i].trials[trial_i].template_image, interpolation='None')
-		axs[plane_position_stack[plane_i],trial_i+1].set_xticks([])
-		axs[plane_position_stack[plane_i],trial_i+1].set_yticks([])
-		# axs.title(f'Plane {plane_i}, Trial {trial_i}, Anat. Pos. {plane_numbers[plane_i, trial_i]}')
-	axs[plane_position_stack[plane_i],0].imshow(anatomical_plane, interpolation='None', vmin=np.quantile(anatomical_plane, 0.05), vmax=np.quantile(anatomical_plane, 0.99))
-	axs[plane_position_stack[plane_i],0].set_xticks([])
-	axs[plane_position_stack[plane_i],0].set_yticks([])
-
-	break
-
-fig.set_size_inches(10, 20)
-fig.subplots_adjust(hspace=0, wspace=0)
+# fig.set_size_inches(10, 20)
+# fig.subplots_adjust(hspace=0, wspace=0)
 
 # fig.savefig(results_figs_path_save / '5. Template images.png')
 
 
 
 
-fig, axs = plt.subplots(len(all_data.planes), 1, figsize=(10, 50), squeeze=False)
-for plane_i in range(len(all_data.planes)):
-	axs[plane_i,0].imshow(anatomical_stack_images[planes_[plane_i], :, :], interpolation='None')
-
-#* Save the coordinates of the black box.
-# all_data.black_box = [x_black_box_beg, x_black_box_end, y_black_box_beg, y_black_box_end]
 
 
 
 
+# fig, axs = plt.subplots(len(all_data.planes), len(plane.trials)+1, figsize=(10, 50), squeeze=False)
+
+# for plane_i in range(len(all_data.planes)):
+# 	for trial_i in range(len(plane.trials)):
+
+# 		anatomical_plane = anatomical_stack_images[planes_[plane_i],:,:]
+		
+# 		axs[plane_position_stack[plane_i],trial_i+1].imshow(all_data.planes[plane_i].trials[trial_i].template_image, interpolation='None')
+# 		axs[plane_position_stack[plane_i],trial_i+1].set_xticks([])
+# 		axs[plane_position_stack[plane_i],trial_i+1].set_yticks([])
+# 		# axs.title(f'Plane {plane_i}, Trial {trial_i}, Anat. Pos. {plane_numbers[plane_i, trial_i]}')
+# 	axs[plane_position_stack[plane_i],0].imshow(anatomical_plane, interpolation='None', vmin=np.quantile(anatomical_plane, 0.05), vmax=np.quantile(anatomical_plane, 0.99))
+# 	axs[plane_position_stack[plane_i],0].set_xticks([])
+# 	axs[plane_position_stack[plane_i],0].set_yticks([])
+
+# 	break
+
+# fig.set_size_inches(10, 20)
+# fig.subplots_adjust(hspace=0, wspace=0)
+
+# # fig.savefig(results_figs_path_save / '5. Template images.png')
+
+
+
+
+# fig, axs = plt.subplots(len(all_data.planes), 1, figsize=(10, 50), squeeze=False)
+# for plane_i in range(len(all_data.planes)):
+# 	axs[plane_i,0].imshow(anatomical_stack_images[planes_[plane_i], :, :], interpolation='None')
+
+# #* Save the coordinates of the black box.
+# # all_data.black_box = [x_black_box_beg, x_black_box_end, y_black_box_beg, y_black_box_end]
+
+
+
+
+exec(open('3.1.Analysis_of_imaging_data_pixels.py').read())
 
 print('END')
 
 
-exec(open('3. Analysis of imaging data new.py').read())
 
 
 

@@ -1,3 +1,47 @@
+"""
+Data Backup Utility
+
+This utility script creates backups of processed analysis data
+to prevent data loss and enable recovery.
+
+Purpose:
+- Automated backup of pickle files
+- Backup of HDF5 exports
+- Compress and archive results
+- Maintain backup versioning
+
+Backup Strategy:
+- Incremental backups of processed data
+- Compression to save storage space
+- Date-stamped backup directories
+- Checksum verification
+
+Backed Up Data:
+- Pickle files (motion correction, responses)
+- HDF5 exports
+- Figure outputs (PNG, TIFF)
+- Configuration files (parameters, paths)
+- Analysis logs
+
+Backup Locations:
+- Local backup directory
+- Network storage (if available)
+- External drive (if configured)
+
+Recovery:
+- Automated integrity checks
+- Version tracking
+- Quick restore functionality
+
+Usage:
+- Run manually after major analysis milestones
+- Schedule for automatic execution
+- Verify backup integrity regularly
+
+Note: This is a data management utility.
+Customize backup paths and schedule based on your infrastructure.
+"""
+
 import shutil
 from pathlib import Path
 
