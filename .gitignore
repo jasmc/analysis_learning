@@ -1,4 +1,8 @@
-# Byte-compiled / optimized / DLL files
+*.tiff
+
+# Optionally ignore common large imaging-related files
+# *.raw
+# *.nd2# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
