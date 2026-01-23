@@ -1,6 +1,5 @@
 import math
 import warnings
-from os import name
 from typing import Final
 
 import matplotlib.pyplot as plt
@@ -15,7 +14,6 @@ warnings.filterwarnings(action='ignore', category=FutureWarning)
 sns.set_context("talk")
 sns.set_style("ticks")
 
-plt.rcParams["svg.fonttype"] = 'none'
 plt.rcParams['font.family'] = 'nunito'
 # Enable LaTeX rendering for text in the figure
 plt.rcParams['text.usetex'] = True
