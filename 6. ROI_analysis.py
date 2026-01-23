@@ -138,13 +138,84 @@ class ROIData:
 
 # %% Functions
 
+def _resolve_trial_group(h5_file: h5py.File, plane_number: int, trial_number: int) -> tuple[h5py.Group, str]:
+    """
+    Resolve the HDF5 group for a given plane/trial, supporting both:
+    - /planes/plane_{N}/trial_{M}
+    - /planes/item_{N}/trials/item_{M}
+    """
+    planes_group = h5_file.get('planes')
+    if planes_group is None:
+        raise KeyError("'planes' group not found in HDF5 file")
+
+    plane_key_candidates = [f'plane_{plane_number}', f'item_{plane_number}']
+    trial_key_candidates = [f'trial_{trial_number}', f'item_{trial_number}']
+
+    for plane_key in plane_key_candidates:
+        if plane_key not in planes_group:
+            continue
+        plane_group = planes_group[plane_key]
+
+        for trial_key in trial_key_candidates:
+            if trial_key in plane_group:
+                return plane_group[trial_key], f'/planes/{plane_key}/{trial_key}'
+
+        if 'trials' in plane_group:
+            trials_group = plane_group['trials']
+            for trial_key in trial_key_candidates:
+                if trial_key in trials_group:
+                    return trials_group[trial_key], f'/planes/{plane_key}/trials/{trial_key}'
+
+    raise KeyError(f"Trial {trial_number} not found for plane {plane_number} in HDF5 file")
+
+
+def _read_group_dataset(h5_group: h5py.Group, name: str) -> Optional[np.ndarray]:
+    """
+    Read a dataset that may be stored directly or inside a group (xarray/DataFrame style).
+    Returns None if the dataset is not found.
+    """
+    if name in h5_group:
+        obj = h5_group[name]
+        if isinstance(obj, h5py.Dataset):
+            return obj[:]
+        if isinstance(obj, h5py.Group):
+            for key in ('data', 'values'):
+                if key in obj:
+                    return obj[key][:]
+
+    fallback_candidates = [f'{name}_data_fallback', f'{name}_values_fallback']
+    for fallback in fallback_candidates:
+        if fallback in h5_group:
+            return h5_group[fallback][:]
+
+    return None
+
+
+def _read_xarray_coords(xr_group: h5py.Group) -> dict[str, np.ndarray]:
+    coords = {}
+    coords_group = xr_group.get('coords')
+    if coords_group is None:
+        return coords
+    for key in coords_group.keys():
+        coords[key] = coords_group[key][:]
+    return coords
+
+
+def _find_coord(coords: dict[str, np.ndarray], candidates: list[str]) -> Optional[np.ndarray]:
+    for name in candidates:
+        if name in coords:
+            return coords[name]
+    return None
+
+
 def get_plane_data(filename: Path, plane_number: int, trial_number: int) -> PlaneData:
 	# Read one plane/trial from HDF5 and return structured PlaneData.
 	# Expected HDF5 structure (from script 5.Save_data_as_HDF5.py):
-	#   /planes/plane_{N}/trial_{M}/protocol   [time, stim_cols]
-	#   /planes/plane_{N}/trial_{M}/behavior   [time, features]
-	#   /planes/plane_{N}/trial_{M}/images     [time, Y, X]
-	#   /planes/plane_{N}/trial_{M}/template_image [Y, X]
+	#   /planes/item_{N}/trials/item_{M}/protocol/values   [events, stim_cols]
+	#   /planes/item_{N}/trials/item_{M}/behavior/values   [time, features]
+	#   /planes/item_{N}/trials/item_{M}/images/data       [time, Y, X]
+	#   /planes/item_{N}/trials/item_{M}/images/coords/Time (ms)
+	#   /planes/item_{N}/trials/item_{M}/images/coords/mask good frames
 	# Times are typically in ms; we convert to relative time by subtracting first timepoint.
     """
     Read data for a single plane and trial from HDF5 file.
@@ -164,31 +235,18 @@ def get_plane_data(filename: Path, plane_number: int, trial_number: int) -> Plan
         Dataclass containing imaging data, frames info, behavior, and timings
     """
     planedata = PlaneData()
-    # HDF5 path base for this plane/trial - matches structure from script 5
-    datastem = f'/planes/plane_{plane_number}/trial_{trial_number}'
-    
     with h5py.File(filename, 'r') as f:
-        # Validate that the path exists
-        planes_group = f.get('planes')
-        if planes_group is None:
-            raise KeyError("'planes' group not found in HDF5 file")
-        
-        plane_key = f'plane_{plane_number}'
-        if plane_key not in planes_group:
-            raise KeyError(f"Plane '{plane_key}' not found in HDF5 file")
-        
-        trial_key = f'trial_{trial_number}'
-        if trial_key not in planes_group[plane_key]:
-            raise KeyError(f"Trial '{trial_key}' not found for plane {plane_number}")
-        
-        trial_group = f[datastem]
-        
-        # Read image data - expected shape [time, Y, X] from script 5
-        images_key = 'images'
-        if images_key not in trial_group:
-            raise KeyError(f"'images' dataset not found in {datastem}")
-        
-        imagedata_raw = trial_group[images_key][:]
+        trial_group, datastem = _resolve_trial_group(f, plane_number, trial_number)
+
+        images_group = trial_group.get('images')
+        imagedata_raw = _read_group_dataset(trial_group, 'images')
+        if imagedata_raw is None:
+            raise KeyError(f"'images' data not found in {datastem}")
+
+        coords = {}
+        if isinstance(images_group, h5py.Group):
+            coords = _read_xarray_coords(images_group)
+
         # Script 5 saves as [time, Y, X], we need [Y, X, time] for processing
         if imagedata_raw.ndim == 3:
             # Transpose from [T, Y, X] to [Y, X, T]
@@ -199,18 +257,13 @@ def get_plane_data(filename: Path, plane_number: int, trial_number: int) -> Plan
         
         n_frames = imagedata.shape[-1]
         
-        # Read good/bad frame masks - check multiple possible locations
-        # Try different possible keys for the mask
-        mask_keys_to_try = [
-            f'{datastem}/mask_good_frames',
-            f'{datastem}/images_mask_good_frames', 
-            f'{datastem}/good_frames_mask'
-        ]
-        mask_data = None
-        for mask_key in mask_keys_to_try:
-            if mask_key in f:
-                mask_data = f[mask_key][:]
-                break
+        # Read good/bad frame masks
+        mask_data = _find_coord(
+            coords,
+            ['mask good frames', 'mask_good_frames', 'mask_good_frames_bool']
+        )
+        if mask_data is None:
+            mask_data = _read_group_dataset(trial_group, 'mask_good_frames')
         
         if mask_data is None:
             # Fallback: assume all frames are good
@@ -259,15 +312,13 @@ def get_plane_data(filename: Path, plane_number: int, trial_number: int) -> Plan
                             pooledata[:, bad_idx] = repval
             planedata.pooledata = pooledata
         
-        # Read protocol/stimulus timing - expected shape [time, stim_cols]
-        # Protocol columns typically: [time_ms, cs_start, cs_end, us_start, us_end, ...]
-        protocol_key = 'protocol'
-        if protocol_key in trial_group:
-            protocol = trial_group[protocol_key][:]
+        # Read protocol/stimulus timing - expected columns:
+        # [Time (ms), CS beg, CS end, US beg, US end]
+        protocol = _read_group_dataset(trial_group, 'protocol')
+        if protocol is not None:
             # Protocol may be [n_events, n_cols] or [n_cols, n_events]
             # We need time in first row/column
             if protocol.ndim == 2:
-                # Determine orientation - time column should have increasing values
                 if protocol.shape[0] > protocol.shape[1]:
                     # [n_events, n_cols] format - transpose to [n_cols, n_events]
                     protocol = protocol.T
@@ -299,18 +350,13 @@ def get_plane_data(filename: Path, plane_number: int, trial_number: int) -> Plan
         else:
             planedata.timings = PlaneTimings()
         
-        # Read or construct time array
-        # Try to find time coordinates in various locations
-        time_keys_to_try = [
-            f'{datastem}/times',
-            f'{datastem}/time_ms',
-            f'{datastem}/images_time'
-        ]
-        times = None
-        for time_key in time_keys_to_try:
-            if time_key in f:
-                times = f[time_key][:]
-                break
+        # Read or construct time array from image coords
+        times = _find_coord(coords, ['Time (ms)', 'time_ms', 'time', 'Time'])
+        if times is None:
+            for key in ('times', 'time_ms', 'images_time'):
+                if key in trial_group:
+                    times = trial_group[key][:]
+                    break
         
         if times is None:
             # Construct times assuming ~30 Hz imaging
@@ -331,9 +377,8 @@ def get_plane_data(filename: Path, plane_number: int, trial_number: int) -> Plan
         
         # Read behavior data - expected shape [time, features]
         # Features typically include: time, cumulative tail segments, etc.
-        behavior_key = 'behavior'
-        if behavior_key in trial_group:
-            behaviordata = trial_group[behavior_key][:]
+        behaviordata = _read_group_dataset(trial_group, 'behavior')
+        if behaviordata is not None:
             
             # Behavior may be [n_timepoints, n_features] or transposed
             if behaviordata.ndim == 2:
@@ -346,14 +391,10 @@ def get_plane_data(filename: Path, plane_number: int, trial_number: int) -> Plan
                 
                 # Remaining columns are behavior features (cumulative tail segments)
                 if behaviordata.shape[1] > 1:
-                    allbehavior = behaviordata[:, 1:]
-                    # If not already cumulative, apply cumsum
-                    # Check if values are already large (cumulative) or small (differential)
-                    if np.max(np.abs(allbehavior)) < 100:
-                        allbehavior = np.cumsum(allbehavior, axis=0)
-                    
-                    # Extract tail trace - typically column 14 (index 13) or last column
-                    tail_col = min(13, allbehavior.shape[1] - 1)
+                    allbehavior = np.cumsum(behaviordata[:, 1:], axis=1)
+
+                    # Extract tail trace - typically column 15 (index 14) or last column
+                    tail_col = min(14, allbehavior.shape[1] - 1)
                     tailtrace = allbehavior[:, tail_col]
                 else:
                     tailtrace = np.zeros(len(behaviortimes))
@@ -394,6 +435,27 @@ def _create_stimulus_flag(times: np.ndarray, start_time: float, end_time: float)
     flag = np.zeros(len(times), dtype=int)
     mask = (times >= start_time) & (times < end_time)
     flag[mask] = 1
+    return flag
+
+
+def _create_us_flag_lores(times: np.ndarray, start_time: float, end_time: float) -> np.ndarray:
+    """
+    Create a US flag for low-res (imaging) timing using MATLAB's indexing logic:
+    flag(times(1:end-1) >= start) = 1
+    flag(times(1:end-1) >= end) + 1 = 0
+    """
+    flag = np.zeros(len(times), dtype=int)
+    if len(times) < 2:
+        return flag
+
+    start_idx = np.where(times[:-1] >= start_time)[0]
+    if len(start_idx) > 0:
+        flag[start_idx] = 1
+
+    end_idx = np.where(times[:-1] >= end_time)[0]
+    if len(end_idx) > 0:
+        flag[end_idx + 1] = 0
+
     return flag
 
 
@@ -475,7 +537,7 @@ def concat_single_plane_file(
     if len(behaviortimes) > 0:
         lastbehaviorframe = np.where(behaviortimes < nextrialtime)[0]
         if len(lastbehaviorframe) > 0:
-            last_idx = lastbehaviorframe[-1] + 1  # +1 to include the last valid frame
+            last_idx = lastbehaviorframe[-1]
             behaviortimes = behaviortimes[:last_idx]
             tailtrace = tailtrace[:last_idx]
     
@@ -484,8 +546,8 @@ def concat_single_plane_file(
     
     compressedbehaviortimes = behaviortimes - behaviortimes[0] if len(behaviortimes) > 0 else behaviortimes
     
-    # Create CS/US flags using helper function
-    cs_end = thisdata.timings.cs_end_time if thisdata.timings.cs_end_time > 0 else nextrialtime
+    # Create CS/US flags using MATLAB-aligned logic
+    cs_end = thisdata.timings.cs_end_time
     csflaghires = _create_stimulus_flag(behaviortimes, thisdata.timings.cs_start_time, cs_end)
     csflaglores = _create_stimulus_flag(times, thisdata.timings.cs_start_time, cs_end)
     
@@ -493,7 +555,7 @@ def concat_single_plane_file(
         trialhasus[whichtrial] = 1
         us_end = thisdata.timings.us_end_time if thisdata.timings.us_end_time is not None else nextrialtime
         usflaghires = _create_stimulus_flag(behaviortimes, thisdata.timings.us_start_time, us_end)
-        usflaglores = _create_stimulus_flag(times, thisdata.timings.us_start_time, us_end)
+        usflaglores = _create_us_flag_lores(times, thisdata.timings.us_start_time, us_end)
     else:
         usflaghires = np.zeros(len(behaviortimes), dtype=int)
         usflaglores = np.zeros(len(times), dtype=int)
@@ -519,7 +581,7 @@ def concat_single_plane_file(
         if len(thisbehaviortimes) > 0:
             lastbehaviorframe = np.where(thisbehaviortimes < nextrialtime_local)[0]
             if len(lastbehaviorframe) > 0:
-                last_idx = lastbehaviorframe[-1] + 1
+                last_idx = lastbehaviorframe[-1]
                 thisbehaviortimes = thisbehaviortimes[:last_idx]
                 thistailtrace = thistailtrace[:last_idx]
         
@@ -543,7 +605,7 @@ def concat_single_plane_file(
             nexbehtrialtime = compressedbehaviortimes[-1] + behinterframetime
         
         # CS/US flags for this trial using helper function
-        cs_end = thisdata.timings.cs_end_time if thisdata.timings.cs_end_time > 0 else nextrialtime_local
+        cs_end = thisdata.timings.cs_end_time
         newcsflaghires = _create_stimulus_flag(thisbehaviortimes, thisdata.timings.cs_start_time, cs_end)
         newcsflaglores = _create_stimulus_flag(thistimes, thisdata.timings.cs_start_time, cs_end)
         
@@ -551,7 +613,7 @@ def concat_single_plane_file(
             trialhasus[whichtrial] = 1
             us_end = thisdata.timings.us_end_time if thisdata.timings.us_end_time is not None else nextrialtime_local
             newusflaghires = _create_stimulus_flag(thisbehaviortimes, thisdata.timings.us_start_time, us_end)
-            newusflaglores = _create_stimulus_flag(thistimes, thisdata.timings.us_start_time, us_end)
+            newusflaglores = _create_us_flag_lores(thistimes, thisdata.timings.us_start_time, us_end)
         else:
             newusflaghires = np.zeros(len(thisbehaviortimes), dtype=int)
             newusflaglores = np.zeros(len(thistimes), dtype=int)
@@ -672,16 +734,16 @@ def calculate_correlation_map_single_plane(
     np.ndarray
         Correlation map (h x w)
     """
-    goodframe_indices = np.where(alldata.maskgoodframes)[0]
-    allframes = len(goodframe_indices)
-    
-    if howmanyframes == 0 or howmanyframes > allframes:
-        howmanyframes = allframes
+    total_frames = alldata.imagedata.shape[2]
+    if howmanyframes == 0 or howmanyframes > total_frames:
+        howmanyframes = total_frames
+
+    goodframe_indices = np.where(alldata.maskgoodframes[:howmanyframes])[0]
     
     h, w = alldata.imagedata.shape[:2]
     
     # Get good frames only
-    planeData = alldata.imagedata[:, :, goodframe_indices[:howmanyframes]].astype(np.float32)
+    planeData = alldata.imagedata[:, :, goodframe_indices].astype(np.float32)
     zzc = planeData.shape[2]
     
     print(f'Processing {zzc} frames for correlation map...')
@@ -690,7 +752,7 @@ def calculate_correlation_map_single_plane(
 	# Applying spatial smoothing reduces pixel-level noise and emphasizes coherent structures.
     FplaneData = np.zeros_like(planeData)
     for n in tqdm(range(zzc), desc='Gaussian filtering'):
-        FplaneData[:, :, n] = gaussian_filter(planeData[:, :, n], sigma=gausswidth)
+        FplaneData[:, :, n] = gaussian_filter(planeData[:, :, n], sigma=gausswidth, mode='nearest')
     
     # Compute mean images
     planeDataM = np.mean(planeData, axis=2)
@@ -698,7 +760,8 @@ def calculate_correlation_map_single_plane(
     
     # Create detrending filter
     myfilter = np.ones(deTrendScl) * (-1 / deTrendScl)
-    myfilter[deTrendScl // 2] += 1
+    center_idx = int(np.ceil(deTrendScl / 2)) - 1
+    myfilter[center_idx] += 1
     
     print('Subtracting mean...')
     # Subtract mean
@@ -717,7 +780,7 @@ def calculate_correlation_map_single_plane(
     indnorm = np.linalg.norm(planeData, axis=2)
     meannorm = np.linalg.norm(FplaneData, axis=2)
     meannormsq = np.power(meannorm, 2)
-    findnorm = gaussian_filter(indnorm, sigma=gausswidth)
+    findnorm = gaussian_filter(indnorm, sigma=gausswidth, mode='nearest')
     findnormsq = np.power(findnorm, 2)
     
     corrmap = meannormsq / (findnormsq + 1e-10)  # Avoid division by zero
@@ -783,7 +846,8 @@ def find_rois_single_plane(
     
     # Create detrending filter
     myfilter = np.ones(deTrendScl) * (-1 / deTrendScl)
-    myfilter[deTrendScl // 2] += 1
+    center_idx = int(np.ceil(deTrendScl / 2)) - 1
+    myfilter[center_idx] += 1
     
     # Initialize ROI tracking
     allrois = np.zeros(h * w, dtype=int)  # linearized map; 0 means unassigned, >0 is ROI id
@@ -809,7 +873,7 @@ def find_rois_single_plane(
     
     numcells = 0
     dilation_kernel = np.array([[0, 1, 0], [1, 0, 1], [0, 1, 0]], dtype=bool)
-    close_kernel = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]], dtype=bool)
+    close_kernel = dilation_kernel
     
     print(f'Starting ROI detection (stopthresh={stopthresh}, maxperplane={maxperplane})...')
     
@@ -860,7 +924,7 @@ def find_rois_single_plane(
                         thiscorr[n] = 0
                 
                 # Select best half of pixels
-                num2inc = max(1, len(i_arr) // 2)
+                num2inc = max(1, int(np.ceil(len(i_arr) / 2)))
                 sortind = np.argsort(thiscorr)
                 bestind = sortind[-num2inc:]
                 
