@@ -613,6 +613,10 @@ def run_analysis(folder: Path, file: str, plane: int = 0):
     # 6. Save & Plot
     plot_roi_map(rois, folder, plane)
     plot_trace_heatmap(rois, folder, plane)
+
+
+# TODO: 3) remove hardwired experimental info 4) deal with changing baseline in plots. 5) make more sensible learning regressor that can handle catch trials. 6) add function to plot ROI locations. 7) pull out 2 US timings - fast and slow reponses. 8) make plots of cs response by trial for each roi.
+
     
     print(f"Done. Found {len(rois.allnums)} ROIs.")
     print(f"CS Responsive: {len(res['idx_cs'])}")
