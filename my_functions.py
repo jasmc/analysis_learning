@@ -1,0 +1,1564 @@
+from pathlib import Path
+import plotly as py
+from plotly import graph_objs as go
+from plotly.subplots import make_subplots
+from scipy import interpolate
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+from timeit import default_timer as timer
+from pandas.api.types import CategoricalDtype
+from copy import deepcopy
+
+
+from my_general_variables import *
+# from my_experiment_specific_variables import expected_number_cs
+
+plt.style.use('classic')
+
+
+
+# def create_folders(path_home):
+
+#! 	path_lost_frames = path_home / 'Lost frames'
+# 	path_lost_frames.mkdir(parents=True, exist_ok=True)
+
+# 	path_summary_exp = path_home / 'Summary of protocol actually run'
+# 	path_summary_exp.mkdir(parents=True, exist_ok=True)
+
+# 	path_summary_beh = path_home / 'Summary of behavior'
+# 	path_summary_beh.mkdir(parents=True, exist_ok=True)
+
+
+# 	#* Path to save processed data; create folder to save processed data if it does not exist yet.
+# 	path_processed_data = path_home / 'Processed data'
+# 	path_processed_data.mkdir(parents=True, exist_ok=True)
+
+
+# 	path_cropped_exp_with_bout_detection = path_processed_data / '1. summary of exp.'
+# 	path_cropped_exp_with_bout_detection.mkdir(parents=True, exist_ok=True)
+
+# 	path_tail_angle_fig_cs = path_processed_data / '2. single fish_tail angle' / 'aligned to CS'
+# 	path_tail_angle_fig_cs.mkdir(parents=True, exist_ok=True)
+
+# 	path_tail_angle_fig_us = path_processed_data / '2. single fish_tail angle' / 'aligned to US'
+# 	path_tail_angle_fig_us.mkdir(parents=True, exist_ok=True)
+
+# 	path_raw_vigor_fig_cs = path_processed_data / '3. single fish_raw vigor heatmap' / 'aligned to CS'
+# 	path_raw_vigor_fig_cs.mkdir(parents=True, exist_ok=True)
+	
+# 	path_raw_vigor_fig_us = path_processed_data / '3. single fish_raw vigor heatmap' / 'aligned to US'
+# 	path_raw_vigor_fig_us.mkdir(parents=True, exist_ok=True)
+
+# 	path_scaled_vigor_fig_cs = path_processed_data / '4. single fish_scaled vigor heatmap' / 'aligned to CS'
+# 	path_scaled_vigor_fig_cs.mkdir(parents=True, exist_ok=True)
+	
+# 	path_scaled_vigor_fig_us = path_processed_data / '4. single fish_scaled vigor heatmap' / 'aligned to US'
+# 	path_scaled_vigor_fig_us.mkdir(parents=True, exist_ok=True)
+
+# 	path_suppression_ratio_fig_cs = path_processed_data / '5. single fish_suppression ratio vigor trial' / 'aligned to CS'
+# 	path_suppression_ratio_fig_cs.mkdir(parents=True, exist_ok=True)
+
+# 	path_suppression_ratio_fig_us = path_processed_data / '5. single fish_suppression ratio vigor trial' / 'aligned to US'
+# 	path_suppression_ratio_fig_us.mkdir(parents=True, exist_ok=True)
+	
+# 	path_pooled_vigor_fig = path_processed_data / 'All fish'
+# 	path_pooled_vigor_fig.mkdir(parents=True, exist_ok=True)
+
+# 	path_analysis_protocols = path_processed_data / 'Analysis of protocols'
+# 	path_analysis_protocols.mkdir(parents=True, exist_ok=True)
+
+# 	path_pkl = path_processed_data / 'pkl files'
+# 	path_pkl.mkdir(parents=True, exist_ok=True)
+
+
+# 	path_orig_pkl = path_pkl / '1. Original'
+# 	path_orig_pkl.mkdir(parents=True, exist_ok=True)
+
+# 	path_all_fish = path_pkl / '2. All fish by condition'
+# 	path_all_fish.mkdir(parents=True, exist_ok=True)
+
+# 	path_pooled = path_pkl / '3. Pooled data'
+# 	path_pooled.mkdir(parents=True, exist_ok=True)
+
+# 	return path_lost_frames, path_summary_exp, path_summary_beh, path_processed_data, path_cropped_exp_with_bout_detection, path_tail_angle_fig_cs, path_tail_angle_fig_us, path_raw_vigor_fig_cs, path_raw_vigor_fig_us, path_scaled_vigor_fig_cs, path_scaled_vigor_fig_us, path_suppression_ratio_fig_cs, path_suppression_ratio_fig_us, path_pooled_vigor_fig, path_analysis_protocols, path_orig_pkl, path_all_fish, path_pooled
+
+
+
+
+
+# def msg(fish_name, message):
+	
+# 	if type(message) is list:
+# 		message = '\t'.join([str(i) for i in message])
+
+# 	return [fish_name] + ['\t' + message + '\n']
+
+	# return [fish_name + '\t' + message + '\n']
+
+#TODO
+# def save_info(protocol_info_path, fish_name, message):
+
+# 	message = msg(fish_name, message)
+# 	print(message)
+
+# 	with open(protocol_info_path, 'a') as file:
+# 		file.writelines(message)
+
+	#!!!!!
+	# def custom_print(message_to_print, log_file='output.txt'):
+	#     print(message_to_print)
+	#     with open(log_file, 'a') as of:
+	#         of.write(message_to_print + '\n')
+
+
+
+# def fish_id(stem_path):
+# 	# Info about a specific fish.
+	
+# 	stem_fish_path = stem_path.lower()
+# 	stem_fish_path = stem_fish_path.split('_')
+# 	day = stem_fish_path[0]
+
+# 	# strain = stem_fish_path[1]
+# 	# age = stem_fish_path[2].replace('dpf', '')
+# 	# exp_type = stem_fish_path[3]
+# 	# rig = stem_fish_path[4]
+# 	# fish_number = stem_fish_path[5].replace('fish', '')
+
+# 	fish_number = stem_fish_path[1]
+# 	exp_type = stem_fish_path[2]
+# 	rig = stem_fish_path[3]
+# 	strain = stem_fish_path[4]
+# 	age = stem_fish_path[5].replace('dpf', '')
+	
+
+# 	return day, strain, age, exp_type, rig, fish_number
+
+# def read_initial_abs_time(camera_path):
+# 	# Read the absolute time at the beginning of the experiment.
+
+# 	try:
+# 		with open(camera_path, 'r') as f:
+# 			f.readline()
+# 		# Previous version.
+# 			# first_frame_absolute_time = int(float(f.readline().strip('\n').split('\t')[2]))
+
+# 		# return first_frame_absolute_time
+
+# 			return int(float(f.readline().strip('\n').split('\t')[2]))
+
+# 	except:
+# 		print('No absolute time in cam file.')
+
+# 		return None
+
+
+# def read_sync_reader(sync_reader_path):
+
+# 	try:
+# 		start = timer()
+		
+# 		sync_reader = pd.read_csv(str(sync_reader_path), sep=' ', header=0, decimal='.')
+		
+# 		print('Time to read scape sync reader.txt: {} (s)'.format(timer()-start))
+
+# 		# sync_reader.rename(columns={'Time' : ela_time}, inplace=True)
+		
+# 		return sync_reader
+
+# 	except:
+# 		# print('Cannot read scape sync file.')
+
+# 		return None
+
+
+def read_camera(camera_path):
+
+	try:
+		start = timer()
+		
+		# camera = pd.read_csv(str(camera_path), sep='\t', header=0, decimal='.', skiprows=[*range(1,number_frames_discard_beg)])
+		camera = pd.read_csv(camera_path, engine='pyarrow', sep=' ', header=0, decimal='.')
+		# , na_filter=False
+		# dtype={time_experiment_f : 'int64', abs_time : 'int64', ela_time : 'float64'})
+		# skipfooter=1
+		camera = camera.iloc[:-1,:]
+
+		camera.rename(columns={'FrameID' : frame_id}, inplace=True)
+		
+		print('Time to read cam.txt: {} (s)'.format(timer()-start))
+		
+		return camera
+
+	except:
+
+		print('Cannot read camera file.')
+		
+		return None
+
+
+
+def framerate_and_reference_frame(camera, fish_name, fig_camera_name):
+
+	# first_frame_absolute_time = camera[abs_time].iloc[0]
+
+	camera = camera.drop(columns=abs_time, errors='ignore')
+
+	camera_diff = camera[ela_time].diff()
+
+	print('Max IFI: {} ms'.format(camera_diff.max()))
+	
+	# First estimate of the interframe interval, using the median
+	ifi = camera_diff.median()
+	# camera_diff.iloc[number_frames_discard_beg : ].median()
+	print('First estimate of IFI: {} ms'.format(ifi))
+
+
+	camera_diff_index_correct_IFI = np.where(abs(camera_diff - ifi) <= max_interval_between_frames)[0]
+
+	camera_diff_index_correct_IFI_diff = np.diff(camera_diff_index_correct_IFI)
+
+	reference_frame_id = 0
+
+	#* Find a region at the beginning where the IFI from frame to frame does not vary significantly and is similar to the first estimate of the true IFI (ifi).
+	for i in range(1, len(camera_diff_index_correct_IFI_diff)):
+
+		if camera_diff_index_correct_IFI_diff[i-1] == 1 and camera_diff_index_correct_IFI_diff[i] == 1:
+
+			reference_frame_id = camera[frame_id].iloc[camera_diff_index_correct_IFI[i] - 1]
+
+
+			# # first_frame_absolute_time is not None when there is absolute time in the cam file.
+			# if first_frame_absolute_time is not None:
+			# 	reference_frame_time = first_frame_absolute_time + camera[ela_time].iloc[camera_diff_index_correct_IFI[i] - 1] - camera[ela_time].iloc[0]
+			# else:
+			# 	reference_frame_time = None
+
+			break
+
+	#* Find a similar region but at the end of the experiment.
+	for i in range(len(camera_diff_index_correct_IFI_diff)-1, 0, -1):
+
+		if camera_diff_index_correct_IFI_diff[i-1] == 1 and camera_diff_index_correct_IFI_diff[i] == 1:
+			
+			last_frame_id = camera[frame_id].iloc[camera_diff_index_correct_IFI[i] - 1]
+			#last_frame_time = first_frame_absolute_time + camera[time].iloc[camera_diff_index_right_IFI[i] - 1] - camera[time].iloc[0]
+
+			break
+
+
+	#* Second estimate of the interframe interval, using the mean, and assuming there is no increasing accumulation of frames in the buffer during the experiment; Only the region between the two frames identified in the previous two for loops is considered.
+	ifi = camera_diff.iloc[reference_frame_id - camera[frame_id].iloc[0] : last_frame_id - camera[frame_id].iloc[0]].mean()
+
+	print('Second estimate of IFI: {} ms'.format(ifi))
+	predicted_framerate = 1000 / ifi
+	print('Estimated framerate: {} FPS'.format(predicted_framerate))
+
+
+	def lost_frames(camera, camera_diff, ifi, fish_name, fig_camera_name):
+
+
+		# Delay to capture frames by the computer
+		delay = (camera_diff - ifi).cumsum().to_numpy()
+
+
+		# Number of lost frames
+		# More than one frame might be lost and number_frames_lost sometimes is not monotonically crescent (can go down when some ms are 'recovered').
+		number_frames_lost = np.floor(delay / (ifi * buffer_size))
+		#TODO use this to speed up
+		# number_frames_lost = np.max(number_frames_lost, 0, axis)
+		number_frames_lost = np.where(number_frames_lost>=0, number_frames_lost, 0)
+
+		number_frames_lost_diff = np.floor(np.diff(number_frames_lost))
+		number_frames_lost_diff = np.where(number_frames_lost_diff>=0,number_frames_lost_diff,0)
+
+
+		# Indices where frames were potentially lost
+		where_frames_lost = np.where(number_frames_lost_diff > 0)[0]
+
+
+		# Total number of missed frames
+		if (Lost_frames := len(where_frames_lost) > 0):
+			print('Total number of lost frames: ', len(where_frames_lost))
+			print('Where: ', where_frames_lost)
+			# save_info(protocol_info_path, fish_name, 'Lost frames.')
+		else:
+			print('No frames were lost.')
+
+		fig, axs = plt.subplots(5, 1, sharex=True, facecolor='white', figsize=(20, 40), constrained_layout=True)
+
+		axs[0].plot(camera.iloc[:,1],'k')
+		axs[0].set_ylabel('Elapsed time (ms)')
+		axs[0].set_title('Estimated IFI: {} ms.    Estimated framerate: {} FPS'.format(round(ifi, 3), round(predicted_framerate, 3)))
+
+		axs[1].plot(camera_diff,'k')
+		axs[1].set_ylabel('IFI (ms)')
+
+		axs[2].plot(delay,'k')
+		axs[2].set_ylabel('Delay (ms)')
+
+		axs[3].plot(number_frames_lost_diff.cumsum(),'k')
+		axs[3].set_ylabel('Cumulative number of lost frames')
+
+		axs[4].plot(number_frames_lost_diff,'black')
+		# axs[4].set_xlabel('frame number')
+		axs[4].set_ylabel('Lost frames')
+
+		fig.supxlabel('Frame number')
+		plt.suptitle('Analysis of lost frames\n' + fish_name)
+
+		fig.savefig(fig_camera_name, dpi=100, facecolor='white')
+		plt.close(fig)
+
+
+		# Correct frame IDs in camera dataframe.
+		# correctedID = np.zeros(len(camera))
+
+		# for i in tqdm(where_frames_lost):
+		# 	correctedID[i:number_frames_diff] += 1 # And not correctedID[i:] += 1 because, when the buffer is full, the Mako U29-B camera keeps what is already in the buffer and does not receive any new frames while the buffer is full.
+
+		# del where_frames_lost, number_frames_lost_diff
+
+		# camera['Corrected ID'] = camera['ID'] + correctedID
+		# camera['Corrected ID'] = camera['Corrected ID'].astype('int')
+
+		# # Second estimate of the interframe interval, using the median, and after estimating where there are missing frames 
+		# camera_diff = camera.loc[:,'ElapsedTime'].diff()
+		# ifi = camera_diff.iloc[number_frames_discard_beg : -number_frames_discard_beg].median()
+		# print('\nFirst estimate of IFI: {} ms'.format(ifi))
+
+		return Lost_frames
+
+
+	Lost_frames = lost_frames(camera, camera_diff, ifi, fish_name, fig_camera_name)
+
+
+
+
+	return predicted_framerate, reference_frame_id, Lost_frames
+
+def read_protocol(protocol_path):
+
+	#* Read protocol file.
+	if Path(protocol_path).exists():
+		# protocol = pd.read_csv(str(protocol_path), sep=' ', header=0, names=['Type', beg, end], usecols=[0, 1, 2], index_col=0)
+		protocol = pd.read_csv(protocol_path, engine='pyarrow', sep=' ', header=0, decimal='.', names=['Type', beg, end])
+		# dtype={'Type' : 'str', beg : 'int', end : 'int'})
+
+	else:
+
+		return None
+
+	#* Were the stimuli timings not saved?
+	if protocol.empty:
+		
+		return None
+
+	if protocol.iloc[0,0] == 0:
+		
+		return None
+
+	#* Right now, pyarrow engine ignores renaming when opening the csv.
+	protocol.rename(columns={'Beg' : beg, 'End' : end}, inplace=True)
+	protocol['Type'] = protocol['Type'].replace({'Cycle' : cs, 'Reinforcer' : us})
+	protocol.sort_values(by=beg, inplace=True)
+
+	return protocol
+
+
+
+def identify_trials(data, protocol):
+# blocks_info
+	data[[cs, us]] = [0, 0]
+
+
+	# protocol_ = protocol.copy()
+
+	# protocol_[[beg, end]] = protocol_[[beg, end]].astype('float')
+
+	for cs_us in [cs, us]:
+
+		# data[cs_us] = 0
+
+		protocol_sub = protocol.loc[protocol['Type']==cs_us, [beg, end]].to_numpy()
+
+		for i, p in enumerate(protocol_sub):
+			
+			# mask = data[abs_time].between(p[0], p[1])
+
+			data.loc[data[abs_time].between(p[0], p[1]), cs_us] = i + 1
+
+			#! highlight phases
+
+
+
+# #!!!!!!!!!!!                      GET RID OF CS BEG AND CS END. SINGLE COLUMN
+# 	for cs_us in [cs, us]:
+
+# 		for beg_end in [beg, end]:
+
+# 			beg_end_name = ' beg' if beg_end == beg else ' end'
+
+# 			beg_end_name = cs_us + beg_end_name
+
+# 			p = pd.DataFrame(protocol_.loc[protocol_['Type']==cs_us, beg_end]).rename(columns={beg_end : abs_time})
+
+# 			p[beg_end_name] = np.arange(1, 1+len(p))
+
+# 			data = pd.merge_ordered(data, p, on=abs_time, how='outer').drop_duplicates(abs_time, keep='first')
+
+# #! Does not make sense when stimuli are very close to each other. REMOVE
+# 			# #* Identify trials.
+# 			# if beg_end == beg:
+
+# 			# 	trials_beg_end = pd.DataFrame([p[abs_time].to_numpy() - time_bef_s * 1000, p[abs_time].to_numpy() + time_aft_s * 1000], index=[beg, end]).T
+				
+# 			# 	beg_end_name = cs_us + ' trial'
+
+# 			# 	# data[beg_end_name] = 0
+
+# 			# 	for i in range(len(p)):
+
+# 			# 		data.loc[data[abs_time].between(trials_beg_end[beg].iat[i], trials_beg_end[end].iat[i]), beg_end_name] = i + 1
+
+# 			# if beg_end == beg:
+
+# 			# 	#* Identify experimental blocks.
+# 			# 	for i, j in zip(blocks_info[cs_us]['elements'], blocks_info[cs_us]['names_elements']):
+					
+# 			# 		data.at[data[beg_end_name] == i[0], abs_time].to_numpy() - time_bef_s * 1000
+# 			# 		data.at[data[beg_end_name] == i[-1], abs_time].to_numpy() + time_aft_s * 1000
+
+# 			# 		data.loc[data[beg_end_name].between(i[0], i[-1]), phase] = j
+
+
+	# data.loc[:, phase] = data[phase].fillna('')
+	# data.loc[:, cols_stim] = data[cols_stim].fillna(0)
+
+
+	data = data.set_index(abs_time)
+
+	# cols_subset = ~data.columns.isin([cs, us])
+# + [phase]
+	data.loc[:, data_cols] = data.loc[:, data_cols].interpolate(kind='slinear')
+
+	data = data.reset_index(drop=True).dropna()
+
+	#* Reorder the columns.
+	# data = data[data.columns[data_cols].to_list() + [cs, us]]
+#  + [phase]
+	data[time_experiment_f] = data[time_experiment_f].astype('int64')
+
+	# data[phase] = data[phase].astype(pd.SparseDtype('string', ''))
+	data[[cs, us]] = data[[cs, us]].astype('Sparse[int16]')
+
+	#* Fix dtypes.
+	for cs_us in [cs, us]:
+#  + [phase]
+		data[cs_us] = data.loc[:, cs_us].astype(pd.api.types.CategoricalDtype(categories=data[cs_us].unique(), ordered=True))
+
+
+	return data
+
+
+
+def protocol_info(protocol):
+
+	#* Count the number of cycles, trials, blocks and bouts.
+	# Using len() just in case these is a single element.
+	number_cycles = len(protocol.loc['Cycle', beg])
+
+	# if protocol.index.isin(['Session']).any():
+	# 	number_blocks_plot = len(protocol.loc['Session', beg])
+	# else:
+	# 	number_blocks_plot = number_cycles
+
+	# if protocol.index.isin([trial]).any():
+	# 	number_trials_plot = len(protocol.loc[trial, beg])
+	# else:
+	# 	number_trials_plot = number_cycles
+
+	# if protocol.index.isin([bout]).any():
+	# 	number_bouts = len(protocol.loc[bout, beg])	  
+	# else:
+	# 	number_bouts = 0
+		
+	if protocol.index.isin(['Reinforcer']).any():
+		number_reinforcers = len(protocol.loc['Reinforcer', beg])
+
+		us_beg = protocol.loc['Reinforcer', beg]
+		us_end = protocol.loc['Reinforcer', end]
+		us_dur = (us_end - us_beg).to_numpy() # in ms
+		us_isi = (us_beg[1:] - us_end[:-1]).to_numpy() / 1000 / 60 # min
+	else:
+		number_reinforcers = 0
+
+		us_dur = None
+		us_isi = None
+
+	habituation_duration = protocol.iloc[0,0] / 1000 / 60 # min
+
+	cs_beg = protocol.loc['Cycle', beg]
+	cs_end = protocol.loc['Cycle', end]
+	cs_dur = (cs_end - cs_beg).to_numpy() # in ms
+	cs_isi = (cs_beg[1:] - cs_end[:-1]).to_numpy() / 1000 / 60 # min
+
+
+	return number_cycles, number_reinforcers, number_trials_plot, number_blocks_plot, number_bouts, habituation_duration, cs_dur, cs_isi, us_dur, us_isi
+
+# def map_abs_time_to_elapsed_time(camera, protocol):
+	
+# 	stimuli = protocol.index.unique()
+
+# 	camera[abs_time] = camera[abs_time].astype('float')
+	
+# 	for beg_end in [beg, end]:
+
+# 		protocol_ = protocol.loc[:,beg_end].reset_index().rename(columns={beg_end : abs_time})
+
+# 		camera_protocol = pd.merge_ordered(camera, protocol_).set_index(abs_time).interpolate(kind='slinear').reset_index()
+
+# 		#* Because here I am relying on "absolute time" (UNIX time, which has ms-resolution), some rows in the original camera dataframe may have the same value of absolute time.
+# 		camera_protocol = camera_protocol.drop_duplicates(abs_time, keep='first')
+
+# 		# protocol.loc['Cycle',beg_end] = camera_protocol[camera_protocol['Type']=='Cycle'].set_index('Type').loc[:,ela_time]
+# 		# protocol.loc['Reinforcer',beg_end] = camera_protocol[camera_protocol['Type']=='Reinforcer'].set_index('Type').loc[:,ela_time]
+# 		# protocol.loc[:,beg_end] = camera_protocol[camera_protocol['Type'].notna()].set_index('Type').loc[:,ela_time].to_numpy()
+
+# 		for stim in stimuli:
+
+# 			if len(camera_protocol[camera_protocol['Type']==stim].set_index('Type').loc[:,ela_time]) == 1:
+				
+# 				protocol.loc[stim,beg_end] = camera_protocol[camera_protocol['Type']==stim].set_index('Type').loc[:,ela_time].to_numpy()[0]
+				
+# 			else:
+				
+# 				protocol.loc[stim,beg_end] = camera_protocol[camera_protocol['Type']==stim].set_index('Type').loc[:,ela_time]
+
+# 	return protocol[protocol.notna().all(axis=1)]
+
+
+def merge_camera_with_data(data, camera):
+
+	# Further this is used to order the columns.
+	# data_cols_order = camera.columns.to_list() + data.columns[1:].to_list()
+
+	data = pd.merge_ordered(data, camera, on=frame_id, how='inner')
+	# .drop_duplicates(abs_time, keep='first')
+
+	data[frame_id] -= data[frame_id].iat[0]
+
+	# #* Order the columns.
+	# data = data[data_cols_order]
+
+
+	return data
+
+
+
+def lost_stim(number_cycles, number_reinforcers, min_number_cs_trials, min_number_us_trials, protocol_info_path, fish_name, id_debug):
+
+	if number_cycles < min_number_cs_trials:
+
+		save_info(protocol_info_path, fish_name, 'Not all CS! Stopped at CS {} ({}).'.format(number_cycles, id_debug))
+
+		return True
+
+	elif number_reinforcers < min_number_us_trials:
+		
+		save_info(protocol_info_path, fish_name, 'Not all US! Stopped at US {} ({}).'.format(number_reinforcers, id_debug))
+
+		return True
+	else:
+		return False
+
+def plot_protocol(cs_dur, cs_isi, us_dur, us_isi, fish_name, fig_protocol_name):
+
+	plt.figure(figsize=(14,14))
+	plt.plot(np.arange(1, len(cs_isi) + 1), cs_isi, label='inter-cs interval\nmin int.=' + str(round(np.amin(cs_isi)*60,1)) + ' s\n' + 'cs min dur=' + str(round(np.amin(cs_dur)/1000,3)) + ' s\n' + 'cs max dur=' + str(round(np.amax(cs_dur)/1000,3)) + ' s')
+	
+	plt.plot(np.arange(5, 4+len(us_isi)+1), us_isi, label='inter-us interval\nmin int.=' + str(round(np.amin(us_isi)*60,1)) + ' s\n' + 'us min dur=' + str(round(np.amin(us_dur)/1000,3)) + 's\n' + 'us max dur='+ str(round(np.amax(us_dur)/1000,3)) + ' s')
+	plt.xlabel('Trial number')
+	plt.ylabel('ISI (min)')
+	plt.ylim(0, 10)
+	plt.legend(frameon=False, loc='upper center', ncol=2)
+	plt.suptitle('Summary of protocol\n' + fish_name)
+	plt.savefig(fig_protocol_name, dpi=100, bbox_inches='tight')
+	plt.close()
+
+# def number_frames_discard(data_path, reference_frame_id):
+# 	# Consider the experiment starts only whith the first frame whose ID is both in tail tracking and camera files.
+
+# 	with open(data_path, 'r') as f:
+# 		f.readline()
+# 		tracking_frames_to_discard = 0
+# 		while reference_frame_id != int(f.readline().split(' ')[0]):
+# 			tracking_frames_to_discard += 1
+
+# 	return tracking_frames_to_discard
+
+#def readTailTracking(data_path, protocol_frame, tracking_frames_to_discard, time_bcf_window, time_max_window, time_min_window, time_bef_frame, time_aft_frame):
+	#	# protocol in number of frames
+
+
+	#	start = timer()
+	#	extra_time_window = np.max([time_bcf_window, time_max_window, time_min_window])
+
+	#	protocol_frame += tracking_frames_to_discard
+	#	protocol_frame[beg] = protocol_frame[beg] + time_bef_frame- 2*extra_time_window
+	#	protocol_frame[end] = protocol_frame[end] + time_aft_frame + 2*extra_time_window
+
+	#	number_frames = protocol_frame[end].max()
+	#	rows_to_skip = []
+	#	number_rows = None
+	#	for i in range(len(protocol_frame)):
+	#		if i == 0:
+	#			# 1 is required to avoid removing the names of the columns
+	#			rows_to_skip.extend(np.arange(1, protocol_frame.iat[i,0]))
+	#		else:
+	#			if (b:= protocol_frame[beg].iat[i]) - (a:= protocol_frame[end].iloc[:i].max()) > 0:
+	#				rows_to_skip.extend(np.arange(a, b))
+
+	#	# frames = np.arange(reference_frame_id - tracking_frames_to_discard, last_frame)
+	#	# # frames = pd.read_csv(data, sep=' ', usecols=[0], decimal=',', dtype='int64', engine='c', squeeze=True)
+	#	# # frames -= reference_frame_id
+
+	#	# mask_frames = np.zeros(len(frames), dtype=bool)
+
+	#	# for i in range(len(protocol)):
+	#	# 	mask_frames |= ((frames >= protocol.iat[i,0]) & (frames <= protocol.iat[i,1]))
+
+	#	# rows_to_skip = np.arange(len(mask_frames))[~mask_frames]+1
+	#	number_rows = number_frames - len(rows_to_skip)
+		
+	#	data = pd.read_csv(data_path, sep=' ', header=0, usecols=cols_to_use_orig, nrows=number_rows, skiprows=rows_to_skip, decimal=',')
+		
+	#	print(timer()-start)
+		
+	#	return data
+
+
+
+def read_tail_tracking_data(data_path):
+
+	# Angles in data come in radians.
+
+	try:
+		
+		start = timer()
+		
+		data = pd.read_csv(data_path, engine='pyarrow', sep=' ', usecols=cols_to_use_orig, header=0, decimal='.', na_filter=False, names=[time_experiment_f]+data_cols)
+		# dtype=dict(zip(cols_to_use_orig, ['int64'] + ['float32']*len(cols_to_use_orig))))
+		# skipfooter=1
+		data = data.iloc[:-1,:]
+		
+		#* Right now, pyarrow engine ignores renaming when opening the csv.
+		data.rename(columns=dict(zip(cols_to_use_orig, [frame_id] + data_cols)), inplace=True)
+
+		print('Time to read tail tracking .txt: {} (s)'.format(timer()-start))
+
+
+		#? maybe before this was necessary because "decimal" in pd.read_csv was set to ",".
+		#* Even if decimal separator is wrong, this will correct it.
+		# data.iloc[:,1:] = data.iloc[:,1:].astype('float32')
+
+		#* Convert tail tracking data from radian to degree
+		data.loc[:,angle_cols] *= (180/np.pi)
+		
+		return data
+
+	except:
+#TODO
+		# f.save_info(protocol_info_path, self.metadata.name, 'Tail tracking might be corrupted!')
+		return None
+
+
+
+
+
+
+
+def tracking_errors(data, single_point_tracking_error_thr = single_point_tracking_error_thr):
+
+	if ((a := data.loc[:,1:].abs().max()) > single_point_tracking_error_thr).any():
+		print('Possible tracking error! Max(abs(angle of individual point)): ')
+		print(a)
+
+		return True
+
+	elif data.iloc[:,1:].isna().to_numpy().any():
+		print('Possible tracking failures. There are NAs in data!')
+
+		return True
+
+	else:
+		return False
+
+
+
+
+
+def interpolate_data(data, predicted_framerate, expected_framerate=expected_framerate):
+	# expected_framerate is the framerate to which data is interpolated. So, output data is as if it had been acquired at the expected_framerate (700 FPS when I wrote this).
+
+	data_ = data.copy()
+
+	#* Interpolate tail tracking data to the expected framerate.
+
+	data_[frame_id] *= expected_framerate/predicted_framerate
+
+	data_.rename(columns={frame_id : time_experiment_f}, inplace=True)
+
+	interp_function = interpolate.interp1d(data_[time_experiment_f], data_.drop(columns=time_experiment_f), kind='slinear', axis=0, assume_sorted=True, bounds_error=False, fill_value="extrapolate")
+
+	data = pd.DataFrame(np.arange(data_[time_experiment_f].iat[0], data_[time_experiment_f].iat[-1]), columns=[time_experiment_f])
+
+	data[data_.drop(columns=time_experiment_f).columns] = interp_function(data[time_experiment_f])
+
+	return data
+
+
+
+
+
+
+def rolling_window(a, window):
+
+	#* Alexandre Laborde confirmed this.
+	shape = a.shape[:-1] + (a.shape[-1] - window + 1, window)
+	strides = a.strides + (a.strides[-1],)
+	return np.lib.stride_tricks.as_strided(a, shape=shape, strides=strides)
+
+def filter_data(data, space_bcf_window=space_bcf_window, time_bcf_window=time_bcf_window):
+
+
+	data_ = data[angle_cols].copy()
+
+	#* Calculate the cumulative sum in space.
+	data_[angle_cols] = data_[angle_cols].cumsum(axis=1)
+
+	#* Filter with a rolling average in space.
+	# This option is too slow. Using the transpose is also slow.
+	# data_[angle_cols] = data_[angle_cols].rolling(window=space_bcf_window, center=True, axis=1).mean()
+	#! Alexandre Laborde confirmed this.
+	# Not using pandas rolling mean beacause over columns it takes a lot of time (confirmed that with this way the result is the same)
+	# The fact that here we are using the cumsum means that when averaging more importance is given to the first points
+	data_[angle_cols[1:-1]] = np.mean(rolling_window(data_[angle_cols].to_numpy(), space_bcf_window), axis=2)
+	# data_.iloc[:, 2:-1] = np.mean(rolling_window(data_.iloc[:, 1:].to_numpy(), space_bcf_window), axis=2)
+	data_[angle_cols[0]] = data_[angle_cols[:3]].mean(axis=1)
+	# data_.iloc[:, 1] = data_.iloc[:, 1:3].mean(axis=1)
+	data_[angle_cols[-1]] = data_[angle_cols[-2:]].mean(axis=1)
+	# data_.iloc[:, -1] = data_.iloc[:, -2:].mean(axis=1)
+
+	#* Filter with a rolling average in time.
+	data_[angle_cols] = data_[angle_cols].rolling(window=time_bcf_window, center=True, axis=0).mean()
+
+	#* Update data with the values changed in data_.
+	data[angle_cols] = data_
+
+	data = data.dropna()
+
+	data[time_experiment_f] -= data[time_experiment_f].iat[0]
+
+	data = data.set_index(time_experiment_f)
+
+	print('Max tail angle at the chosen point: {} deg'.format(round(data.loc[:,tail_angle].max())))
+
+
+	
+# TODO might want to test Adrien's way of filtering data (from Megabouts)
+
+	# data[angle_cols] = data[angle_cols].cumsum(axis=1)
+
+	# from sklearn.decomposition import PCA
+	# from scipy.signal import savgol_filter
+
+	# pca = PCA(n_components=4)
+	# low_D = pca.fit_transform(data[angle_cols])
+	# data[angle_cols] = pca.inverse_transform(low_D)
+
+	# data[angle_cols] = savgol_filter(data[angle_cols], window_length=11, polyorder=2, deriv=0, delta=1.0, axis=0, mode='interp', cval=0.0)
+
+
+	return data
+
+# def stim_in_data(data, protocol):
+# 	# , number_cycles, number_reinforcers, exp_type):
+
+# 	#region Merge protocol with data
+# 	data[cols_stim[:4]] = 0
+
+
+# 	# TODO case of Operant Conditioning.
+# 	#if exp_type == 'OC':
+
+# 		#data['Trial beg'] = 0
+# 		#data['Trial end'] = 0
+# 		#data['Reinforcer beg'] = 0
+# 		#data['Reinforcer end'] = 0
+	
+# 		#if protocol.index.isin(['Session']).any():
+		
+# 		#	# For operant conditioning experiments
+# 		#	data['Session beg'] = 0
+# 		#	data['Session end'] = 0
+
+# 		#	for i in range(number_blocks_plot):
+# 		#		data.loc[data.iloc[:,0] == protocol.loc['Session', beg].iat[i], 'Session beg'] = int(i + 1)
+# 		#		data.loc[data.iloc[:,0] == protocol.loc['Session', end].iat[i], 'Session end'] = int(i + 1)
+	
+# 		#if protocol.index.isin(['Trial']).any():
+		
+# 		#	# For operant conditioning experiments	
+# 		#	for i in range(number_trials_plot):
+# 		#		data.loc[data.iloc[:,0] == protocol.loc[trial, beg].iat[i], 'Trial beg'] = int(i + 1)
+# 		#		data.loc[data.iloc[:,0] == protocol.loc[trial, end].iat[i], 'Trial end'] = int(i + 1)
+
+# 		#	data['Cycle beg'] = 0
+# 		#	data['Cycle end'] = 0
+
+# 		#	for i in range(number_cycles):
+			
+# 		#		data.loc[data.iloc[:,0] == protocol.loc['Cycle', beg].iat[i], 'Cycle beg'] = int(i + 1)
+# 		#		data.loc[data.iloc[:,0] == protocol.loc['Cycle', end].iat[i], 'Cycle end'] = int(i + 1)
+		
+# 		#else:
+# 		#	for i in range(number_cycles):
+# 		#		data.loc[data.iloc[:,0] == protocol.loc['Cycle', beg].iat[i], 'Trial beg'] = int(i + 1)
+# 		#		data.loc[data.iloc[:,0] == protocol.loc['Cycle', end].iat[i], 'Trial end'] = int(i + 1)
+		
+# 		#if protocol.index.isin(['Reinforcer']).any():
+# 		#	for i in range(number_reinforcers):
+# 		#		data.loc[data.iloc[:,0] == protocol.loc['Reinforcer', beg].iat[i], 'Reinforcer beg'] = int(i + 1)
+# 		#		data.loc[data.iloc[:,0] == protocol.loc['Reinforcer', end].iat[i], 'Reinforcer end'] = int(i + 1)
+	
+# 	# 	data['Session beg', 'Trial beg', 'Cycle beg', 'Reinforcer beg', 'Session end', 'Trial end', 'Cycle end', 'Reinforcer end'] = data['Session', trial, 'Cycle', 'Reinforcer'].astype('category')
+
+# 	#if exp_type != 'OC':	
+
+# 	for i, [cs_b, cs_e] in enumerate(protocol.loc['Cycle', [beg, end]].to_numpy()):
+# 		# print('hi')
+# 		data.loc[data.iloc[:,0].astype('int') == cs_b, cs_beg] = int(i + 1)
+# 		data.loc[data.iloc[:,0].astype('int') == cs_e, cs_end] = int(i + 1)
+		
+# 	if protocol.index.isin(['Reinforcer']).any():
+
+# 		for i, [us_b, us_e] in enumerate(protocol.loc['Reinforcer', [beg, end]].to_numpy()):
+# 			data.loc[data.iloc[:,0].astype('int') == us_b, us_beg] = int(i + 1)
+# 			data.loc[data.iloc[:,0].astype('int') == us_e, us_end] = int(i + 1)
+
+
+# 	# data.loc[:,cols_stim[:4]] = data.loc[:,cols_stim[:4]].astype('category')
+# 	data.loc[:, cs_beg] = data.loc[:, cs_beg].astype(pd.api.types.CategoricalDtype(categories=data[cs_beg].unique().sort(), ordered=True))		
+# 	data.loc[:, us_beg] = data.loc[:, us_beg].astype(pd.api.types.CategoricalDtype(categories=data[us_beg].unique().sort(), ordered=True))
+# 	data.loc[:, cs_end] = data.loc[:, cs_end].astype(pd.api.types.CategoricalDtype(categories=data[cs_end].unique().sort(), ordered=True))
+# 	data.loc[:, us_end] = data.loc[:, us_end].astype(pd.api.types.CategoricalDtype(categories=data[us_end].unique().sort(), ordered=True))
+
+# 	return data
+
+def plot_behavior_overview(data, fish_name, fig_behavior_name):
+	# data containing tail_angle.
+
+	# mask_frames = np.ones(number_frames + round(60*framerate), dtype=bool)
+	# mask_frames[:: round(framerate * 0.5)] = False
+	# mask_frames[0] = False
+	
+	# rows_to_skip = np.arange(number_frames + round(60*framerate))
+	# rows_to_skip = rows_to_skip[mask_frames]
+
+	# start = timer()
+
+	# overall_data = pd.read_csv(data, sep=' ', header=0, usecols=cols, skiprows=rows_to_skip, decimal=',')
+	# overall_data = overall_data.astype('float32')
+
+	# print(timer() - start)
+	plt.figure(figsize=(28, 14))
+	plt.plot(data[time_experiment_f]/expected_framerate/60/60, data[tail_angle], 'black')
+	plt.xlabel('Time (h)')
+	plt.ylabel('Tail end angle (deg)')
+	plt.suptitle('Behavior overview\n' + fish_name)
+	# plt.show()
+	# plt.legend(frameon=False, loc='upper center', ncol=2)
+	plt.savefig(fig_behavior_name, dpi=100, bbox_inches='tight', fig_size=(15, 5))
+	plt.close()
+
+def extract_data_around_stimuli(data, protocol_frame, time_bef_frame, time_aft_frame, time_bcf_window, time_max_window, time_min_window):
+
+	# protocol_frame is the protocol in number of frames.
+	# protocol_frame sorted by beg and in number of frames.
+	# Only save data around the stimuli.
+
+
+	extra_time_window = np.max([time_bcf_window, time_max_window, time_min_window])
+
+	protocol_frame[beg] = protocol_frame[beg] + time_bef_frame - 2*extra_time_window
+	protocol_frame[end] = protocol_frame[end] + time_aft_frame + 2*extra_time_window
+
+	# rows_to_skip contains the line numbers with data belonging to frames between trials and not within each trial time span (-time_bef to time_aft referenced to stim).
+	rows_to_skip = np.arange(protocol_frame.iat[0,0]).tolist()
+	# For each stimulus, check if the beginning of the trial of stimulus 'i' happens after or before of the end of the previous trials. Remember that protocol contains the stimuli order by their beginning.
+	for i in range(1, len(protocol_frame)):
+		if (b:= protocol_frame[beg].iat[i]) - (a:= protocol_frame[end].iloc[:i].max()) > 0:
+			rows_to_skip.extend(np.arange(a, b).tolist())
+
+	# errors='ignore' to ignore if rows_to_skip includes line numbers of lines that are already not present in data, instead of showing an error.
+	data.drop(index=rows_to_skip, errors='ignore', inplace=True)
+
+	return data
+
+
+def identify_bouts(data, time_min_window=time_min_window, time_max_window=time_max_window, bout_detection_thr_1=bout_detection_thr_1, min_bout_duration=min_bout_duration, min_interbout_time=min_interbout_time, bout_detection_thr_2=bout_detection_thr_2):
+
+	data = data.copy()
+
+	def vigor_for_bout_detection(data, time_min_window, time_max_window):
+		# Calculate 'vigor_bout_detection' (deg/ms)
+		#! JUST TRY THIS
+		#! data.loc[:, vigor_bout_detection] = (data.iloc[:,1:2+chosen_tail_point].diff(axis=1).diff().rolling(window=7, center=True, axis=0).mean() * expected_framerate / 1000).pow(2).sum(axis=1)
+
+		#* Calculate the cumulative sum of the angular velocity over space.
+		#* This allows to take into account movement in any segment with a single scalar value.
+		vigor = data[data_cols].diff().abs().sum(axis=1) * (expected_framerate / 1000) # deg/ms
+		
+		#* Calculate the abstract measure defined by me as 'vigor_bout_detection'.
+		vigor = vigor.rolling(window=time_max_window, center=True, axis=0).max() - vigor.rolling(window=time_min_window, center=True, axis=0).min()
+		
+		# vigor.dropna(inplace=True)
+
+		return vigor
+
+
+	#* Use the derivative to find the beginning and end of bouts.
+	def bouts_beg_and_end(bouts):
+		bouts_beg = np.where(np.diff(bouts) > 0)[0] + 1
+		bouts_end = np.where(np.diff(bouts) < 0)[0]
+		return bouts_beg, bouts_end
+
+	vigor = vigor_for_bout_detection(data, time_min_window, time_max_window)
+
+
+	#* For each timepoint, bouts indicates whether it belongs to a bout or not.
+	# It cannot be initialized to an array of nan because of the derivative calculated below.
+	bouts = np.zeros(len(vigor))
+
+
+	# bouts[0] and bouts[-1] = 0 to account for cases when the period under analysis starts in the middle of a bout or finishes in the middle of a bout.
+	bouts[1:-1][vigor.iloc[1:-1] >= bout_detection_thr_1] = 1
+
+
+	bouts_beg, bouts_end = bouts_beg_and_end(bouts)
+
+
+	# In principle, the line where we used bouts[1:-1] does not allow to enter in the else part.
+	if len(bouts_beg) == len(bouts_end):
+		bouts_interval = bouts_beg[1:] - bouts_end[:-1]
+	else:
+		print('bouts_beg and end have diff len')
+
+
+	#* Join bouts close in time after finding the interbout intervals too short.
+	for short_interval_bout in reversed(np.where(bouts_interval < min_interbout_time)[0]):
+		# if short_interval_bout < len(bouts) - 1:
+		bouts[bouts_end[short_interval_bout] + 1 : bouts_beg[short_interval_bout + 1]] = 1
+
+
+	bouts_beg, bouts_end = bouts_beg_and_end(bouts)
+
+
+	#* Find bouts too short and remove them.
+	for short_bouts in np.where(bouts_end - bouts_beg < min_bout_duration)[0]:
+
+		bouts[bouts_beg[short_bouts] : bouts_end[short_bouts] + 1] = 0
+
+
+	bouts_beg, bouts_end = bouts_beg_and_end(bouts)
+
+
+	#* Filter by maximum tail angle of each tail movement.
+	# bouts_max = np.zeros_like(bouts_beg)
+
+	for bout_b, bout_e in zip(bouts_beg, bouts_end):
+	
+		# Angular velocity is converted to deg/ms.
+		if data.iloc[bout_b : bout_e + 1, data.columns.get_loc(tail_angle)].diff().abs().max() * (expected_framerate / 1000) < bout_detection_thr_2:
+			bouts[bout_b : bout_e + 1] = 0
+
+	data[bout] = bouts
+
+	data[bout] = data[bout].astype('Sparse[bool]')
+
+	return data
+
+
+
+def findStim(data):
+
+	def correct_stim_array(stim_beg, stim_end):
+
+		if len(stim_beg) > 0 or len(stim_end) > 0:
+
+			if (len(stim_beg) > 0 and len(stim_end) == 0):
+				stim_end = np.append(stim_end, data.loc[data.index[-1], time_trial_s])
+
+			if (len(stim_beg) == 0 and len(stim_end) > 0):
+				stim_beg = np.append(data.loc[data.index[0], time_trial_s], stim_beg)
+
+			if (stim_end[0] < stim_beg[0]):
+				stim_beg = np.append(data.loc[data.index[0], time_trial_s], stim_beg)
+							
+			if (stim_end[-1] < stim_beg[-1]):
+				stim_end = np.append(stim_end, data.loc[data.index[-1], time_trial_s])
+
+		return stim_beg, stim_end
+
+
+	# Time needs to be in data's first column.
+
+	cs_beg_array = data.loc[data[cs_beg] != 0, data.columns[0]].to_numpy()
+	cs_end_array = data.loc[data[cs_end] != 0, data.columns[0]].to_numpy()
+
+	us_beg_array = data.loc[data[us_beg] != 0, data.columns[0]].to_numpy()
+	us_end_array = data.loc[data[us_end] != 0, data.columns[0]].to_numpy()
+
+
+
+	#* Correct when the beg or end of a block happens while there is a stim going on.
+	result = [correct_stim_array(stim_beg, stim_end) for stim_beg, stim_end in [(cs_beg_array, cs_end_array), (us_beg_array, us_end_array)]]
+
+	return result[0][0], result[0][1], result[1][0], result[1][1]
+
+
+def findEvents(data, event_beg, event_end):
+
+	def correctEventArray(e_beg, e_end):
+
+		if len(e_beg) > 0 or len(e_end) > 0:
+
+			if (len(e_beg) > 0 and len(e_end) == 0):
+				e_end = np.append(e_end, data.loc[data.index[-1], data.columns[0]])
+
+			if (len(e_beg) == 0 and len(e_end) > 0):
+				e_beg = np.append(data.loc[data.index[0], data.columns[0]], e_beg)
+
+			if (e_end[0] < e_beg[0]):
+				e_beg = np.append(data.loc[data.index[0], data.columns[0]], e_beg)
+							
+			if (e_end[-1] < e_beg[-1]):
+				e_end = np.append(e_end, data.loc[data.index[-1], data.columns[0]])
+
+		return e_beg, e_end
+
+
+	# Time needs to be in data's first column.
+
+	e_beg_array = data.loc[data[event_beg] != 0, data.columns[0]].to_numpy()
+	e_end_array = data.loc[data[event_end] != 0, data.columns[0]].to_numpy()
+
+	return correctEventArray(e_beg_array, e_end_array)
+
+
+
+
+def plot_cropped_experiment(data, expected_framerate, bout_detection_thr_1, bout_detection_thr_2, downsampling_step, fish_name, fig_cropped_exp_with_bout_detection_name):
+
+	data = data.copy()
+
+	# Convert time to s.
+	data.iloc[:,0] = data.iloc[:,0] / expected_framerate
+
+
+	# # Stimuli beg and end need to be read from data as there were a few changes to data after applying stim_in_data function.
+	# cs_beg_array = data.loc[data[cs_beg] != 0, data.columns[0]].to_numpy()
+	# cs_end_array = data.loc[data[cs_end] != 0, data.columns[0]].to_numpy()
+
+	# us_beg_array = data.loc[data[us_beg] != 0, data.columns[0]].to_numpy()
+	# us_end_array = data.loc[data[us_end] != 0, data.columns[0]].to_numpy()
+
+	# if len(cs_end_array) < len(cs_beg_array):
+	# 	cs_end_array.extend([data.iat[-1,0]])
+
+	# if len(us_end_array) < len(us_beg_array):
+	# 	us_end_array.extend([data.iat[-1,0]])
+
+#!!!!!!!!!!
+	cs_beg_array, cs_end_array, us_beg_array, us_end_array = findStim(data)
+
+
+	bouts_beg_array = data.loc[data[bout_beg], data.columns[0]].to_numpy()
+	bouts_end_array = data.loc[data[bout_end], data.columns[0]].to_numpy()
+
+	trial_transition = np.where(np.diff(data.index) > 1)[0]
+	# np.where(data.iloc[:,0].diff() > 1)[0]
+	trial_transition = data.iloc[trial_transition-1,0].to_numpy() # / expected_framerate
+
+	# data_plot = deepcopy(data.iloc[::downsampling_step, :])
+	data = data.iloc[::downsampling_step, :]
+
+
+	x = data.iloc[:,0] #/ expected_framerate
+
+	fig = make_subplots(specs=[[{'secondary_y': True}]])
+
+	fig.add_scatter(x=x, y=data.loc[:, tail_angle], name='bcf-time bcf-space cumsum angle [point {}]'.format(chosen_tail_point), mode='lines', line_color='black', opacity=0.7, secondary_y=True,)
+
+	fig.add_scatter(x=x, y=data.loc[:, tail_angle].diff().abs() * expected_framerate/1000, name='Abs velocity [point {}]'.format(chosen_tail_point), mode='lines', line_color='rgb'+str(tuple(us_color)), opacity=0.7, visible='legendonly')
+
+	fig.add_scatter(x=x, y=data.loc[:, vigor_bout_detection], name='Vigour', mode='lines', line_color='blue', opacity=0.7, visible='legendonly', legendgroup='Vigour')
+
+	if camera_value in data.columns:
+
+		fig.add_scatter(x=x, y=data.loc[:, camera_value], name='Camera', mode='lines', line_color='red', opacity=0.7, visible='legendonly')
+	
+	if galvo_value in data.columns:
+
+		fig.add_scatter(x=x, y=data.loc[:, galvo_value], name='Galvo', mode='lines', line_color='purple', opacity=0.7, visible='legendonly')
+
+	if photodiode_value in data.columns:
+
+		fig.add_scatter(x=x, y=data.loc[:, photodiode_value]*150, name='Photodiode', mode='lines', line_color='brown', opacity=0.7, visible='legendonly')
+
+	if arduino_value in data.columns:
+
+		fig.add_scatter(x=x, y=data.loc[:, arduino_value].diff(), name='Arduino', mode='lines', line_color='darkyellow', opacity=0.7, visible='legendonly')
+
+
+
+	# Make shapes for the plots
+	shapes = [go.layout.Shape(type='line', xref='x', x0=trial, x1=trial, yref='paper', y0=0, y1=1, opacity=0.7, line_width=1, fillcolor='gray') for trial in trial_transition]
+
+
+	# if not data[data['Bout beg']].empty:
+	# for bout in range(len(bouts_beg)):
+	for bout_b, bout_e in zip(bouts_beg_array, bouts_end_array):
+
+		shapes.append(go.layout.Shape(type='rect', xref='x', x0=bout_b, x1=bout_e, yref='paper', y0=0, y1=1, opacity=0.3, line_width=0, fillcolor='lightgray'))
+		# fig.add_vrect(x0=bouts_beg[bout], x1=bouts_end[bout], opacity=0.3, line_width=0, fillcolor='lightgray')
+
+	shapes.append(go.layout.Shape(type='line', xref='paper', x0=0, x1=1, yref='y', y0=bout_detection_thr_1, y1=bout_detection_thr_1,
+	opacity=0.5, line_width=1, fillcolor='gray', line_dash='dash'))
+
+	shapes.append(go.layout.Shape(type='line', xref='paper', x0=0, x1=1, yref='y', y0=bout_detection_thr_2, y1=bout_detection_thr_2,
+	opacity=0.5, line_width=1, fillcolor='gray', line_dash='dot'))
+
+	# fig.add_hline(y=bout_detection_thr_1, opacity=0.5, line_width=1, fillcolor='gray', line_dash='dash')
+	# fig.add_hline(y=bout_detection_thr_2, opacity=0.5, line_width=1, fillcolor='gray', line_dash='dot')
+
+	for cs_b, cs_e in zip(cs_beg_array, cs_end_array):
+
+		shapes.append(go.layout.Shape(type='rect', xref='x', x0=cs_b, x1=cs_e, yref='paper', y0=0, y1=1, opacity=0.4, line_width=0, fillcolor='rgb' + str(tuple(cs_color))))
+		# fig.add_vrect(x0=cs_beg_, x1=cs_end_, opacity=0.4, line_width=0, fillcolor=cs_color)
+
+	# for stim in range(len(cs_beg_array)):
+
+		# cs_beg_ = cs_beg_array[stim]
+		# # cs_end_array = data.loc[data['cs'] == t, data.columns[0]].iloc[-1]
+		# cs_end_ = cs_end_array[stim]
+
+		# shapes.append(go.layout.Shape(type='rect', xref='x', x0=cs_beg_, x1=cs_end_, yref='paper', y0=0, y1=1, opacity=0.4, line_width=0, fillcolor=cs_color))
+		# # fig.add_vrect(x0=cs_beg_, x1=cs_end_, opacity=0.4, line_width=0, fillcolor=cs_color)
+
+	for us_b, us_e in zip(us_beg_array, us_end_array):
+
+		shapes.append(go.layout.Shape(type='rect', xref='x', x0=us_b, x1=us_e, yref='paper', y0=0, y1=1, opacity=0.4, line_width=0, fillcolor='rgb' + str(tuple(us_color))))
+		# fig.add_vrect(x0=us_beg_, x1=us_end_, opacity=0.4, line_width=0, fillcolor=us_color)	
+
+	# for stim in range(len(us_beg_array)):
+
+		# us_beg_ = us_beg_array[stim]
+		# # us_end_array = data.loc[data['us'] == t, data.columns[0]].iloc[-1]
+		# us_end_ = us_end_array[stim]
+
+		# shapes.append(go.layout.Shape(type='rect', xref='x', x0=us_beg_, x1=us_end_, yref='paper', y0=0, y1=1, opacity=0.4, line_width=0, fillcolor=us_color))
+		# # fig.add_vrect(x0=us_beg_, x1=us_end_, opacity=0.4, line_width=0, fillcolor=us_color)
+
+	fig.update_layout(height=1000, width=2000, showlegend=True, plot_bgcolor='rgba(0,0,0,0)', title_text='Behavior before cleaning data, downsampled 5X        ' + fish_name, legend=dict(yanchor='top',y=1,xanchor='left',x=0, bgcolor='white'), shapes=shapes)
+
+	# paper_bgcolor='rgba(0,0,0,0)',
+
+	fig.update_xaxes(title='t (s)', showgrid=False, automargin=True,)
+
+	fig.update_yaxes(title='Velocity or vigor (deg/ms)', showgrid=False, zeroline=False, zerolinecolor='black', automargin=False, range=[0, 20], secondary_y=False,)	
+
+	fig.update_yaxes(title='Angle (deg)', showgrid=False, zeroline=False, zerolinecolor='black', automargin=False, range=[-200, 200], secondary_y=True,)
+
+	py.io.write_html(fig=fig, file=fig_cropped_exp_with_bout_detection_name, auto_open=False)
+
+def clean_data(data):
+
+	# We should not set the angles to 0 deg because of subsequent steps.
+	data.loc[~data[bout], data.columns[1:2+chosen_tail_point]] = np.nan
+
+	# Previous version
+
+			# mask_with_lines_to_keep_bout = np.array([False] * len(data))
+
+			# bouts_beg = data.iloc[:,0].iloc[np.where(data['Bout beg'])[0]].to_numpy()
+			# bouts_end = data.iloc[:,0].iloc[np.where(data['Bout end'])[0]].to_numpy()
+
+
+			# if not data[data['Bout beg']].empty:
+			# 	for bout in range(len(bouts_beg)):
+					
+			# 		mask_with_lines_to_keep_bout += ((data.iloc[:,0] >= bouts_beg[bout]) & (data.iloc[:,0] <= bouts_end[bout])).to_numpy()
+	
+
+			# # We should not set the angles to 0 deg...
+			# data.loc[~mask_with_lines_to_keep_bout, cols[1:]] = np.nan
+
+	data.drop(columns=vigor_bout_detection, inplace=True)
+
+	# data[cols[1:]] = data[cols[1:]].astype(pd.SparseDtype('float32', np.nan))
+	# # Need to do this again as the previous operation seems to change the dtype to int32.
+	# data[cols_stim] = data[cols_stim].astype(pd.SparseDtype('int8', 0))
+
+	return data
+
+# def calculate_tail_vigor(data, cols, chosen_tail_point, expected_framerate):
+	
+	# data[vigor] = data[cols[1:1+chosen_tail_point]].diff().abs().sum(axis=1) * (expected_framerate / 1000) # deg/ms
+	# # data[vigor] = data[vigor].astype(pd.SparseDtype('float32', 0))
+	
+	# # Discard the columns with the angle data used to calculate the vigor.
+	# # data.drop(cols[1:], axis=1, inplace=True)
+
+	# # data[bout] = data[vigor] > 0
+	# # data.loc[data[vigor] > 0, bout] = True
+
+	# return data
+
+# def identify_trials_old(data, time_bef_frame, time_aft_frame):
+
+# 	trials_list = []
+
+# 	for cs_us in ['CS', 'US']:
+
+# 		cs_us_beg = cs_us + ' beg'
+
+# 		trials_csus = data.loc[data[cs_us_beg] != 0, cs_us_beg].unique()
+# 		# trials_csus = data.loc[data[cs_us_beg] > 0, cs_us_beg].unique()
+
+# 		for t in trials_csus:
+
+# 			# trial_beg = trial_reference + time_bef_frame# time_bef_ms / 1000
+# 			# # trial_end in relation to cs_us_beg also because stimuli duration may slightly differ from number_trial to number_trial.
+# 			# trial_end = trial_reference + time_aft_frame # time_aft_ms / 1000 
+# 			trial_reference = data.loc[data[cs_us_beg] == t, data.columns[0]].to_numpy()[0]
+			
+# 			trial = data.loc[(data.iloc[:,0] >= trial_reference + time_bef_frame) & (data.iloc[:,0] <= trial_reference + time_aft_frame), :]
+			
+# 			# trial[time_trial] is not given by np.arange(time_bef_frame, time_aft_frame + 1) because there may be "incomplete' trials at the end (stopped before trial_reference + time_aft_frame).
+# 			# trial[[type_trial_csus, number_trial, time_trial]] = cs_us, str(t), np.arange(time_bef_frame, len(trial) + time_bef_frame)	
+# 			trial[[type_trial_csus, number_trial]] = cs_us, str(t)
+# 			trial[time_trial_f] = np.arange(time_bef_frame, len(trial) + time_bef_frame)
+# 			# 1000/expected_framerate
+
+# 			trials_list.append(trial)
+		
+# 	data = pd.concat(trials_list)
+
+# 	# data[vigor] = data[vigor].astype(pd.SparseDtype('float32', 0))
+# 	# data.loc[ : , number_trial] = data.loc[ : , number_trial].astype('category')
+# 	data[type_trial_csus] = data[type_trial_csus].astype('category')
+# 	# data.loc[ : , time_trial] = data.loc[ : , time_trial].astype('float32')
+
+# 	data.drop(data.columns[0], axis=1, inplace=True)
+
+# 		# To discard automatically fish.
+# 			#zero_bouts_trials = 0
+			
+# 			# trial = data.loc[data[number_trial] == t, :]
+
+# 			# Check that fish beats the tail before the us at least every few trials.
+# 			# if cs_us == 'us':
+# 			# 	if trial.loc[(trial[time_trial] > -numb_seconds_before_us*expected_framerate) & (trial[time_trial] < numb_seconds_after_us*expected_framerate) & (trial[vigor] > 0),:].empty:
+# 			# 		zero_bouts_trials += 1
+# 			# 		if zero_bouts_trials == max_numb_trials_no_bout_bef:
+# 			# 			print('!!! Quiet fish before and after us !!!  trial: ', t)
+# 			# 			lines.append(stem_fish_path + '\n\t' ' Quiet fish before and after cs ({} consecutive trials). last trial: {}\n'.format(max_numb_trials_no_bout_bef, t))
+
+# 			# 			skip = True
+# 			# 			break
+# 			# 	else:
+# 			# 		if zero_bouts_trials > 0:
+# 			# 			zero_bouts_trials = 0
+
+# 			# Check that fish always beats the tail after the us.
+# 			# else:
+# 			# 	if trial.loc[(trial[time_trial] > 0) & (trial[time_trial] < numb_seconds_after_us*expected_framerate) & (trial[vigor] > 0),:].empty:
+# 			# 		print('!!! Fish inactive after us !!!  trial: ', t)
+# 			# 		lines.append(stem_fish_path + '\n\t' ' Fish inactive after us. trial: {}\n'.format(t))
+
+# 			# 		skip = True
+# 			# 		break
+
+
+# 	return data
+
+
+
+def identify_blocks_trials(data, blocks_dict):
+
+	data[phase] = ''
+
+	for cs_us in [cs,us]:
+
+		blocks_csus = blocks_dict[cs_us]['elements']
+
+		for s_i, trials_in_s in enumerate(blocks_csus):
+
+			# if type(trials_in_s) is list:
+			data.loc[(data[type_trial_csus]==cs_us) & (data[number_trial].astype('int').isin([t for t in trials_in_s])), phase] = blocks_dict[cs_us]['names_elements'][s_i]
+			# s_i + 1
+
+			# In case of single trials and blocks_csus entries being scalars and not lists with a single entry.
+			# else:
+
+			# 	data.loc[data[number_trial] == str(trials_in_s), name_block] = s_i + 1
+
+
+		data[phase] = data[phase].astype(pd.api.types.CategoricalDtype(categories=blocks_dict[blocks][cs_us][names_trials_blocks_blocks], ordered=True))
+
+
+	return data
+
+
+# vigor_digested: Final = 'delta Vigour / Vigour (AU)'
+
+
+def calculate_digested_vigor(data):
+
+	data[vigor_digested] = 0
+
+	for stim in [cs, us]:
+
+		data_stim = deepcopy(data.loc[data[type_trial_csus]==stim])
+
+		for t in data_stim[number_trial].unique():
+
+			data_trial = data_stim.loc[data_stim[number_trial] == t]
+
+			mean_vigor_baseline_window = data_trial.loc[data_trial[time_trial_f].between(-baseline_window*expected_framerate, 0), vigor_raw].mean()
+
+
+			#* Kind of deltaF/F.
+			data_trial[vigor_digested] = (data_trial[vigor_raw] - mean_vigor_baseline_window) / mean_vigor_baseline_window
+
+
+			data_stim.loc[data_stim[number_trial] == t] = data_trial
+
+		data.loc[data[type_trial_csus]==stim] = data_stim
+
+	return data
+
+
+
+
+
+# def heatmapDataframe(data, downsampling_step):
+
+# 	data_heatmap = data.drop(cols_stim[:4]+[block_name], axis=1).pivot(index=time_trial_s, columns=number_trial).reset_index()
+
+
+# 	#* Downsample.
+# 	data_heatmap = 	data_heatmap.iloc[::downsampling_step]
+
+
+# 	return data_heatmap.set_index(time_trial_s).droplevel(0,axis=1).T
+
+
+
+
+
+
+
+
+def convert_time_from_frame_to_s(data):
+
+	data[time_trial_f] = data[time_trial_f] / expected_framerate # s
+	
+	return data.rename(columns={time_trial_f : time_trial_s})
+
+
+def convert_time_from_s_to_frame(data):
+
+	data[time_trial_s] = data[time_trial_s] * expected_framerate # frame
+	
+	data[time_trial_s] = data[time_trial_s].astype('int')
+	
+	return data.rename(columns={time_trial_s : time_trial_f})
+
+
+
+
+
+
+
+
+def suppression_ratio_pooled(data, metric, baseline_window, cr_window, segments_analysis, number_trial, cs_us):
+
+	#!!!!!!! Now only implemented for cs_us==cs.
+
+
+#!!!!!!!!!
+
+	# data[metric].fillna(0, inplace=True)
+ 
+
+	if cs_us == cs:
+
+		trials_bef_onset = data.loc[data[time_trial_s].between(-baseline_window, 0), :].groupby(number_trial, observed=True)[metric].agg('mean')
+
+		trials_aft_onset = data.loc[data[time_trial_s].between(0, cr_window), :].groupby(number_trial, observed=True)[metric].agg('mean')
+	
+	else:
+
+		trials_bef_onset = data.loc[data[time_trial_s].between(-baseline_window-cr_window, -cr_window), :].groupby(number_trial, observed=True)[metric].agg('mean')
+
+		trials_aft_onset = data.loc[data[time_trial_s].between(-cr_window, 0), :].groupby(number_trial, observed=True)[metric].agg('mean')
+
+#!!!!!!!!!!!!
+	# trials_aft_onset.fillna(0, inplace=True)
+
+
+
+	data_division_at_onset = pd.concat([trials_bef_onset, trials_aft_onset], axis=1)
+
+
+#!
+	# data_division_at_onset.fillna(0, inplace=True)
+
+
+
+
+	data_division_at_onset[segments_analysis[2]] = data_division_at_onset.iloc[:,1] / (data_division_at_onset.iloc[:,0] + data_division_at_onset.iloc[:,1])
+	# data_division_at_onset[segments_analysis[2]] = (data_division_at_onset.iloc[:,1] - data_division_at_onset.iloc[:,0]) / data_division_at_onset.iloc[:,0]
+	
+
+
+#!
+	# data_division_at_onset[segments_analysis[2]] = data_division_at_onset[segments_analysis[2]].fillna(0.5)
+	
+
+
+
+	data_division_at_onset.columns = segments_analysis
+
+	# data_division_at_onset = pd.concat([data_division_at_onset, data], axis=1).reset_index(number_trial)
+
+	return data_division_at_onset.reset_index(number_trial).sort_index()
+
+
+
+
+
+# def plotVigorHeatmap(data_heatmap, downsampling_step, cs_us, stim_dur, window_data_plot, interval_between_xticks):
+
+
+# 	if cs_us == cs:
+
+# 		color = cs_color
+
+# 		# fig, axs = plt.subplots(1, 1, facecolor='white')
+
+# 		# sns.heatmap(data_heatmap, cbar=False, robust=True, xticklabels=int(15*expected_framerate/downsampling_step), yticklabels=False, ax=axs, clip_on=False)
+
+
+# 	elif cs_us == us:
+
+# 		color = us_color
+
+# 	fig, axs = plt.subplots(1, 1, facecolor='white')
+
+# 	sns.heatmap(data_heatmap, cbar=False, robust=True, xticklabels=int(interval_between_xticks/downsampling_step), yticklabels=False, ax=axs, clip_on=False)
+
+# 	xlims = axs.get_xlim()
+# 	middle = np.mean(xlims)
+# 	factor = (xlims[-1] - xlims[0]) / (2*window_data_plot)
+
+# 	axs.axvline(middle, color=color, alpha=0.95, linewidth=1, linestyle='-')
+# 	axs.axvline(middle + stim_dur * factor, color=color, alpha=0.95, linewidth=1, linestyle='-')
+	
+# 	# axs.set_xbound(-40,40)
+# 	# axs.set_xticks(ticks=axs.get_xticks(), labels=np.arange(-baseline_window, baseline_window+1, interval_between_xticks))
+
+# 	axs.set_xlabel('Time relative to {} onset (s)'.format(cs_us))
+# 	axs.tick_params(axis='both', which='both', bottom=True, top=False, right=False, direction='out')number_cyclesnumber_reinforcersnumber_reinforcersnumber_reinforcersnumber_reinforcersnumber_reinforcersnumber_reinforcersnumber_reinforcersBDVS
+# 	# axs.set_title(cs_us, color=color, fontsize=14)
+
+# 	return fig, axs
+
+
+
+def setDtypesAndSortIndex(data):
+
+
+	#* Set the columns' dtypes.
+	data = data.astype({
+		time_trial_f:'int32',
+		cs_beg:	CategoricalDtype(categories=np.sort(data[cs_beg].unique()), ordered=True),
+		cs_end:	CategoricalDtype(categories=np.sort(data[cs_end].unique()), ordered=True),
+		us_beg:	CategoricalDtype(categories=np.sort(data[us_beg].unique()), ordered=True),
+		us_end:	CategoricalDtype(categories=np.sort(data[us_end].unique()), ordered=True),
+		# tail_angle:'float32',
+		vigor_raw:'float32',
+		# vigor_digested:'float32',
+		bout:'bool',
+		bout_beg:'bool',
+		bout_end:'bool'
+		}, copy=False)
+	
+
+
+	ind_list = []
+
+	for ind in data.index.names:
+		
+		ind_list.append(data.index.get_level_values(ind).astype('category'))
+
+	data.index = ind_list
+
+		# astype(pd.api.types.CategoricalDtype(categories=np.sort(data[col_s].unique()), ordered=True))
+
+
+	data.sort_index(inplace=True)
+
+	return data
+
+
+
+def firstPrep(data):
+
+	data[experiment] = data[experiment].astype(pd.api.types.CategoricalDtype(categories=data[experiment].unique(), ordered=True))
+	data[fish] = data[fish].astype(pd.api.types.CategoricalDtype(categories=data[fish].unique(), ordered=True))
+
+	return data
+
+
+def prepareData(data):
+
+	data[fish] = ['_'.join(i)  for i in data.index]
+	data.reset_index(experiment, inplace=True)
+	# data.reset_index(drop=True, inplace=True)
+	# data.loc[:, experiment] = data.loc[:, experiment]
+	
+	data = setDtypesAndSortIndex(data)
+
+	return data
+
+
+
+def change_block_names (data, blocks_csus, blocks_csus_names):
+
+	data.drop(columns=phase,inplace=True)
+
+	data[phase] = ''
+
+	for s_i, trials_in_s in enumerate(blocks_csus):
+
+		data.loc[(data[number_trial].astype('int').isin(trials_in_s)), phase] = blocks_csus_names[s_i]
+
+	data[phase] = data[phase].astype(pd.api.types.CategoricalDtype(categories=blocks_csus_names, ordered=True))
+
+	return data
